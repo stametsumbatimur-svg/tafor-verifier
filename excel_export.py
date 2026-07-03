@@ -8,7 +8,7 @@ from verification_logic import parse_sandi, hitung_angin_arah, hitung_angin_kec,
 def generate_lapbul_excel(df_hasil):
     """
     Fungsi pengisi Excel Matriks (Jam x Tanggal) yang kini dilengkapi dengan 
-    Rekapitulasi otomatis di bagian bawah jam ke-23 pada tiap sheet parameternya.
+    Rekapitulasi otomatis yang SUDAH DIPERLEBAR di bagian bawah jam ke-23.
     """
     df_hasil['Datetime'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'], errors='coerce')
     df_hasil['Tanggal'] = df_hasil['Datetime'].dt.day
@@ -27,7 +27,7 @@ def generate_lapbul_excel(df_hasil):
         fmt_miss = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_color': '#9C0006', 'bg_color': '#FFC7CE'})
         fmt_null = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
         
-        # Format baru khusus rekapitulasi di bawah matriks
+        # Format rekapitulasi di bawah matriks
         fmt_label_rekap = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'bold': True})
         fmt_val_rekap = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#D9D9D9'})
         fmt_pct_rekap = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#C6EFCE', 'num_format': '0.00"%"'})
@@ -75,8 +75,8 @@ def generate_lapbul_excel(df_hasil):
                     else:
                         for offset in range(4): ws.write(r, cs + offset, "-", fmt_null)
             
-            # --- FITUR BARU: BLOK REKAPITULASI MATRIKS DI SHEET AKTIF ---
-            r_rekap = 27  # Memberi jarak baris kosong di bawah jam 23 (Baris 26 kosong)
+            # --- PERBAIKAN: BLOK REKAPITULASI MATRIKS YANG DI-MERGE BIAR LEBAR ---
+            r_rekap = 27  
             b_cnt = (df_hourly[k_s] == "B").sum()
             s_cnt = (df_hourly[k_s] == "S").sum()
             tot = b_cnt + s_cnt
@@ -89,15 +89,14 @@ def generate_lapbul_excel(df_hasil):
                 "PROSENTASE KETELITIAN : "
             ]
             
-            # Menggabungkan Kolom JAM UTC sampai kolom TAFOR Tanggal 1 untuk wadah label rekap
             for i, label in enumerate(labels):
                 ws.merge_range(r_rekap + i, 0, r_rekap + i, 2, label, fmt_label_rekap)
                 
-            # Mencetak nilainya di kolom DEV Tanggal 1 (Index 3) agar lurus rapi
-            ws.write(r_rekap, 3, b_cnt, fmt_val_rekap)
-            ws.write(r_rekap + 1, 3, s_cnt, fmt_val_rekap)
-            ws.write(r_rekap + 2, 3, tot, fmt_val_rekap)
-            ws.write(r_rekap + 3, 3, pct, fmt_pct_rekap)
+            # Solusi Jitu: Nilai di-merge dari kolom index 3 sampai 5 (Diberi ruang 3 kolom penuh)
+            ws.merge_range(r_rekap, 3, r_rekap, 5, b_cnt, fmt_val_rekap)
+            ws.merge_range(r_rekap + 1, 3, r_rekap + 1, 5, s_cnt, fmt_val_rekap)
+            ws.merge_range(r_rekap + 2, 3, r_rekap + 2, 5, tot, fmt_val_rekap)
+            ws.merge_range(r_rekap + 3, 3, r_rekap + 3, 5, pct, fmt_pct_rekap)
                             
     return buffer
 
