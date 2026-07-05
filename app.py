@@ -5,11 +5,11 @@ import os
 import sqlite3
 from datetime import datetime
 from verification_logic import proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi
-from excel_export import generate_lapbul_excel, generate_form_2026
+from excel_export import generate_lapbul_excel, generate_form_2026, generate_logbook_excel
 
 st.set_page_config(page_title="TAFOR Verifier BMKG", layout="wide")
 st.title("✈️ TAFOR Verifier ✈️")
-st.write("Sistem Verifikasi METAR, SPECI, dan TAFOR")
+st.write("Sistem Verifikasi METAR, SPECI, dan TAFOR.")
 
 # ==========================================
 # DATABASE SQLITE PERMANEN
@@ -218,18 +218,15 @@ if 'diklik_proses' not in st.session_state: st.session_state['diklik_proses'] = 
 if 'df_hasil' not in st.session_state: st.session_state['df_hasil'] = None
 if 'df_speci_report' not in st.session_state: st.session_state['df_speci_report'] = None
 
-# DISPLAY ARCHIVE TREN
 df_tren_historis = ambil_tren_db()
 if not df_tren_historis.empty:
     st.subheader("📈 Tren Performa Stasiun Antar-Bulan (Memory Database)")
     st.line_chart(df_tren_historis.copy().set_index('bulan_tahun'), use_container_width=True)
 
-# SIDEBAR CONTROLS
 st.sidebar.header("🗓️ Filter Rentang Waktu")
 hari_ini = datetime.now().date()
 tanggal_pilihan = st.sidebar.date_input("Pilih Tanggal Mulai dan Selesai:", value=(hari_ini, hari_ini), key="rentang_tanggal")
 
-# 🔥 IMPLEMENTASI OPSI 1: GTS WATCHER AUTO-INGESTION (SIDEBAR)
 st.sidebar.markdown("---")
 st.sidebar.header("📁 Opsi 1: GTS Auto-Watcher")
 folder_lokal = st.sidebar.text_input("Jalur Folder Lokal (Jika Offline):", value="", placeholder="Contoh: C:/GTS_Data/")
@@ -243,12 +240,11 @@ if folder_lokal:
             if f.endswith(".csv"):
                 f_lower = f.lower()
                 full_p = os.path.join(folder_lokal, f)
-                if "metar" in f_lower: df_metar_raw = pd.read_csv(full_p); st.sidebar.caption(f"✅ METAR Auto: {f}")
-                elif "taf" in f_lower: df_taf_raw = pd.read_csv(full_p); st.sidebar.caption(f"✅ TAF Auto: {f}")
-                elif "speci" in f_lower: df_speci_raw = pd.read_csv(full_p); st.sidebar.caption(f"✅ SPECI Auto: {f}")
+                if "metar" in f_lower: df_metar_raw = pd.read_csv(full_p)
+                elif "taf" in f_lower: df_taf_raw = pd.read_csv(full_p)
+                elif "speci" in f_lower: df_speci_raw = pd.read_csv(full_p)
     else: st.sidebar.error("❌ Jalur folder tidak ditemukan!")
 
-# FALLBACK KOTAK UPLOADER MANUAL (JIKA FILE AUTO BELUM TERISI)
 col1, col2, col3 = st.columns(3)
 with col1: 
     file_m = st.file_uploader("1. Unggah CSV METAR", type=["csv"], key="metar")
@@ -273,7 +269,6 @@ if df_metar_raw is not None and df_taf_raw is not None and df_speci_raw is not N
                 st.session_state['diklik_proses'] = True
         except Exception as e: st.error(f"Gagal memproses data: {e}")
 
-# GERBANG TAMPILAN INTERFACE
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
     df_hasil = st.session_state['df_hasil']
     df_speci_report = st.session_state['df_speci_report']
@@ -285,7 +280,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     df_speci_filtered = df_speci_report[(df_speci_report['Datetime_Obj'] >= tgl_mulai) & (df_speci_report['Datetime_Obj'] <= tgl_selesai)].copy()
     
     if df_filtered.empty:
-        st.warning(f"⚠️ Tidak ditemukan data cuaca pada rentang kalender aktif ({tgl_mulai} s.d {tgl_selesai}). Sesuaikan tanggal filter di sidebar kiri.")
+        st.warning(f"⚠️ Tidak ditemukan data cuaca pada rentang kalender aktif ({tgl_mulai} s.d {tgl_selesai}).")
     else:
         st.success(f"✅ Sinkronisasi Sukses! Menampilkan Rentang: {tgl_mulai} s.d {tgl_selesai}")
         
@@ -313,10 +308,8 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 
         simpan_rekap_db(tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
 
-        # INTERFACE TAB PACK
         st.subheader(f"📊 Panel Analisis Akurasi Periode ({tgl_mulai} s.d {tgl_selesai})")
         
-        # 🔥 UPGRADE TABS: KELAHIRAN TAB 5 UNTUK BATAS KRITIS PENERBANGAN
         tab_matriks, tab_form, tab_speci, tab_error, tab_minima = st.tabs([
             "📊 Akurasi Matriks (Tiap Jam)", "📄 Rekapitulasi Verifikasi TAFOR", 
             "🟧 Audit Trail SPECI (Letupan Ekstrem)", "🎯 📊 Evaluasi & Performa Forecaster",
@@ -336,7 +329,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
             
         with tab_speci:
-            st.warning(f"### ⚡ Total Sampel Kejadian SPECI: {len(df_speci_filtered)} baris")
+            st.warning(f"### ⚡ Total Sampel Kejadian SPECI Terdeteksi: {len(df_speci_filtered)} baris")
             st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj']), use_container_width=True, hide_index=True)
             
         with tab_error:
@@ -366,9 +359,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.bar_chart(pd.DataFrame(s_rows).set_index("Regu Jaga / Shift")[["Akurasi (%)"]], use_container_width=True)
             
         with tab_minima:
-            # 🔥 IMPLEMENTASI OPSI 3: VISUALISASI MONITORING BATAS OPERATIONS MINIMA
-            st.subheader("✈️ 🚨 Analisis Batas Kritis Aviasi & Crosswind Runway 15/33 WATU")
-            
+            st.subheader("✈️ 🚨 Analisis Batas Kritis Aviasi & Crosswind")
             max_m_cw = df_filtered['M_Crosswind_Knot'].max()
             max_t_cw = df_filtered['T_Crosswind_Knot'].max()
             total_crit_rows = (df_filtered['Status_Minima'] == 'CRITICAL MINIMA').sum()
@@ -378,7 +369,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             cm2.metric("Maksimum Crosswind TAFOR (Ramalan)", f"{max_t_cw} Knot")
             cm3.metric("Total Jam Di Bawah Minima Bandara", f"{total_crit_rows} Jam")
             
-            st.write("\n**Grafik Tren Fluktuasi Komponen Crosswind Aktual vs Prakiraan:**")
             df_cw_chart = df_filtered.copy().set_index("Waktu Aktual (UTC)")[["M_Crosswind_Knot", "T_Crosswind_Knot"]]
             st.line_chart(df_cw_chart, use_container_width=True)
             
@@ -386,29 +376,33 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             if not df_only_crit.empty:
                 st.error(f"🔍 **Log Audit Trail Cuaca di Bawah Batas Minima Operasional Penerbangan ({len(df_only_crit)} Jam Terdeteksi):**")
                 st.dataframe(df_only_crit[['Waktu Aktual (UTC)', 'Sandi METAR Aktual', 'Sandi TAF Prakiraan', 'M_Vis', 'M_AwanJml', 'M_AwanTgi', 'M_Crosswind_Knot', 'Hasil Akhir']], use_container_width=True, hide_index=True)
-            else:
-                st.success("✅ Selama periode ini, tidak ada kondisi cuaca bandara yang menembus di bawah batas kritis keselamatan (*Alternate Minima*).")
 
         # --- EXPORT PACK ZONE ---
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
-        st.subheader("📥 Export Paket Dokumen Verifikasi")
+        st.subheader("📥 Export Paket Dokumen Verifikasi Resmi Stasiun")
         df_peg_list = ambil_semua_pegawai()
         opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
         pegawai_terpilih = st.selectbox("✒️ Pilih Pegawai Penandatangan:", opsi_pegawai)
         row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
         
-        c_dl1, c_dl2, c_dl3 = st.columns(3)
-        with c_dl1: st.download_button(label="1️⃣ Unduh Matriks Tiap Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"REKAP_MATRIKS_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-        with c_dl2: st.download_button(label="2️⃣ Unduh Verifikasi TAFOR (Excel)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        # 🔥 UPGRADE: Pembagian 4 Kolom Rapi untuk Mengakomodir Tombol Logbook Ke-4
+        c_dl1, c_dl2, c_dl3, c_dl4 = st.columns(4)
+        with c_dl1: 
+            st.download_button(label="1️⃣ Matriks Tiap Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"REKAP_MATRIKS_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        with c_dl2: 
+            st.download_button(label="2️⃣ Verifikasi TAFOR (Excel)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         with c_dl3:
             html_nota = generate_nota_dinas_html(str_m, str_s, akurasi_global_matriks, akurasi_global_form, rows_m, rows_f, len(df_speci_filtered), row_peg_terpilih['nama'], row_peg_terpilih['nip'], row_peg_terpilih['jabatan'])
-            st.download_button(label="📄 3️⃣ Cetak Nota Dinas", data=html_nota, file_name=f"NOTA_DINAS_VERIFIKASI_TAFOR_{str_m}.html", mime="text/html", use_container_width=True)
+            st.download_button(label="📄 3️⃣ Nota Dinas (html)", data=html_nota, file_name=f"NOTA_DINAS_VERIFIKASI_TAFOR_{str_m}.html", mime="text/html", use_container_width=True)
+        with c_dl4:
+            # 🔥 SUNTIKAN FITUR BARU: TOMBOL BUKU CATATAN DIGITAL RAW GTS 100% TANPA KOREKSI
+            st.download_button(label="📝 4️⃣ Buku Catatan Raw GTS (Excel)", data=generate_logbook_excel(df_filtered).getvalue(), file_name=f"BUKU_CATATAN_RAW_GTS_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 # ==========================================
-# 5. PANEL UTAMA CRUD MANAJEMEN DATA PEGAWAI
+# PANEL UTAMA CRUD MANAJEMEN DATA PEGAWAI
 # ==========================================
 st.markdown("---")
-with st.expander("👥 ⚙️ Manajemen Data Pegawai Pembuat Laporan"):
+with st.expander("👥 ⚙️ Manajemen Data Pegawai"):
     df_peg_crud = ambil_semua_pegawai()
     st.write("Daftar Pegawai Aktif Saat Ini di Database:")
     st.dataframe(df_peg_crud, use_container_width=True, hide_index=True)
@@ -441,7 +435,7 @@ with st.expander("👥 ⚙️ Manajemen Data Pegawai Pembuat Laporan"):
             opsi_del = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
             del_sel = st.selectbox("Pilih Pegawai yang Ingin Dihapus:", opsi_del)
             row_del = df_peg_crud.iloc[opsi_del.index(del_sel)]
-            if st.button("🚨 HAPUS PEGAWAI SEARA PERMANEN", type="primary"):
+            if st.button("🚨 HAPUS PEGAWAI SECARA PERMANEN", type="primary"):
                 hapus_pegawai(int(row_del['id']))
                 st.success("❌ Pegawai berhasil dihapus dari database stasiun! Silakan refresh halaman.")
         else: st.info("Data default stasiun tidak boleh dihapus demi keselamatan sistem.")
