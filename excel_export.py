@@ -7,8 +7,8 @@ from verification_logic import parse_sandi, hitung_angin_arah, hitung_angin_kec,
 
 def generate_lapbul_excel(df_hasil):
     """
-    Fungsi pengisi Excel Matriks (Jam x Tanggal) yang kini dilengkapi dengan 
-    Rekapitulasi otomatis yang SUDAH DIPERLEBAR di bagian bawah jam ke-23.
+    Fungsi pengisi Excel Matriks (Jam x Tanggal) yang dilengkapi dengan 
+    Rekapitulasi otomatis yang sudah diperlebar di bagian bawah jam ke-23.
     """
     df_hasil['Datetime'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'], errors='coerce')
     df_hasil['Tanggal'] = df_hasil['Datetime'].dt.day
@@ -27,7 +27,6 @@ def generate_lapbul_excel(df_hasil):
         fmt_miss = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_color': '#9C0006', 'bg_color': '#FFC7CE'})
         fmt_null = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
         
-        # Format rekapitulasi di bawah matriks
         fmt_label_rekap = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'bold': True})
         fmt_val_rekap = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#D9D9D9'})
         fmt_pct_rekap = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#C6EFCE', 'num_format': '0.00"%"'})
@@ -75,7 +74,6 @@ def generate_lapbul_excel(df_hasil):
                     else:
                         for offset in range(4): ws.write(r, cs + offset, "-", fmt_null)
             
-            # --- PERBAIKAN: BLOK REKAPITULASI MATRIKS YANG DI-MERGE BIAR LEBAR ---
             r_rekap = 27  
             b_cnt = (df_hourly[k_s] == "B").sum()
             s_cnt = (df_hourly[k_s] == "S").sum()
@@ -92,7 +90,6 @@ def generate_lapbul_excel(df_hasil):
             for i, label in enumerate(labels):
                 ws.merge_range(r_rekap + i, 0, r_rekap + i, 2, label, fmt_label_rekap)
                 
-            # Solusi Jitu: Nilai di-merge dari kolom index 3 sampai 5 (Diberi ruang 3 kolom penuh)
             ws.merge_range(r_rekap, 3, r_rekap, 5, b_cnt, fmt_val_rekap)
             ws.merge_range(r_rekap + 1, 3, r_rekap + 1, 5, s_cnt, fmt_val_rekap)
             ws.merge_range(r_rekap + 2, 3, r_rekap + 2, 5, tot, fmt_val_rekap)
@@ -103,8 +100,8 @@ def generate_lapbul_excel(df_hasil):
 
 def generate_form_2026(df_hasil):
     """
-    Fungsi penyusun Form Verifikasi 2026 (Data Reff) dengan pembelah grup BECMG/TEMPO
-    serta hitungan Akurasi Global di baris terbawah.
+    Fungsi penyusun Form Verifikasi 2026 yang mendeteksi seluruh TAF secara dinamis
+    dan kini dilengkapi PEWARNAAN KHUSUS (Soft Tint) untuk unsur BASE, TEMPO, dan BECMG.
     """
     df_hasil['Datetime'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'], errors='coerce')
     df_hasil['Tanggal'] = df_hasil['Datetime'].dt.day
@@ -117,10 +114,16 @@ def generate_form_2026(df_hasil):
         
         fmt_title = workbook.add_format({'bold': True, 'font_size': 11})
         fmt_h = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#D9D9D9', 'font_size': 10})
-        fmt_data = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
+        fmt_tgl = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_size': 11}) 
+        
+        # --- AMUNISI BARU: PALETTE WARNA SOFT BERDASARKAN GRUP TAF ---
+        fmt_base = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#F8FAFC'}) # Putih/Slate Soft
+        fmt_tempo = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#FFF9E6'}) # Kuning Pastel Soft
+        fmt_becmg = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#F4EBF7'}) # Ungu Pastel Soft
+        
+        # Format Status B/S (Tetap dipertahankan warnanya agar kontras)
         fmt_hit = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_color': '#006100', 'bg_color': '#C6EFCE'})
         fmt_miss = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_color': '#9C0006', 'bg_color': '#FFC7CE'})
-        fmt_tgl = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_size': 11}) 
         
         ws.write("A1", "VERIFIKASI AERODROM FORECAST", fmt_title)
         ws.write("A2", "Instruksi Met./No.029/Verifikasi Prakiraan/I/88", fmt_title)
@@ -140,8 +143,16 @@ def generate_form_2026(df_hasil):
         rekapan = {k: {'B': 0, 'S': 0} for k in ['A', 'B', 'C', 'D', 'E', 'F']}
         
         def tulis_baris(r_idx, label_wkt, tar, tke, tvi, twx, taj, tat, m_baris):
-            ws.write(r_idx, 1, label_wkt, fmt_data)
-            ws.write_row(r_idx, 2, [tar, tke, tvi, twx, taj, tat], fmt_data)
+            # LOGIKA PEMILIHAN WARNA DINAMIS
+            if label_wkt.startswith('T.'):
+                fmt_aktif = fmt_tempo
+            elif label_wkt.startswith('B.'):
+                fmt_aktif = fmt_becmg
+            else:
+                fmt_aktif = fmt_base
+                
+            ws.write(r_idx, 1, label_wkt, fmt_aktif)
+            ws.write_row(r_idx, 2, [tar, tke, tvi, twx, taj, tat], fmt_aktif)
             
             _, bs_ar = hitung_angin_arah(m_baris['M_Arah'], tar)
             _, bs_ke = hitung_angin_kec(m_baris['M_Kec'], tke)
@@ -160,7 +171,7 @@ def generate_form_2026(df_hasil):
                 (m_baris['M_Vis'], bs_vi), (m_baris['M_Wx'], bs_wx),
                 (m_baris['M_AwanJml'], bs_aj), (m_baris['M_AwanTgi'], bs_at)
             ]:
-                ws.write(r_idx, col_m, val, fmt_data)
+                ws.write(r_idx, col_m, val, fmt_aktif)
                 ws.write(r_idx, col_m+1, stat, fmt_hit if stat == "B" else fmt_miss)
                 col_m += 2
 
@@ -170,91 +181,89 @@ def generate_form_2026(df_hasil):
             data_tgl = df_hasil[df_hasil['Tanggal'] == tgl]
             if data_tgl.empty:
                 ws.write(row_idx, 0, str(tgl).zfill(2), fmt_tgl)
-                ws.write(row_idx, 1, "-", fmt_data)
-                ws.write_row(row_idx, 2, ["-"]*18, fmt_data)
+                ws.write(row_idx, 1, "-", fmt_base)
+                ws.write_row(row_idx, 2, ["-"]*18, fmt_base)
                 row_idx += 1
                 continue
             
-            taf_sandi = "-"
-            baris_m_base = None
-            data_jam_06 = data_tgl[data_tgl['Jam'] == 6]
+            data_tgl_sorted = data_tgl.sort_values('Jam')
+            tafs_hari_ini = []
+            for _, row in data_tgl_sorted.iterrows():
+                sandi = row['Sandi TAF Prakiraan']
+                if sandi != "-" and sandi not in tafs_hari_ini:
+                    tafs_hari_ini.append(sandi)
             
-            if not data_jam_06.empty and data_jam_06.iloc[0]['Sandi TAF Prakiraan'] != "-":
-                taf_sandi = data_jam_06.iloc[0]['Sandi TAF Prakiraan']
-                baris_m_base = data_jam_06.iloc[0]
-            else:
-                valid_tafs = data_tgl[data_tgl['Sandi TAF Prakiraan'] != "-"]
-                if not valid_tafs.empty:
-                    taf_sandi = valid_tafs.iloc[0]['Sandi TAF Prakiraan']
-                    baris_m_base = valid_tafs.iloc[0]
-            
-            if taf_sandi == "-":
+            if not tafs_hari_ini:
                 ws.write(row_idx, 0, str(tgl).zfill(2), fmt_tgl)
-                ws.write(row_idx, 1, "-", fmt_data)
-                ws.write_row(row_idx, 2, ["-"]*18, fmt_data)
+                ws.write(row_idx, 1, "-", fmt_base)
+                ws.write_row(row_idx, 2, ["-"]*18, fmt_base)
                 row_idx += 1
                 continue
                 
-            parts = re.split(r'\b(BECMG|TEMPO)\b', str(taf_sandi))
+            start_row_tgl = row_idx  
             
-            base_str = parts[0]
-            base_time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', base_str)
-            if base_time_match:
-                s_hr = base_time_match.group(2)
-                e_hr = base_time_match.group(4)
-                if e_hr == "00" and base_time_match.group(1) != base_time_match.group(3):
-                    e_hr = "24"
-                w_base = f"{s_hr} - {e_hr}"
-            else:
-                w_base = "00 - 24"
-            
-            b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
-            cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
-            
-            start_row_tgl = row_idx
-            tulis_baris(row_idx, w_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at, baris_m_base)
-            row_idx += 1
-            
-            for i in range(1, len(parts), 2):
-                tipe = parts[i]
-                isi = parts[i+1]
+            for taf_sandi in tafs_hari_ini:
+                baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
                 
-                time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
-                jam_target = 0
-                if time_match:
-                    s_hr = time_match.group(2)
-                    e_hr = time_match.group(4)
-                    if e_hr == "00" and time_match.group(1) != time_match.group(3):
+                parts = re.split(r'\b(BECMG|TEMPO)\b', str(taf_sandi))
+                base_str = parts[0]
+                base_time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', base_str)
+                if base_time_match:
+                    s_hr = base_time_match.group(2)
+                    e_hr = base_time_match.group(4)
+                    if e_hr == "00" and base_time_match.group(1) != base_time_match.group(3):
                         e_hr = "24"
-                    label_w = f"{'B' if tipe=='BECMG' else 'T'}.{s_hr}-{e_hr}"
-                    jam_target = int(s_hr)
+                    w_base = f"{s_hr} - {e_hr}"
                 else:
-                    label_w = f"{'B' if tipe=='BECMG' else 'T'}.??"
-                    
-                t_ar, t_ke, t_vi, t_wx, t_aj, t_at = parse_sandi(isi)
+                    w_base = "00 - 24"
                 
-                if t_ar == "-": t_ar = cur_ar
-                if t_ke == "-": t_ke = cur_ke
-                if t_vi == "-": t_vi = cur_vi
-                if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi:
-                    t_wx = cur_wx
-                if t_aj == "-": t_aj = cur_aj
-                if t_at == "-": t_at = cur_at
+                b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
+                cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
                 
-                data_jam = data_tgl[data_tgl['Jam'] == jam_target]
-                baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
-                
-                tulis_baris(row_idx, label_w, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, baris_m_trend)
+                tulis_baris(row_idx, w_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at, baris_m_base)
                 row_idx += 1
                 
-                if tipe == 'BECMG':
-                    cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
-                
+                for i in range(1, len(parts), 2):
+                    tipe = parts[i]
+                    isi = parts[i+1]
+                    
+                    time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
+                    jam_target = 0
+                    if time_match:
+                        s_hr = time_match.group(2)
+                        e_hr = time_match.group(4)
+                        if e_hr == "00" and time_match.group(1) != time_match.group(3):
+                            e_hr = "24"
+                        label_w = f"{'B' if tipe=='BECMG' else 'T'}.{s_hr}-{e_hr}"
+                        jam_target = int(s_hr)
+                    else:
+                        label_w = f"{'B' if tipe=='BECMG' else 'T'}.??"
+                        
+                    t_ar, t_ke, t_vi, t_wx, t_aj, t_at = parse_sandi(isi)
+                    
+                    if t_ar == "-": t_ar = cur_ar
+                    if t_ke == "-": t_ke = cur_ke
+                    if t_vi == "-": t_vi = cur_vi
+                    if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi:
+                        t_wx = cur_wx
+                    if t_aj == "-": t_aj = cur_aj
+                    if t_at == "-": t_at = cur_at
+                    
+                    data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == jam_target) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)]
+                    baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
+                    
+                    tulis_baris(row_idx, label_w, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, baris_m_trend)
+                    row_idx += 1
+                    
+                    if tipe == 'BECMG':
+                        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                        
             if row_idx - start_row_tgl > 1:
                 ws.merge_range(start_row_tgl, 0, row_idx - 1, 0, str(tgl).zfill(2), fmt_tgl)
             else:
                 ws.write(start_row_tgl, 0, str(tgl).zfill(2), fmt_tgl)
                 
+        # --- BLOK REKAPITULASI BAWAH ---
         row_idx += 1 
         
         fmt_label_rekap = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'bold': True})
