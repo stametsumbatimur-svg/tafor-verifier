@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. PARSER DATA MENTAH (METAR / SPECI / TAF)
+# 1. PARSER DATA MENTAH DENGAN DETEKSI GUST
 # ==========================================
 
 def ekstrak_param_metar_speci(sandi_teks):
@@ -17,7 +17,11 @@ def ekstrak_param_metar_speci(sandi_teks):
     wind_match = re.search(r'\b(\d{3}|\/\/\/|VRB)(\d{2,3})(G\d{2,3})?KT\b', sandi_cleaned)
     if wind_match:
         arah_wind = wind_match.group(1)
-        kec_wind = str(int(wind_match.group(2)))
+        # Jika ada Gustiness (G), gabungkan ke string kecepatan (Contoh: 15G25)
+        if wind_match.group(3):
+            kec_wind = f"{int(wind_match.group(2))}G{int(wind_match.group(3)[1:])}"
+        else:
+            kec_wind = str(int(wind_match.group(2)))
         
     vis = "-"
     if "CAVOK" in sandi_cleaned: vis = "9999"
@@ -49,10 +53,13 @@ def parse_sandi(grup_teks):
     sandi_cleaned = re.sub(r'\b\d{4}/\d{4}\b', '', sandi)
     
     arah, kec = "-", "-"
-    w_match = re.search(r'\b(\d{3}|VRB)(\d{2,3})KT\b', sandi_cleaned)
+    w_match = re.search(r'\b(\d{3}|VRB)(\d{2,3})(G\d{2,3})?KT\b', sandi_cleaned)
     if w_match:
         arah = w_match.group(1)
-        kec = str(int(w_match.group(2)))
+        if w_match.group(3):
+            kec = f"{int(w_match.group(2))}G{int(w_match.group(3)[1:])}"
+        else:
+            kec = str(int(w_match.group(2)))
         
     vis = "-"
     if "CAVOK" in sandi_cleaned: vis = "9999"
@@ -78,7 +85,7 @@ def parse_sandi(grup_teks):
     return arah, kec, vis, wx, aw_jml, aw_tgi
 
 # ==========================================
-# 2. LOGIKA MATEMATIKA TOLERANSI (B / S)
+# 2. EVALUASI TOLERANSI ANGIN (KEC + GUST)
 # ==========================================
 
 def hitung_angin_arah(m_arah, t_arah):
@@ -93,8 +100,25 @@ def hitung_angin_arah(m_arah, t_arah):
 def hitung_angin_kec(m_kec, t_kec):
     if m_kec == "-" or t_kec == "-": return "-", "NIL"
     try:
-        diff = abs(int(m_kec) - int(t_kec))
-        return str(diff), ("B" if diff <= 5 else "S")
+        # Pecah komponen Gustiness jika ada huruf 'G'
+        m_base = int(m_kec.split('G')[0]) if 'G' in m_kec else int(m_kec)
+        t_base = int(t_kec.split('G')[0]) if 'G' in t_kec else int(t_kec)
+        
+        m_gust = int(m_kec.split('G')[1]) if 'G' in m_kec else 0
+        t_gust = int(t_kec.split('G')[1]) if 'G' in t_kec else 0
+        
+        # Validasi 1: Cek Angin Rata-rata (Toleransi 5 Knot)
+        diff_base = abs(m_base - t_base)
+        stat_base = "B" if diff_base <= 5 else "S"
+        
+        # Validasi 2 (Opsi 2): Penegakan Hukum Gustiness Penerbangan
+        if m_gust > 0 or t_gust > 0:
+            diff_gust = abs(m_gust - t_gust)
+            # Salah jika salah satu luput meramal gust padahal terjadi, atau deviasi gust > 5 knot
+            if (m_gust > 0 and t_gust == 0) or (m_gust == 0 and t_gust > 0) or (diff_gust > 5):
+                return f"B:{diff_base}|G:{abs(m_gust-t_gust)}", "S"
+                
+        return str(diff_base), stat_base
     except: return "-", "S"
 
 def hitung_vis(m_vis, t_vis):
@@ -128,7 +152,6 @@ def hitung_awan_tgi(m_tgi, t_tgi):
     except: return "-", "S"
 
 def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_data=None, is_prob=False):
-    """Menghitung status kelulusan B/S dengan dukungan logika keadilan PROB bulatan"""
     _, s_ar = hitung_angin_arah(m_obs_data['M_Arah'], t_ar)
     _, s_ke = hitung_angin_kec(m_obs_data['M_Kec'], t_ke)
     _, s_vi = hitung_vis(m_obs_data['M_Vis'], t_vi)
@@ -136,7 +159,6 @@ def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_
     _, s_aj = hitung_awan_jml(m_obs_data['M_AwanJml'], t_aj)
     _, s_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], t_at)
     
-    # 🔥 IMPLEMENTASI REKOMENDASI 3: Keadilan Kaku Grup PROB30 / PROB40
     if is_prob and base_data is not None:
         _, b_ar = hitung_angin_arah(m_obs_data['M_Arah'], base_data[0])
         _, b_ke = hitung_angin_kec(m_obs_data['M_Kec'], base_data[1])
@@ -145,7 +167,6 @@ def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_
         _, b_aj = hitung_awan_jml(m_obs_data['M_AwanJml'], base_data[4])
         _, b_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], base_data[5])
         
-        # Jika ramalan PROB meleset tapi cuaca aktual ternyata COCOK dengan ramalan Utama (Base), ampuni nilainya menjadi Benar!
         if s_ar == "S" and b_ar == "B": s_ar = "B"
         if s_ke == "S" and b_ke == "B": s_ke = "B"
         if s_vi == "S" and b_vi == "B": s_vi = "B"
@@ -157,7 +178,7 @@ def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_
     return stat_akhir, s_ar, s_ke, s_vi, s_wx, s_aj, s_at
 
 # ==========================================
-# 3. SINKRONISASI KRONOLOGIS UTAMA
+# 3. KONTROLLER SINKRONISASI KRONOLOGIS
 # ==========================================
 
 def proses_verifikasi(df_metar, df_taf, df_speci):
@@ -191,7 +212,6 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             
         speci_terkait = df_speci[(df_speci['dt_obj'] >= tgl_jam_aktual) & (df_speci['dt_obj'] <= tgl_jam_aktual + timedelta(minutes=59))]
         
-        # 🔥 UPGRADE REGEX: Mendukung pembacaan grup PROB30/PROB40 secara kronologis
         parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_aktif))
         base_str = parts[0]
         b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
