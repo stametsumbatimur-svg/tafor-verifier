@@ -1,128 +1,266 @@
 import pandas as pd
+import numpy as np
 import re
+from datetime import datetime, timedelta
 
-def parse_sandi(sandi):
-    arah, kec, vis, cuaca, awan_jml, awan_tgi = "-", "-", "-", "NIL", "-", "-"
-    sandi_bersih = str(sandi).upper().replace('\n', ' ')
+# ==========================================
+# 1. PARSER DATA MENTAH (METAR / SPECI / TAF)
+# ==========================================
 
-    wind_match = re.search(r'\b(\d{3}|VRB)(\d{2,3})(?:G\d{2,3})?KT\b', sandi_bersih)
+def ekstrak_param_metar_speci(sandi_teks):
+    if pd.isna(sandi_teks) or sandi_teks == "-":
+        return "-", "-", "-", "-", "-", "-"
+    sandi = str(sandi_teks).strip()
+    sandi_cleaned = re.sub(r'\b\d{4}/\d{4}\b', '', sandi)
+    
+    arah_wind, kec_wind = "-", "-"
+    wind_match = re.search(r'\b(\d{3}|\/\/\/|VRB)(\d{2,3})(G\d{2,3})?KT\b', sandi_cleaned)
     if wind_match:
-        arah = wind_match.group(1)
-        kec = wind_match.group(2)
+        arah_wind = wind_match.group(1)
+        kec_wind = str(int(wind_match.group(2)))
+        
+    vis = "-"
+    if "CAVOK" in sandi_cleaned: vis = "9999"
+    else:
+        vis_match = re.search(r'\b\d{4}\b', sandi_cleaned)
+        if vis_match: vis = vis_match.group(0)
+            
+    wx = "-"
+    if "CAVOK" in sandi_cleaned: wx = "-"
+    else:
+        wx_match = re.search(r'\b(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)\b', sandi_cleaned)
+        if wx_match: wx = wx_match.group(0)
+            
+    awan_jml, awan_tgi = "-", "-"
+    if "CAVOK" in sandi_cleaned or "NSC" in sandi_cleaned or "NCD" in sandi_cleaned:
+        awan_jml, awan_tgi = "NSC", "0"
+    else:
+        cloud_match = re.search(r'\b(FEW|SCT|BKN|OVC)(\d{3})\b', sandi_cleaned)
+        if cloud_match:
+            awan_jml = cloud_match.group(1)
+            awan_tgi = str(int(cloud_match.group(2)) * 100)
+            
+    return arah_wind, kec_wind, vis, wx, awan_jml, awan_tgi
 
-    vis_match = re.search(r'(?<=\s)(\d{4})(?=\s)', sandi_bersih)
-    if vis_match: vis = vis_match.group(1)
-    elif "CAVOK" in sandi_bersih: vis = "9999"
+def parse_sandi(grup_teks):
+    if not grup_teks or grup_teks.strip() == "":
+        return "-", "-", "-", "-", "-", "-"
+    sandi = str(grup_teks).strip()
+    sandi_cleaned = re.sub(r'\b\d{4}/\d{4}\b', '', sandi)
+    
+    arah, kec = "-", "-"
+    w_match = re.search(r'\b(\d{3}|VRB)(\d{2,3})KT\b', sandi_cleaned)
+    if w_match:
+        arah = w_match.group(1)
+        kec = str(int(w_match.group(2)))
+        
+    vis = "-"
+    if "CAVOK" in sandi_cleaned: vis = "9999"
+    else:
+        v_match = re.search(r'\b\d{4}\b', sandi_cleaned)
+        if v_match: vis = v_match.group(0)
+            
+    wx = "-"
+    if "CAVOK" in sandi_cleaned: wx = "-"
+    elif "NSW" in sandi_cleaned: wx = "-"
+    else:
+        wx_match = re.search(r'\b(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)\b', sandi_cleaned)
+        if wx_match: wx = wx_match.group(0)
+            
+    aw_jml, aw_tgi = "-", "-"
+    if "CAVOK" in sandi_cleaned: aw_jml, aw_tgi = "NSC", "0"
+    else:
+        c_match = re.search(r'\b(FEW|SCT|BKN|OVC)(\d{3})\b', sandi_cleaned)
+        if c_match:
+            aw_jml = c_match.group(1)
+            aw_tgi = str(int(c_match.group(2)) * 100)
+            
+    return arah, kec, vis, wx, aw_jml, aw_tgi
 
-    wx_pattern = r'\b(-|\+|VC)?(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b'
-    wx_match = re.search(wx_pattern, sandi_bersih)
-    if wx_match: cuaca = wx_match.group(0).strip()
-    elif "CAVOK" in sandi_bersih: cuaca = "NIL"
-
-    cloud_match = re.search(r'\b(FEW|SCT|BKN|OVC)(\d{3})(?:CB|TCU)?\b', sandi_bersih)
-    if cloud_match:
-        awan_jml = cloud_match.group(1)
-        awan_tgi = str(int(cloud_match.group(2)) * 100) 
-    elif "CAVOK" in sandi_bersih:
-        awan_jml = "NIL"
-        awan_tgi = "-"
-
-    return arah, kec, vis, cuaca, awan_jml, awan_tgi
+# ==========================================
+# 2. LOGIKA MATEMATIKA TOLERANSI (B / S)
+# ==========================================
 
 def hitung_angin_arah(m_arah, t_arah):
-    if m_arah == "-" or t_arah == "-": return "-", "S"
-    if m_arah == "VRB" or t_arah == "VRB": return 0, "B"
+    if m_arah == "-" or t_arah == "-": return "-", "NIL"
+    if m_arah == "VRB" or t_arah == "VRB": return "0", "B"
     try:
-        a1, a2 = int(m_arah), int(t_arah)
-        deviasi = min(abs(a1 - a2), 360 - abs(a1 - a2))
-        return deviasi, "B" if deviasi <= 30 else "S"
+        diff = abs(int(m_arah) - int(t_arah))
+        if diff > 180: diff = 360 - diff
+        return str(diff), ("B" if diff <= 60 else "S")
     except: return "-", "S"
 
 def hitung_angin_kec(m_kec, t_kec):
-    if m_kec == "-" or t_kec == "-": return "-", "S"
+    if m_kec == "-" or t_kec == "-": return "-", "NIL"
     try:
-        k1, k2 = int(m_kec), int(t_kec)
-        dev = abs(k1 - k2)
-        stat = "B" if (k1 <= 25 and dev <= 5) or (k1 > 25 and dev <= 0.2*k1) else "S"
-        return dev, stat
+        diff = abs(int(m_kec) - int(t_kec))
+        return str(diff), ("B" if diff <= 5 else "S")
     except: return "-", "S"
 
 def hitung_vis(m_vis, t_vis):
-    if m_vis == "-" or t_vis == "-": return "-", "S"
+    if m_vis == "-" or t_vis == "-": return "-", "NIL"
     try:
-        v1, v2 = int(m_vis), int(t_vis)
-        dev = abs(v1 - v2)
-        stat = "B" if dev <= (0.3 * v1) or (v1 == 9999 and v2 == 9999) else "S"
-        return dev, stat
+        mv, tv = int(m_vis), int(t_vis)
+        if mv == 9999 and tv == 9999: return "0", "B"
+        diff = abs(mv - tv)
+        return str(diff), ("B" if diff <= 1000 else "S")
     except: return "-", "S"
 
 def hitung_cuaca(m_wx, t_wx):
-    if m_wx == t_wx or (m_wx != "NIL" and t_wx != "NIL"): return 0, "B" 
-    else: return 1, "S" 
+    if m_wx == "-" and t_wx == "-": return "MATCH", "B"
+    if m_wx != "-" and t_wx == "-": return "MISS", "S"
+    if m_wx == "-" and t_wx != "-": return "FALSE_ALARM", "S"
+    return ("MATCH" if m_wx == t_wx else "DIFF"), ("B" if m_wx == t_wx else "S")
 
-def hitung_awan_jml(m_awan, t_awan):
-    oktas = {"NIL": 0, "FEW": 2, "SCT": 4, "BKN": 7, "OVC": 8, "-": -99}
-    v1, v2 = oktas.get(m_awan, -99), oktas.get(t_awan, -99)
-    if v1 == -99 or v2 == -99: return "-", "S"
-    dev = abs(v1 - v2)
-    return dev, "B" if dev <= 2 else "S"
-
-def hitung_awan_tgi(m_tgi, t_tgi):
-    if m_tgi == "-" or t_tgi == "-": return "-", "S"
+def hitung_awan_jml(m_jml, t_jml):
+    if m_jml == "-" or t_jml == "-": return "-", "NIL"
+    peta = {"NSC": 0, "NCD": 0, "FEW": 1, "SCT": 2, "BKN": 3, "OVC": 4}
     try:
-        t1, t2 = int(m_tgi), int(t_tgi)
-        dev = abs(t1 - t2)
-        return dev, "B" if dev <= 100 else "S"
+        diff = abs(peta.get(m_jml, 0) - peta.get(t_jml, 0))
+        return str(diff), ("B" if diff <= 1 else "S")
     except: return "-", "S"
 
-def proses_verifikasi(df_metar, df_taf):
-    df_metar['waktu'] = pd.to_datetime(df_metar['data_timestamp'].astype(str).str[:19])
-    df_taf['waktu'] = pd.to_datetime(df_taf['data_timestamp'].astype(str).str[:19])
+def hitung_awan_tgi(m_tgi, t_tgi):
+    if m_tgi == "-" or t_tgi == "-": return "-", "NIL"
+    try:
+        diff = abs(int(m_tgi) - int(t_tgi))
+        return str(diff), ("B" if diff <= 300 else "S")
+    except: return "-", "S"
+
+def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_data=None, is_prob=False):
+    """Menghitung status kelulusan B/S dengan dukungan logika keadilan PROB bulatan"""
+    _, s_ar = hitung_angin_arah(m_obs_data['M_Arah'], t_ar)
+    _, s_ke = hitung_angin_kec(m_obs_data['M_Kec'], t_ke)
+    _, s_vi = hitung_vis(m_obs_data['M_Vis'], t_vi)
+    _, s_wx = hitung_cuaca(m_obs_data['M_Wx'], t_wx)
+    _, s_aj = hitung_awan_jml(m_obs_data['M_AwanJml'], t_aj)
+    _, s_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], t_at)
     
-    df_metar = df_metar.sort_values('waktu')
-    df_taf = df_taf.sort_values('waktu')
+    # 🔥 IMPLEMENTASI REKOMENDASI 3: Keadilan Kaku Grup PROB30 / PROB40
+    if is_prob and base_data is not None:
+        _, b_ar = hitung_angin_arah(m_obs_data['M_Arah'], base_data[0])
+        _, b_ke = hitung_angin_kec(m_obs_data['M_Kec'], base_data[1])
+        _, b_vi = hitung_vis(m_obs_data['M_Vis'], base_data[2])
+        _, b_wx = hitung_cuaca(m_obs_data['M_Wx'], base_data[3])
+        _, b_aj = hitung_awan_jml(m_obs_data['M_AwanJml'], base_data[4])
+        _, b_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], base_data[5])
+        
+        # Jika ramalan PROB meleset tapi cuaca aktual ternyata COCOK dengan ramalan Utama (Base), ampuni nilainya menjadi Benar!
+        if s_ar == "S" and b_ar == "B": s_ar = "B"
+        if s_ke == "S" and b_ke == "B": s_ke = "B"
+        if s_vi == "S" and b_vi == "B": s_vi = "B"
+        if s_wx == "S" and b_wx == "B": s_wx = "B"
+        if s_aj == "S" and b_aj == "B": s_aj = "B"
+        if s_at == "S" and b_at == "B": s_at = "B"
 
-    df_metar['jam_bulat'] = df_metar['waktu'].dt.floor('h')
-    df_metar_hourly = df_metar.drop_duplicates(subset=['jam_bulat'], keep='first').copy()
+    stat_akhir = "S" if 'S' in [s_ar, s_ke, s_vi, s_wx, s_aj, s_at] else "B"
+    return stat_akhir, s_ar, s_ke, s_vi, s_wx, s_aj, s_at
 
-    df_merged = pd.merge_asof(
-        df_metar_hourly, df_taf, left_on='jam_bulat', right_on='waktu', 
-        direction='backward', suffixes=('_metar', '_taf')
-    )
+# ==========================================
+# 3. SINKRONISASI KRONOLOGIS UTAMA
+# ==========================================
 
-    rows = []
-    for i in range(len(df_merged)):
-        s_metar = df_merged.iloc[i]['sandi_metar']
-        s_taf = df_merged.iloc[i]['sandi_taf'] if pd.notna(df_merged.iloc[i]['sandi_taf']) else "-"
+def proses_verifikasi(df_metar, df_taf, df_speci):
+    df_metar.columns = df_metar.columns.str.strip()
+    df_taf.columns = df_taf.columns.str.strip()
+    df_speci.columns = df_speci.columns.str.strip()
+    
+    col_waktu = next((c for c in df_metar.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])), df_metar.columns[0])
+    col_teks = next((c for c in df_metar.columns if 'type' not in c.lower() and 'status' not in c.lower() and any(k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi'])), df_metar.columns[1])
+
+    df_metar['dt_obj'] = pd.to_datetime(df_metar[col_waktu].astype(str).str.slice(0, 19), errors='coerce')
+    df_taf['dt_obj'] = pd.to_datetime(df_taf[col_waktu].astype(str).str.slice(0, 19), errors='coerce')
+    df_speci['dt_obj'] = pd.to_datetime(df_speci[col_waktu].astype(str).str.slice(0, 19), errors='coerce')
+    
+    df_metar = df_metar.dropna(subset=['dt_obj']).sort_values('dt_obj')
+    df_taf = df_taf.dropna(subset=['dt_obj']).sort_values('dt_obj')
+    df_speci = df_speci.dropna(subset=['dt_obj']).sort_values('dt_obj')
+    
+    baris_analisis_final = []
+    baris_speci_final = []
+    
+    for _, metar_row in df_metar.iterrows():
+        tgl_jam_aktual = metar_row['dt_obj']
+        teks_metar = metar_row[col_teks]
+        m_ar, m_ke, m_vi, m_wx, m_aj, m_at = ekstrak_param_metar_speci(teks_metar)
+        
+        taf_aktif = "-"
+        taf_terpilih_rows = df_taf[df_taf['dt_obj'] <= tgl_jam_aktual]
+        if not taf_terpilih_rows.empty: taf_aktif = taf_terpilih_rows.iloc[-1][col_teks]
+        if taf_aktif == "-": continue
             
-        m_arah, m_kec, m_vis, m_wx, m_aj, m_at = parse_sandi(s_metar)
-        t_arah, t_kec, t_vis, t_wx, t_aj, t_at = parse_sandi(s_taf)
+        speci_terkait = df_speci[(df_speci['dt_obj'] >= tgl_jam_aktual) & (df_speci['dt_obj'] <= tgl_jam_aktual + timedelta(minutes=59))]
         
-        d_ar, bs_ar = hitung_angin_arah(m_arah, t_arah)
-        d_ke, bs_ke = hitung_angin_kec(m_kec, t_kec)
-        d_vi, bs_vi = hitung_vis(m_vis, t_vis)
-        d_wx, bs_wx = hitung_cuaca(m_wx, t_wx)
-        d_aj, bs_aj = hitung_awan_jml(m_aj, t_aj)
-        d_at, bs_at = hitung_awan_tgi(m_at, t_at)
+        # 🔥 UPGRADE REGEX: Mendukung pembacaan grup PROB30/PROB40 secara kronologis
+        parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_aktif))
+        base_str = parts[0]
+        b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
+        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
         
-        hasil = "MISS" if "S" in [bs_ar, bs_ke, bs_vi, bs_wx, bs_aj, bs_at] else "ACCURATE"
-
-        rows.append({
-            "Waktu Aktual (UTC)": df_merged.iloc[i]['jam_bulat'].strftime('%Y-%m-%d %H:00'),
-            "Sandi TAF Prakiraan": s_taf, # <--- INI DIA BARIS YANG KELUPAAN!
-            "M_Arah": m_arah, "T_Arah": t_arah, "D_Arah": d_ar, "S_Arah": bs_ar,
-            "M_Kec": m_kec, "T_Kec": t_kec, "D_Kec": d_ke, "S_Kec": bs_ke,
-            "M_Vis": m_vis, "T_Vis": t_vis, "D_Vis": d_vi, "S_Vis": bs_vi,
-            "M_Wx": m_wx, "T_Wx": t_wx, "D_Wx": d_wx, "S_Wx": bs_wx,
-            "M_AwanJml": m_aj, "T_AwanJml": t_aj, "D_AwanJml": d_aj, "S_AwanJml": bs_aj,
-            "M_AwanTgi": m_at, "T_AwanTgi": t_at, "D_AwanTgi": d_at, "S_AwanTgi": bs_at,
-            "Hasil Akhir": hasil
+        t_ar, t_ke, t_vi, t_wx, t_aj, t_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+        is_grup_prob = False
+        
+        target_hour = tgl_jam_aktual.hour
+        for i in range(1, len(parts), 2):
+            tipe, isi = parts[i], parts[i+1]
+            time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
+            if time_match:
+                s_hr, e_hr = int(time_match.group(2)), int(time_match.group(4))
+                if e_hr == 0: e_hr = 24
+                if s_hr <= target_hour < e_hr:
+                    g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
+                    if g_ar != "-": t_ar = g_ar
+                    if g_ke != "-": t_ke = g_ke
+                    if g_vi != "-": t_vi = g_vi
+                    if g_wx != "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi: t_wx = g_wx
+                    if g_aj != "-": t_aj = g_aj
+                    if g_at != "-": t_at = g_at
+                    
+                    if 'PROB' in tipe: is_grup_prob = True
+                    if tipe == 'BECMG': cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                        
+        m_obs_data = {'M_Arah': m_ar, 'M_Kec': m_ke, 'M_Vis': m_vi, 'M_Wx': m_wx, 'M_AwanJml': m_aj, 'M_AwanTgi': m_at}
+        base_bundle = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
+        
+        status_jam_ini, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob)
+        
+        if not speci_terkait.empty:
+            for _, speci_row in speci_terkait.iterrows():
+                sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at = ekstrak_param_metar_speci(speci_row[col_teks])
+                sp_obs_data = {'M_Arah': sp_ar, 'M_Kec': sp_ke, 'M_Vis': sp_vi, 'M_Wx': sp_wx, 'M_AwanJml': sp_aj, 'M_AwanTgi': sp_at}
+                status_speci, sp_s_ar, sp_s_ke, sp_s_vi, sp_s_wx, sp_s_aj, sp_s_at = evaluasi_sandi_tunggal(sp_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob)
+                
+                if status_speci == "S":
+                    status_jam_ini = "S"
+                    if sp_s_ar == "S": s_ar = "S"
+                    if sp_s_ke == "S": s_ke = "S"
+                    if sp_s_vi == "S": s_vi = "S"
+                    if sp_s_wx == "S": s_wx = "S"
+                    if sp_s_aj == "S": s_aj = "S"
+                    if sp_s_at == "S": s_at = "S"
+                    
+                baris_speci_final.append({
+                    'Waktu SPECI (UTC)': speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'Sandi SPECI': speci_row[col_teks], 'TAFOR Berlaku': taf_aktif,
+                    'M_Arah': sp_ar, 'T_Arah': t_ar, 'S_Arah': sp_s_ar,
+                    'M_Kec': sp_ke, 'T_Kec': t_ke, 'S_Kec': sp_s_ke,
+                    'M_Vis': sp_vi, 'T_Vis': t_vi, 'S_Vis': sp_s_vi,
+                    'M_Wx': sp_wx, 'T_Wx': t_wx, 'S_Wx': sp_s_wx,
+                    'M_AwanJml': sp_aj, 'T_AwanJml': t_aj, 'S_AwanJml': sp_s_aj,
+                    'M_AwanTgi': sp_at, 'T_AwanTgi': t_at, 'S_AwanTgi': sp_s_at,
+                    'Hasil Akhir': "ACCURATE" if status_speci == "B" else "MISS"
+                })
+                    
+        baris_analisis_final.append({
+            'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
+            'Sandi METAR Aktual': teks_metar, 'Sandi TAF Prakiraan': taf_aktif,
+            'M_Arah': m_ar, 'T_Arah': t_ar, 'D_Arah': "-", 'S_Arah': s_ar,
+            'M_Kec': m_ke, 'T_Kec': t_ke, 'D_Kec': "-", 'S_Kec': s_ke,
+            'M_Vis': m_vi, 'T_Vis': t_vi, 'D_Vis': "-", 'S_Vis': s_vi,
+            'M_Wx': m_wx, 'T_Wx': t_wx, 'D_Wx': "-", 'S_Wx': s_wx,
+            'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'D_AwanJml': "-", 'S_AwanJml': s_aj,
+            'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'D_AwanTgi': "-", 'S_AwanTgi': s_at,
+            'Hasil Akhir': "ACCURATE" if status_jam_ini == "B" else "MISS"
         })
         
-    df_hasil = pd.DataFrame(rows)
-    tot = len(df_hasil)
-    ak_tot = round((len(df_hasil[df_hasil["Hasil Akhir"] == "ACCURATE"]) / tot) * 100, 1) if tot > 0 else 0
-    ak_vis = round((len(df_hasil[df_hasil["S_Vis"] == "B"]) / tot) * 100, 1) if tot > 0 else 0
-    ak_win = round((len(df_hasil[df_hasil["S_Arah"] == "B"]) / tot) * 100, 1) if tot > 0 else 0
-    
-    return df_hasil, ak_tot, ak_vis, ak_win
+    return pd.DataFrame(baris_analisis_final), pd.DataFrame(baris_speci_final), None, None
