@@ -5,39 +5,31 @@ from datetime import datetime
 from verification_logic import proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi
 from excel_export import generate_lapbul_excel, generate_form_2026
 
-st.set_page_config(page_title="TAFOR Verifier BMKG", layout="wide")
+st.set_page_config(page_title="TAFOR Verifier", layout="wide")
 
-def hitung_rekapan_form_2026_web(df_input):
-    """
-    Fungsi internal web untuk mengekstrak hitungan B/S Form 2026 secara riil
-    agar bisa langsung ditampilkan di layar browser tanpa unduh Excel.
-    """
+def hitung_verifikasi_TAFOR(df_input):
+    """Fungsi internal web untuk mengekstrak hitungan B/S Form 2026 bulanan"""
     df_work = df_input.copy()
     df_work['Tanggal'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.day
     df_work['Jam'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.hour
-    
     rekapan = {k: {'B': 0, 'S': 0} for k in ['A', 'B', 'C', 'D', 'E', 'F']}
     
     for tgl in range(1, 32):
         data_tgl = df_work[df_work['Tanggal'] == tgl]
-        if data_tgl.empty:
-            continue
+        if data_tgl.empty: continue
             
         data_tgl_sorted = data_tgl.sort_values('Jam')
         tafs_hari_ini = []
         for _, row in data_tgl_sorted.iterrows():
             sandi = row['Sandi TAF Prakiraan']
-            if sandi != "-" and sandi not in tafs_hari_ini:
-                tafs_hari_ini.append(sandi)
+            if sandi != "-" and sandi not in tafs_hari_ini: tafs_hari_ini.append(sandi)
                 
-        if not tafs_hari_ini:
-            continue
+        if not tafs_hari_ini: continue
             
         for taf_sandi in tafs_hari_ini:
             baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
             parts = re.split(r'\b(BECMG|TEMPO)\b', str(taf_sandi))
             
-            # Evaluasi Baris BASE TAF
             base_str = parts[0]
             b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
             cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
@@ -50,11 +42,9 @@ def hitung_rekapan_form_2026_web(df_input):
                 _, stat = func(baris_m_base[m_col], tar)
                 if stat in ['B', 'S']: rekapan[k][stat] += 1
                     
-            # Evaluasi Baris TEMPO / BECMG TAF
             for i in range(1, len(parts), 2):
                 tipe = parts[i]
                 isi = parts[i+1]
-                
                 time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
                 jam_target = 0
                 if time_match: jam_target = int(time_match.group(2))
@@ -63,8 +53,7 @@ def hitung_rekapan_form_2026_web(df_input):
                 if t_ar == "-": t_ar = cur_ar
                 if t_ke == "-": t_ke = cur_ke
                 if t_vi == "-": t_vi = cur_vi
-                if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi:
-                    t_wx = cur_wx
+                if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi: t_wx = cur_wx
                 if t_aj == "-": t_aj = cur_aj
                 if t_at == "-": t_at = cur_at
                 
@@ -79,15 +68,12 @@ def hitung_rekapan_form_2026_web(df_input):
                     _, stat = func(baris_m_trend[m_col], tar)
                     if stat in ['B', 'S']: rekapan[k][stat] += 1
                         
-                if tipe == 'BECMG':
-                    cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
-                    
+                if tipe == 'BECMG': cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
     return rekapan
 
-st.title("✈️ Sistem Verifikasi TAFOR Kontinu (GTS BMKG)")
+st.title("✈️ TAFOR Verifier ✈️")
 st.write("Unggah file CSV METAR dan TAFOR, lalu tentukan rentang tanggal verifikasi secara fleksibel.")
 
-# --- PANEL FILTER TANGGAL DI SIDEBAR ---
 st.sidebar.header("🗓️ Filter Rentang Waktu")
 hari_ini = datetime.now().date()
 tanggal_pilihan = st.sidebar.date_input("Pilih Tanggal Mulai dan Selesai:", value=(hari_ini, hari_ini), key="rentang_tanggal")
@@ -104,17 +90,13 @@ if file_metar is not None and file_taf is not None:
     try:
         df_metar = pd.read_csv(file_metar)
         df_taf = pd.read_csv(file_taf)
-        
-        if "metar" not in df_metar['type_message'].iloc[0].lower():
-            df_metar, df_taf = df_taf, df_metar 
+        if "metar" not in df_metar['type_message'].iloc[0].lower(): df_metar, df_taf = df_taf, df_metar 
             
         df_hasil, _, _, _ = proses_verifikasi(df_metar, df_taf)
         df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
         
-        if isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 2:
-            tgl_mulai, tgl_selesai = tanggal_pilihan
-        else:
-            tgl_mulai = tgl_selesai = tanggal_pilihan[0] if isinstance(tanggal_pilihan, list) else tanggal_pilihan
+        if isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 2: tgl_mulai, tgl_selesai = tanggal_pilihan
+        else: tgl_mulai = tgl_selesai = tanggal_pilihan[0] if isinstance(tanggal_pilihan, list) else tanggal_pilihan
             
         df_filtered = df_hasil[(df_hasil['Datetime_Obj'] >= tgl_mulai) & (df_hasil['Datetime_Obj'] <= tgl_selesai)].copy()
         
@@ -123,30 +105,43 @@ if file_metar is not None and file_taf is not None:
         else:
             st.success(f"✅ Data Berhasil Difilter: {tgl_mulai} s.d {tgl_selesai}")
             
-            # --- 1. HITUNGAN AKURASI MATRIKS (JAM-JAMAN) ---
-            total_b_global = 0
-            total_data_global = 0
-            p_akurasi = {}
-            p_mapping = {
-                "A (Arah Angin)": "S_Arah", "B (Kec Angin)": "S_Kec", "C (Visibility)": "S_Vis",
-                "D (Cuaca)": "S_Wx", "E (Jumlah Awan)": "S_AwanJml", "F (Tinggi Awan)": "S_AwanTgi"
-            }
-            for label, col_name in p_mapping.items():
-                b_cnt = (df_filtered[col_name] == "B").sum()
-                s_cnt = (df_filtered[col_name] == "S").sum()
-                tot = b_cnt + s_cnt
-                p_akurasi[label] = round((b_cnt / tot * 100), 1) if tot > 0 else 0
-                total_b_global += b_cnt
-                total_data_global += tot
-            akurasi_global_matriks = round((total_b_global / total_data_global * 100), 1) if total_data_global > 0 else 0
-            
-            # --- 2. HITUNGAN AKURASI FORM 2026 (BERDASARKAN GRUP TREND TAF) ---
-            rekapan_form = hitung_rekapan_form_2026_web(df_filtered)
-            rows_form_web = []
             p_headers = {
                 'A': 'A (Arah Wind)', 'B': 'B (Kec Wind)', 'C': 'C (Visibility)',
                 'D': 'D (Cuaca)',     'E': 'E (Jml Awan)',  'F': 'F (Tgi Awan)'
             }
+            
+            # --- 1. HITUNGAN AKURASI MATRIKS (TIAP JAM) ---
+            total_b_global = 0
+            total_data_global = 0
+            p_akurasi = {}
+            rows_matriks_web = []
+            p_mapping = {
+                'A': "S_Arah", 'B': "S_Kec", 'C': "S_Vis",
+                'D': "S_Wx", 'E': "S_AwanJml", 'F': "S_AwanTgi"
+            }
+            for k, col_name in p_mapping.items():
+                b_cnt = (df_filtered[col_name] == "B").sum()
+                s_cnt = (df_filtered[col_name] == "S").sum()
+                tot = b_cnt + s_cnt
+                pct = (b_cnt / tot * 100) if tot > 0 else 0
+                p_akurasi[p_headers[k]] = round(pct, 1)
+                total_b_global += b_cnt
+                total_data_global += tot
+                
+                # Masukkan ke list tabel matriks web
+                rows_matriks_web.append({
+                    "Nama Parameter": p_headers[k],
+                    "Jumlah Benar (B)": b_cnt,
+                    "Jumlah Salah (S)": s_cnt,
+                    "Total Sampel Data (Jam)": tot,
+                    "Prosentase Ketelitian": f"{round(pct, 2)}%"
+                })
+            df_rekap_matriks_tampil = pd.DataFrame(rows_matriks_web)
+            akurasi_global_matriks = round((total_b_global / total_data_global * 100), 1) if total_data_global > 0 else 0
+            
+            # --- 2. HITUNGAN AKURASI VERIFIKASI TAFOR (BERDASARKAN GRUP TREND TAF) ---
+            rekapan_form = hitung_verifikasi_TAFOR(df_filtered)
+            rows_form_web = []
             total_b_form, total_data_form = 0, 0
             for k in ['A', 'B', 'C', 'D', 'E', 'F']:
                 b_f = rekapan_form[k]['B']
@@ -159,22 +154,25 @@ if file_metar is not None and file_taf is not None:
                     "Nama Parameter": p_headers[k],
                     "Jumlah Benar (B)": b_f,
                     "Jumlah Salah (S)": s_f,
-                    "Total Sampel Data": tot_f,
+                    "Total Sampel Data (Grup TAF)": tot_f,
                     "Prosentase Ketelitian": f"{round(pct_f, 2)}%"
                 })
             df_rekap_form_tampil = pd.DataFrame(rows_form_web)
             akurasi_global_form = round((total_b_form / total_data_form * 100), 1) if total_data_form > 0 else 0
 
-            # --- ARSITEKTUR BARU: MENU TAB UNTUK PERBANDINGAN LANGSUNG ---
+            # --- PANEL TAB INTERAKTIF ---
             st.subheader(f"📊 Panel Analisis Akurasi Periode ({tgl_mulai} s.d {tgl_selesai})")
-            tab_matriks, tab_form = st.tabs(["📊 Akurasi Matriks (Jam-Jaman)", "📄 Rekapitulasi Form 2026 (Standar Bulanan)"])
+            tab_matriks, tab_form = st.tabs(["📊 Akurasi Matriks (Tiap Jam)", "📄 Rekapitulasi Verifikasi TAFOR"])
             
             with tab_matriks:
-                st.info(f"### 📈 TOTAL AKURASI MATRIKS JAM-JAMAN: {akurasi_global_matriks}%")
-                st.write("Rincian performa jam-jaman linier (Pembagi data besar: 24 Jam x Jumlah Hari):")
+                st.info(f"### 📈 TOTAL AKURASI MATRIKS TIAP JAM: {akurasi_global_matriks}%")
                 cols = st.columns(6)
                 for idx, (label, score) in enumerate(p_akurasi.items()):
                     cols[idx].metric(label, f"{score}%")
+                
+                st.write("")
+                st.write("**🔥 BARU: Tabel Detail Perhitungan Rangkuman Matriks (Tiap Jam):**")
+                st.dataframe(df_rekap_matriks_tampil, use_container_width=True, hide_index=True)
                 
                 st.write("")
                 st.write("**Tren Fluktuasi Akurasi Harian:**")
@@ -185,9 +183,8 @@ if file_metar is not None and file_taf is not None:
                 st.line_chart(df_harian, use_container_width=True)
                 
             with tab_form:
-                st.success(f"### 🎯 TOTAL AKURASI GLOBAL FORM 2026 (STANDAR 029): {akurasi_global_form}%")
+                st.success(f"### 🎯 TOTAL AKURASI VERIFIKASI TAFOR: {akurasi_global_form}%")
                 st.write("Tabel ringkasan administrasi bulanan berbasis grup TAFOR (BASE/TEMPO/BECMG) secara proporsional:")
-                # Menampilkan tabel statistik murni ala Form 2026 Excel
                 st.dataframe(df_rekap_form_tampil, use_container_width=True, hide_index=True)
             
             # --- PANDUAN PENTING ---
@@ -197,14 +194,14 @@ if file_metar is not None and file_taf is not None:
                 * **2. Aturan Data Sehari Utuh & Logika Amandemen (Time Slicing):** Penilaian dihitung berdasarkan **Masa Berlaku Aktif TAFOR**. Jika dalam satu hari terbit TAF Rutin dan TAF Amandemen, komputer akan memotong jam penilaian secara adil dan kronologis. TAFOR Amandemen akan tercetak berjejer ke bawah dalam kotak tanggal yang sama pada berkas **Form 2026**.
                 """)
             
-            # --- FORMAT NAMA FILE EXCEL & EXPORT ---
+            # --- EXPORT ---
             str_mulai, str_selesai = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
             st.subheader("📥 Export Dokumen Verifikasi Sesuai Range")
             col_dl1, col_dl2 = st.columns(2)
             with col_dl1:
-                st.download_button(label=f"1️⃣ Unduh Matriks ({str_mulai} - {str_selesai})", data=generate_lapbul_excel(df_filtered).getvalue(), file_name=f"REKAP_MATRIKS_TAFOR_{str_mulai}_TO_{str_selesai}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button(label=f"1️⃣ Unduh Matriks Tiap Jam ({str_mulai} - {str_selesai})", data=generate_lapbul_excel(df_filtered).getvalue(), file_name=f"REKAP_MATRIKS_TAFOR_{str_mulai}_TO_{str_selesai}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             with col_dl2:
-                st.download_button(label=f"2️⃣ Unduh Form 2026 ({str_mulai} - {str_selesai})", data=generate_form_2026(df_filtered).getvalue(), file_name=f"FORM_2026_TAFOR_{str_mulai}_TO_{str_selesai}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button(label=f"2️⃣ Unduh Verifikasi TAFOR ({str_mulai} - {str_selesai})", data=generate_form_2026(df_filtered).getvalue(), file_name=f"FORM_2026_TAFOR_{str_mulai}_TO_{str_selesai}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 
             with st.expander("🔍 Klik di sini untuk melihat Pratinjau Log Data Terfilter (Audit Trail)"):
                 st.dataframe(df_filtered.drop(columns=['Datetime_Obj']).head(50), use_container_width=True)
