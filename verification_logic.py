@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import math
 from datetime import datetime, timedelta
 
 # ==========================================
@@ -17,7 +18,6 @@ def ekstrak_param_metar_speci(sandi_teks):
     wind_match = re.search(r'\b(\d{3}|\/\/\/|VRB)(\d{2,3})(G\d{2,3})?KT\b', sandi_cleaned)
     if wind_match:
         arah_wind = wind_match.group(1)
-        # Jika ada Gustiness (G), gabungkan ke string kecepatan (Contoh: 15G25)
         if wind_match.group(3):
             kec_wind = f"{int(wind_match.group(2))}G{int(wind_match.group(3)[1:])}"
         else:
@@ -85,7 +85,29 @@ def parse_sandi(grup_teks):
     return arah, kec, vis, wx, aw_jml, aw_tgi
 
 # ==========================================
-# 2. EVALUASI TOLERANSI ANGIN (KEC + GUST)
+# 2. RUMUS TRIGONOMETRI CROSSWIND RUNWAY 15/33
+# ==========================================
+def hitung_komponen_crosswind(arah_str, kec_str):
+    """Menghitung Crosswind Maksimum Bandara Waingapu (Runway Heading 150 dan 330)"""
+    if arah_str in ["-", "///", "VRB"] or kec_str == "-":
+        return 0.0
+    try:
+        arah_wind = int(arah_str)
+        # Ambil kecepatan tertinggi (GUST jika ada) demi faktor keselamatan udara
+        kecepatan = int(kec_str.split('G')[1]) if 'G' in kec_str else int(kec_str)
+        
+        # Selisih sudut terhadap Runway 15 (150°) dan Runway 33 (330°)
+        diff_15 = abs(arah_wind - 150)
+        diff_33 = abs(arah_wind - 330)
+        
+        min_diff = min(diff_15, 360 - diff_15, diff_33, 360 - diff_33)
+        crosswind = kecepatan * math.sin(math.radians(min_diff))
+        return round(crosswind, 1)
+    except:
+        return 0.0
+
+# ==========================================
+# 3. LOGIKA MATEMATIKA TOLERANSI (B / S)
 # ==========================================
 
 def hitung_angin_arah(m_arah, t_arah):
@@ -100,24 +122,18 @@ def hitung_angin_arah(m_arah, t_arah):
 def hitung_angin_kec(m_kec, t_kec):
     if m_kec == "-" or t_kec == "-": return "-", "NIL"
     try:
-        # Pecah komponen Gustiness jika ada huruf 'G'
         m_base = int(m_kec.split('G')[0]) if 'G' in m_kec else int(m_kec)
         t_base = int(t_kec.split('G')[0]) if 'G' in t_kec else int(t_kec)
-        
         m_gust = int(m_kec.split('G')[1]) if 'G' in m_kec else 0
         t_gust = int(t_kec.split('G')[1]) if 'G' in t_kec else 0
         
-        # Validasi 1: Cek Angin Rata-rata (Toleransi 5 Knot)
         diff_base = abs(m_base - t_base)
         stat_base = "B" if diff_base <= 5 else "S"
         
-        # Validasi 2 (Opsi 2): Penegakan Hukum Gustiness Penerbangan
         if m_gust > 0 or t_gust > 0:
             diff_gust = abs(m_gust - t_gust)
-            # Salah jika salah satu luput meramal gust padahal terjadi, atau deviasi gust > 5 knot
             if (m_gust > 0 and t_gust == 0) or (m_gust == 0 and t_gust > 0) or (diff_gust > 5):
                 return f"B:{diff_base}|G:{abs(m_gust-t_gust)}", "S"
-                
         return str(diff_base), stat_base
     except: return "-", "S"
 
@@ -178,7 +194,7 @@ def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_
     return stat_akhir, s_ar, s_ke, s_vi, s_wx, s_aj, s_at
 
 # ==========================================
-# 3. KONTROLLER SINKRONISASI KRONOLOGIS
+# 4. KONTROLLER SINKRONISASI KRONOLOGIS FINAL
 # ==========================================
 
 def proses_verifikasi(df_metar, df_taf, df_speci):
@@ -244,6 +260,19 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         
         status_jam_ini, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob)
         
+        # Hitung Komponen Crosswind Aviasi
+        m_cw = hitung_komponen_crosswind(m_ar, m_ke)
+        t_cw = hitung_komponen_crosswind(t_ar, t_ke)
+        
+        # Deteksi Batas Alternatif Minima Bandara (Visibility < 5000m OR Ceiling Awan < 1500ft)
+        is_crit = "NORMAL"
+        try:
+            v_num = int(m_vi)
+            h_num = int(m_at)
+            if v_num < 5000 or (m_aj in ["BKN", "OVC"] and h_num < 1500):
+                is_crit = "CRITICAL MINIMA"
+        except: pass
+
         if not speci_terkait.empty:
             for _, speci_row in speci_terkait.iterrows():
                 sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at = ekstrak_param_metar_speci(speci_row[col_teks])
@@ -258,6 +287,13 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     if sp_s_wx == "S": s_wx = "S"
                     if sp_s_aj == "S": s_aj = "S"
                     if sp_s_at == "S": s_at = "S"
+                
+                # Update crosswind dari data terburuk SPECI
+                sp_cw = hitung_komponen_crosswind(sp_ar, sp_ke)
+                if sp_cw > m_cw: m_cw = sp_cw
+                try:
+                    if int(sp_vi) < 5000 or (sp_aj in ["BKN", "OVC"] and int(sp_at) < 1500): is_crit = "CRITICAL MINIMA"
+                except: pass
                     
                 baris_speci_final.append({
                     'Waktu SPECI (UTC)': speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
@@ -280,6 +316,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             'M_Wx': m_wx, 'T_Wx': t_wx, 'D_Wx': "-", 'S_Wx': s_wx,
             'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'D_AwanJml': "-", 'S_AwanJml': s_aj,
             'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'D_AwanTgi': "-", 'S_AwanTgi': s_at,
+            'M_Crosswind_Knot': m_cw, 'T_Crosswind_Knot': t_cw, 'Status_Minima': is_crit,
             'Hasil Akhir': "ACCURATE" if status_jam_ini == "B" else "MISS"
         })
         
