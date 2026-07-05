@@ -160,7 +160,7 @@ def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_f
     return html_content
 
 # ==========================================
-# 3. CORE VERIFIKASI TAFOR CONTROLLER
+# 3. VERIFIKASI TAFOR CONTROLLER FORM BULANAN
 # ==========================================
 def hitung_verifikasi_TAFOR(df_input):
     df_work = df_input.copy()
@@ -224,7 +224,7 @@ if 'diklik_proses' not in st.session_state: st.session_state['diklik_proses'] = 
 if 'df_hasil' not in st.session_state: st.session_state['df_hasil'] = None
 if 'df_speci_report' not in st.session_state: st.session_state['df_speci_report'] = None
 
-# DISPLAY TREN HISTORIS
+# TAMPILKAN HISTORIS
 df_tren_historis = ambil_tren_db()
 if not df_tren_historis.empty:
     st.subheader("📈 Tren Performa Stasiun Antar-Bulan (Memory Database)")
@@ -267,7 +267,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     
     if df_filtered.empty:
         st.warning(f"⚠️ Tidak ditemukan data cuaca pada rentang kalender aktif ({tgl_mulai} s.d {tgl_selesai}).")
-        st.info("💡 **Tips Taktis:** File yang Anda masukkan terdeteksi merupakan **Data Tahun 2025**. Silakan ubah filter kalender di Sidebar Kiri ke rentang tahun 2025 (Misal: `2025-03-01` to `2025-03-31`) untuk melihat hasil analisis otomatisnya keluar!")
     else:
         st.success(f"✅ Sinkronisasi Sukses! Menampilkan Rentang: {tgl_mulai} s.d {tgl_selesai}")
         
@@ -291,8 +290,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
             total_b_f += b_f; total_d_f += tot_f
             rows_f.append({"Nama Parameter": p_headers[k], "Jumlah Benar (B)": b_f, "Jumlah Salah (S)": s_f, "Total Sampel Data (Grup TAF)": tot_f, "Prosentase Ketelitian": f"{round(pct_f, 2)}%"})
-        
-        # 🔥 FIX DEFINISI VARIABEL DI SINI (Ubah total_data_form menjadi total_d_f)
         akurasi_global_form = round((total_b_f / total_d_f * 100 if total_d_f > 0 else 0), 1)
 
         simpan_rekap_db(tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
@@ -303,7 +300,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             "📊 Akurasi Matriks (Tiap Jam)", 
             "📄 Rekapitulasi Verifikasi TAFOR (Standar Bulanan)", 
             "🟧 Audit Trail SPECI (Letupan Ekstrem)",
-            "🎯 📊 Analisis Distribusi Kesalahan Forecaster"
+            "🎯 📊 Evaluasi & Performa Forecaster"
         ])
         
         with tab_matriks:
@@ -318,17 +315,23 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.success(f"### 🎯 TOTAL AKURASI GLOBAL VERIFIKASI TAFOR (STANDAR 029): {akurasi_global_form}%")
             st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
             
+        with tab_form:
+            st.success(f"### 🎯 TOTAL AKURASI GLOBAL VERIFIKASI TAFOR (STANDAR 029): {akurasi_global_form}%")
+            st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
+            
         with tab_speci:
             st.warning(f"### ⚡ Total Sampel Kejadian SPECI Terdeteksi: {len(df_speci_filtered)} baris")
             st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj']), use_container_width=True, hide_index=True)
             
         with tab_error:
+            # 🔥 UPGRADE AKBAR TAB 4: DUET DIAGNOSTIK PARAMETER & SHIFT JAGA (WITA)
             st.subheader("🎯 Analisis Karakteristik Deviasi Prakiraan Stasiun")
-            st.write("Grafik dan tabel di bawah ini merinci seberapa sering masing-masing parameter cuaca menyumbang nilai **Salah (S)** pada periode aktif pilihan Anda:")
             
+            # --- BLOK ATAS: DISTRIBUSI UNSUR CUACA ---
+            st.write("#### 1. Rangking Frekuensi Parameter yang Paling Sering Meleset")
             p_err_mapping = {
                 'Parameter A (Arah Angin / Wind Direction)': 'S_Arah',
-                'Parameter B (Kecepatan Angin / Wind Speed)': 'S_Kec',
+                'Parameter B (Kecepatan Angin / Wind Speed + Gusts)': 'S_Kec',
                 'Parameter C (Visibility / Jarak Pandang)': 'S_Vis',
                 'Parameter D (Cuaca Signifikan / Weather Phenomena)': 'S_Wx',
                 'Parameter E (Jumlah Awan / Cloud Amount)': 'S_AwanJml',
@@ -340,16 +343,51 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                 err_rows.append({"Parameter Cuaca": label, "Jumlah Frekuensi Meleset (Kali)": int(s_count)})
                 
             df_err_chart = pd.DataFrame(err_rows).set_index("Parameter Cuaca")
-            
             col_c1, col_c2 = st.columns([2, 3])
             with col_c1:
-                st.write("\n**Tabel Rangking Deviasi Unsur Cuaca:**")
                 st.dataframe(pd.DataFrame(err_rows).sort_values(by="Jumlah Frekuensi Meleset (Kali)", ascending=False), use_container_width=True, hide_index=True)
             with col_c2:
-                st.write("\n**Grafik Batang Frekuensi Distribusi Kesalahan:**")
                 st.bar_chart(df_err_chart, use_container_width=True)
                 
-            st.caption("💡 *Fungsi Evaluasi:* Parameter dengan grafik batang tertinggi adalah unsur cuaca yang paling sulit ditebak bulan ini dan membutuhkan perhatian ekstra pada sesi evaluasi kelompok *forecaster*.")
+            st.markdown("---")
+            
+            # --- BLOK BAWAH: ANALISIS SHIFT JAGA OPERASIONAL (WITA) ---
+            st.write("#### 2. Distribusi Akurasi Berdasarkan Regu Shift Jaga Lokal (WITA)")
+            st.caption("Penerapan pembagian jam kerja internal stasiun Waingapu: Pagi (06:30-13:30 WITA), Siang (13:30-20:30 WITA), dan Malam (20:30-06:30 WITA). Catatan: Jam kerja forecaster reguler (07:30-16:00 WITA) terdistribusi secara proporsional di dalam shift pagi dan siang.")
+            
+            # Konversi waktu UTC di file menjadi waktu WITA (UTC + 8)
+            df_shift = df_filtered.copy()
+            df_shift['Dt_UTC'] = pd.to_datetime(df_shift['Waktu Aktual (UTC)'])
+            df_shift['Jam_WITA'] = (df_shift['Dt_UTC'].dt.hour + 8) + (df_shift['Dt_UTC'].dt.minute / 60.0)
+            df_shift['Jam_WITA'] = df_shift['Jam_WITA'] % 24
+            
+            def klasifikasi_shift(wita_val):
+                if 6.5 <= wita_val < 13.5:
+                    return "🌅 Shift Pagi (06:30 - 13:30 WITA)"
+                elif 13.5 <= wita_val < 20.5:
+                    return "🌆 Shift Siang (13:30 - 20:30 WITA)"
+                else:
+                    return "🌌 Shift Malam (20:30 - 06:30 WITA)"
+                    
+            df_shift['Regu Jaga'] = df_shift['Jam_WITA'].apply(klasifikasi_shift)
+            
+            shift_rows = []
+            for name_s in ["🌅 Shift Pagi (06:30 - 13:30 WITA)", "🌆 Shift Siang (13:30 - 20:30 WITA)", "🌌 Shift Malam (20:30 - 06:30 WITA)"]:
+                sub_s = df_shift[df_shift['Regu Jaga'] == name_s]
+                if not sub_s.empty:
+                    b_s = (sub_s['Hasil Akhir'] == 'ACCURATE').sum()
+                    tot_s = len(sub_s)
+                    pct_s = round((b_s / tot_s * 100), 2)
+                else:
+                    b_s, tot_s, pct_s = 0, 0, 0.0
+                shift_rows.append({"Regu Jaga / Shift": name_s, "Akurasi (%)": pct_s, "Total Sampel Jam": tot_s})
+                
+            df_shift_chart = pd.DataFrame(shift_rows).set_index("Regu Jaga / Shift")[["Akurasi (%)"]]
+            col_s1, col_s2 = st.columns([2, 3])
+            with col_s1:
+                st.dataframe(pd.DataFrame(shift_rows), use_container_width=True, hide_index=True)
+            with col_s2:
+                st.bar_chart(df_shift_chart, use_container_width=True)
         
         # --- EXPORT PACK ZONE ---
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
@@ -358,7 +396,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         df_peg_list = ambil_semua_pegawai()
         opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
         pegawai_terpilih = st.selectbox("✒️ Pilih Pegawai Penandatangan Nota Dinas PDF:", opsi_pegawai)
-        row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilesh if 'pegawai_terpilesh' in locals() else 0)] if False else df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
+        row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
         
         c_dl1, c_dl2, c_dl3 = st.columns(3)
         with c_dl1:
@@ -370,7 +408,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.download_button(label="📄 3️⃣ Cetak Ringkasan Eksekutif (Nota Dinas PDF)", data=html_nota, file_name=f"NOTA_DINAS_VERIFIKASI_TAFOR_{str_m}.html", mime="text/html", use_container_width=True)
 
 # ==========================================
-# 4. PANEL UTAMA CRUD MANAJEMEN DATA PEGAWAI
+# 5. PANEL UTAMA CRUD MANAJEMEN DATA PEGAWAI
 # ==========================================
 st.markdown("---")
 with st.expander("👥 ⚙️ PANEL UTAMA: Manajemen Data Pegawai Pembuat Laporan (Tambah / Edit / Hapus)"):
