@@ -9,7 +9,7 @@ from excel_export import generate_lapbul_excel, generate_form_2026
 
 st.set_page_config(page_title="TAFOR Verifier BMKG", layout="wide")
 st.title("✈️ TAFOR Verifier ✈️")
-st.write("Sistem Verifikasi Sinkronisasi Dokumen METAR, SPECI, dan TAFOR Kontinu (GTS BMKG).")
+st.write("Sistem Verifikasi METAR, SPECI, dan TAFOR")
 
 # ==========================================
 # DATABASE SQLITE PERMANEN
@@ -262,7 +262,7 @@ with col3:
 
 if df_metar_raw is not None and df_taf_raw is not None and df_speci_raw is not None:
     st.markdown("---")
-    if st.button("🚀 JALANKAN PROSES VERIFIKASI SEKARANG", use_container_width=True, type="primary"):
+    if st.button("🚀 JALANKAN PROSES VERIFIKASI 🚀", use_container_width=True, type="primary"):
         try:
             with st.spinner("Mengevaluasi data, menyisir komponen crosswind & minima kritis..."):
                 df_hasil, df_speci_report, _, _ = proses_verifikasi(df_metar_raw, df_taf_raw, df_speci_raw)
@@ -318,7 +318,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         
         # 🔥 UPGRADE TABS: KELAHIRAN TAB 5 UNTUK BATAS KRITIS PENERBANGAN
         tab_matriks, tab_form, tab_speci, tab_error, tab_minima = st.tabs([
-            "📊 Akurasi Matriks (Tiap Jam)", "📄 Rekapitulasi Verifikasi TAFOR (Standar Bulanan)", 
+            "📊 Akurasi Matriks (Tiap Jam)", "📄 Rekapitulasi Verifikasi TAFOR", 
             "🟧 Audit Trail SPECI (Letupan Ekstrem)", "🎯 📊 Evaluasi & Performa Forecaster",
             "✈️ 🚨 Batas Kritis & Crosswind"
         ])
@@ -332,11 +332,11 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.line_chart(df_harian.set_index('Tanggal_Chart'), use_container_width=True)
             
         with tab_form:
-            st.success(f"### 🎯 TOTAL AKURASI GLOBAL VERIFIKASI TAFOR (STANDAR 029): {akurasi_global_form}%")
+            st.success(f"### 🎯 TOTAL AKURASI VERIFIKASI TAFOR: {akurasi_global_form}%")
             st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
             
         with tab_speci:
-            st.warning(f"### ⚡ Total Sampel Kejadian SPECI Terdeteksi: {len(df_speci_filtered)} baris")
+            st.warning(f"### ⚡ Total Sampel Kejadian SPECI: {len(df_speci_filtered)} baris")
             st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj']), use_container_width=True, hide_index=True)
             
         with tab_error:
@@ -348,7 +348,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.bar_chart(pd.DataFrame(err_rows).set_index("Parameter Cuaca"), use_container_width=True)
                 
             st.markdown("---")
-            st.write("#### 2. Distribusi Akurasi Berdasarkan Regu Shift Jaga Lokal (WITA)")
+            st.write("#### 2. Distribusi Akurasi Berdasarkan Regu Shift")
             df_shift = df_filtered.copy()
             df_shift['Dt_UTC'] = pd.to_datetime(df_shift['Waktu Aktual (UTC)'])
             df_shift['Jam_WITA'] = ((df_shift['Dt_UTC'].dt.hour + 8) + (df_shift['Dt_UTC'].dt.minute / 60.0)) % 24
@@ -391,10 +391,10 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 
         # --- EXPORT PACK ZONE ---
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
-        st.subheader("📥 Export Paket Dokumen Verifikasi Resmi Stasiun")
+        st.subheader("📥 Export Paket Dokumen Verifikasi")
         df_peg_list = ambil_semua_pegawai()
         opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
-        pegawai_terpilih = st.selectbox("✒️ Pilih Pegawai Penandatangan Nota Dinas PDF:", opsi_pegawai)
+        pegawai_terpilih = st.selectbox("✒️ Pilih Pegawai Penandatangan:", opsi_pegawai)
         row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
         
         c_dl1, c_dl2, c_dl3 = st.columns(3)
@@ -402,13 +402,13 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         with c_dl2: st.download_button(label="2️⃣ Unduh Verifikasi TAFOR (Excel)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         with c_dl3:
             html_nota = generate_nota_dinas_html(str_m, str_s, akurasi_global_matriks, akurasi_global_form, rows_m, rows_f, len(df_speci_filtered), row_peg_terpilih['nama'], row_peg_terpilih['nip'], row_peg_terpilih['jabatan'])
-            st.download_button(label="📄 3️⃣ Cetak Ringkasan Eksekutif (Nota Dinas PDF)", data=html_nota, file_name=f"NOTA_DINAS_VERIFIKASI_TAFOR_{str_m}.html", mime="text/html", use_container_width=True)
+            st.download_button(label="📄 3️⃣ Cetak Nota Dinas", data=html_nota, file_name=f"NOTA_DINAS_VERIFIKASI_TAFOR_{str_m}.html", mime="text/html", use_container_width=True)
 
 # ==========================================
 # 5. PANEL UTAMA CRUD MANAJEMEN DATA PEGAWAI
 # ==========================================
 st.markdown("---")
-with st.expander("👥 ⚙️ PANEL UTAMA: Manajemen Data Pegawai Pembuat Laporan (Tambah / Edit / Hapus)"):
+with st.expander("👥 ⚙️ Manajemen Data Pegawai Pembuat Laporan"):
     df_peg_crud = ambil_semua_pegawai()
     st.write("Daftar Pegawai Aktif Saat Ini di Database:")
     st.dataframe(df_peg_crud, use_container_width=True, hide_index=True)
