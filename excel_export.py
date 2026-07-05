@@ -95,7 +95,6 @@ def generate_form_2026(df_hasil, df_speci=None):
         fmt_base = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#F8FAFC'})
         fmt_tempo = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#FFF9E6'})
         fmt_becmg = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#F4EBF7'})
-        # 🔥 BARU: Warna Biru Langit Soft untuk menandai Grup Probabilitas cuaca
         fmt_prob = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10, 'bg_color': '#E8F0FE'})
         
         fmt_hit = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bold': True, 'font_color': '#006100', 'bg_color': '#C6EFCE'})
@@ -115,7 +114,7 @@ def generate_form_2026(df_hasil, df_speci=None):
         ws.write_row("I5", ["A", "H", "B", "H", "C", "H", "D", "H", "E", "H", "F", "H"], fmt_h)
         
         ws.set_column("A:A", 5)
-        ws.set_column("B:B", 12) # Dilebarkan sedikit agar label waktu PROB muat
+        ws.set_column("B:B", 12)
         ws.set_column("C:H", 7)
         ws.set_column("I:T", 6)
         
@@ -141,7 +140,6 @@ def generate_form_2026(df_hasil, df_speci=None):
             start_row_tgl = row_idx
             for taf_sandi in tafs_hari_ini:
                 baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
-                # 🔥 PARSER UPGRADE: Mendukung pemisahan tipe PROB bulatan
                 parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_sandi))
                 
                 base_time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', parts[0])
@@ -158,7 +156,6 @@ def generate_form_2026(df_hasil, df_speci=None):
                     tipe, isi = parts[i], parts[i+1]
                     time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
                     
-                    # Berikan singkatan label waktu yang cantik (Contoh: P30.04-06)
                     short_tipe = "B" if tipe=='BECMG' else ("T" if tipe=='TEMPO' else ("P30" if '30' in tipe else "P40"))
                     label_w = f"{short_tipe}.{time_match.group(2)}-{time_match.group(4)}" if time_match else f"{short_tipe}.??"
                     if label_w.endswith("00"): label_w = label_w[:-2] + "24"
@@ -173,7 +170,6 @@ def generate_form_2026(df_hasil, df_speci=None):
                     
                     data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == int(time_match.group(2))) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)] if time_match else pd.DataFrame()
                     
-                    # Tentukan warna latar sel
                     fmt_warna = fmt_tempo if tipe=='TEMPO' else (fmt_becmg if tipe=='BECMG' else fmt_prob)
                     
                     _tulis_baris_form(ws, row_idx, label_w, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, data_jam.iloc[0] if not data_jam.empty else baris_m_base, rekapan, fmt_warna, fmt_hit, fmt_miss, base_data=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at), is_prob=('PROB' in tipe))
@@ -227,6 +223,45 @@ def generate_form_2026(df_hasil, df_speci=None):
             
     return buffer
 
+# ==========================================
+# 🔥 BARU: GENERATOR BUKU CATATAN RAW GTS DENGAN WITA CONVERSION
+# ==========================================
+def generate_logbook_excel(df_hasil):
+    """Membuat file excel murni rapi berisi Tanggal, Jam, Sandi METAR, dan Sandi TAFOR tanpa koreksi apa pun"""
+    df_log = df_hasil.copy()
+    df_log['Dt_UTC'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
+    
+    # Konversi ke waktu lokal stasiun Waingapu (WITA = UTC + 8 Jam)
+    df_log['Dt_WITA'] = df_log['Dt_UTC'] + pd.Timedelta(hours=8)
+    df_log['Tanggal (WITA)'] = df_log['Dt_WITA'].dt.strftime('%Y-%m-%d')
+    df_log['Jam Jaga (WITA)'] = df_log['Dt_WITA'].dt.strftime('%H:%M:%S')
+    
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        workbook = writer.book
+        ws = workbook.add_worksheet('LOGBOOK RAW GTS')
+        
+        # Style formal logbook
+        fmt_h = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#36454F', 'font_color': '#FFFFFF', 'font_size': 10})
+        fmt_c = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
+        fmt_l = workbook.add_format({'align': 'left', 'valign': 'vcenter', 'border': 1, 'font_size': 9, 'font_name': 'Courier New'})
+        
+        headers = ["TANGGAL (WITA)", "JAM (WITA)", "SANDI METAR AKTUAL (RAW GTS)", "SANDI TAFOR PRAKIRAAN (RAW GTS)"]
+        ws.write_row(0, 0, headers, fmt_h)
+        ws.set_column("A:A", 16)
+        ws.set_column("B:B", 14)
+        ws.set_column("C:C", 55)
+        ws.set_column("D:D", 65)
+        
+        for idx, row in df_log.reset_index(drop=True).iterrows():
+            r_num = idx + 1
+            ws.write(r_num, 0, row['Tanggal (WITA)'], fmt_c)
+            ws.write(r_num, 1, row['Jam Jaga (WITA)'], fmt_c)
+            ws.write(r_num, 2, str(row['Sandi METAR Aktual']).strip(), fmt_l)
+            ws.write(r_num, 3, str(row['Sandi TAF Prakiraan']).strip(), fmt_l)
+            
+    return buffer
+
 def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, fmt_f, fmt_b, fmt_s, base_data=None, is_prob=False):
     ws.write(r, 1, lbl, fmt_f)
     ws.write_row(r, 2, [tar, tke, tvi, twx, taj, tat], fmt_f)
@@ -238,7 +273,6 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     _, s_aj = hitung_awan_jml(m_row['M_AwanJml'], taj)
     _, s_at = hitung_awan_tgi(m_row['M_AwanTgi'], tat)
     
-    # 🔥 PENGAMPUNAN GRUP PROB DI DOKUMEN EXCEL FORM 2026
     if is_prob and base_data is not None:
         _, b_ar = hitung_angin_arah(m_row['M_Arah'], base_data[0])
         _, b_ke = hitung_angin_kec(m_row['M_Kec'], base_data[1])
@@ -283,6 +317,6 @@ def _bikin_sheet_speci(workbook, df_speci):
         for m, t, s in cols_mapping:
             ws.write(row_num, c_idx, r[m], fmt_sp)
             ws.write(row_num, c_idx+1, r[t], fmt_sp)
-            ws.write(row_num, c_idx+2, r[s], fmt_b if r[s]=='B' else fmt_s)
+            ws.write(row_num, c_idx+2, fmt_b if r[s]=='B' else fmt_s)
             c_idx += 3
         ws.write(row_num, 21, r['Hasil Akhir'], fmt_b if r['Hasil Akhir']=='ACCURATE' else fmt_s)
