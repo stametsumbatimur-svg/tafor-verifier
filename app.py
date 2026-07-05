@@ -224,7 +224,7 @@ if 'diklik_proses' not in st.session_state: st.session_state['diklik_proses'] = 
 if 'df_hasil' not in st.session_state: st.session_state['df_hasil'] = None
 if 'df_speci_report' not in st.session_state: st.session_state['df_speci_report'] = None
 
-# TAMPILKAN HISTORIS
+# DISPLAY TREN HISTORIS
 df_tren_historis = ambil_tren_db()
 if not df_tren_historis.empty:
     st.subheader("📈 Tren Performa Stasiun Antar-Bulan (Memory Database)")
@@ -266,7 +266,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     df_speci_filtered = df_speci_report[(df_speci_report['Datetime_Obj'] >= tgl_mulai) & (df_speci_report['Datetime_Obj'] <= tgl_selesai)].copy()
     
     if df_filtered.empty:
-        # 🔥 UI/UX UPGRADE: BANTUAN DETEKSI TAHUN AGAR USER TIDAK BINGUNG
         st.warning(f"⚠️ Tidak ditemukan data cuaca pada rentang kalender aktif ({tgl_mulai} s.d {tgl_selesai}).")
         st.info("💡 **Tips Taktis:** File yang Anda masukkan terdeteksi merupakan **Data Tahun 2025**. Silakan ubah filter kalender di Sidebar Kiri ke rentang tahun 2025 (Misal: `2025-03-01` to `2025-03-31`) untuk melihat hasil analisis otomatisnya keluar!")
     else:
@@ -292,13 +291,14 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
             total_b_f += b_f; total_d_f += tot_f
             rows_f.append({"Nama Parameter": p_headers[k], "Jumlah Benar (B)": b_f, "Jumlah Salah (S)": s_f, "Total Sampel Data (Grup TAF)": tot_f, "Prosentase Ketelitian": f"{round(pct_f, 2)}%"})
+        
+        # 🔥 FIX DEFINISI VARIABEL DI SINI (Ubah total_data_form menjadi total_d_f)
         akurasi_global_form = round((total_b_f / total_d_f * 100 if total_d_f > 0 else 0), 1)
 
         simpan_rekap_db(tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
 
         st.subheader(f"📊 Panel Analisis Akurasi Periode ({tgl_mulai} s.d {tgl_selesai})")
         
-        # 🔥 REKOMENDASI 4: KELAHIRAN TAB BARU UNTUK DISTRIBUSI KESALAHAN
         tab_matriks, tab_form, tab_speci, tab_error = st.tabs([
             "📊 Akurasi Matriks (Tiap Jam)", 
             "📄 Rekapitulasi Verifikasi TAFOR (Standar Bulanan)", 
@@ -323,7 +323,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj']), use_container_width=True, hide_index=True)
             
         with tab_error:
-            # 🔥 IMPLEMENTASI ANALISIS DIAGNOSTIK KESALAHAN FORECASTER
             st.subheader("🎯 Analisis Karakteristik Deviasi Prakiraan Stasiun")
             st.write("Grafik dan tabel di bawah ini merinci seberapa sering masing-masing parameter cuaca menyumbang nilai **Salah (S)** pada periode aktif pilihan Anda:")
             
@@ -359,7 +358,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         df_peg_list = ambil_semua_pegawai()
         opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
         pegawai_terpilih = st.selectbox("✒️ Pilih Pegawai Penandatangan Nota Dinas PDF:", opsi_pegawai)
-        row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
+        row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilesh if 'pegawai_terpilesh' in locals() else 0)] if False else df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
         
         c_dl1, c_dl2, c_dl3 = st.columns(3)
         with c_dl1:
