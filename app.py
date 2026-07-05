@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import os
 import sqlite3
 from datetime import datetime
 from verification_logic import proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi
@@ -11,7 +12,7 @@ st.title("✈️ TAFOR Verifier ✈️")
 st.write("Sistem Verifikasi Sinkronisasi Dokumen METAR, SPECI, dan TAFOR Kontinu (GTS BMKG).")
 
 # ==========================================
-# 1. DATABASE SQLITE PERMANEN
+# DATABASE SQLITE PERMANEN
 # ==========================================
 def init_db():
     conn = sqlite3.connect('verifier_db.sqlite')
@@ -72,7 +73,7 @@ def hapus_pegawai(id_peg):
 init_db()
 
 # ==========================================
-# 2. GENERATOR NOTA DINAS RESMI
+# GENERATOR NOTA DINAS RESMI
 # ==========================================
 def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_form, total_speci, nama_ttd, nip_ttd, jab_ttd):
     str_tgl = datetime.now().strftime('%d %B %Y')
@@ -86,8 +87,7 @@ def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_f
 
     html_content = f"""
     <html>
-    <head>
-    <style>
+    <head><style>
         body {{ font-family: 'Arial', sans-serif; margin: 40px; color: #000; line-height: 1.4; }}
         .kop {{ text-align: center; font-weight: bold; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px; }}
         .kop h2 {{ margin: 0; font-size: 16px; letter-spacing: 1px; }}
@@ -103,9 +103,7 @@ def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_f
         table.data th, table.data td {{ border: 1px solid #000; padding: 6px; text-align: center; }}
         table.data th {{ background-color: #F2F2F2; font-weight: bold; }}
         .ttd-container {{ float: right; width: 280px; margin-top: 40px; font-size: 13px; text-align: center; page-break-inside: avoid; }}
-        @media print {{ border: none; @page {{ margin: 1.5cm; }} }}
-    </style>
-    </head>
+    </style></head>
     <body>
         <div class="kop">
             <h2>BADAN METEOROLOGI, KLIMATOLOGI, DAN GEOFISIKA</h2>
@@ -159,9 +157,6 @@ def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_f
     """
     return html_content
 
-# ==========================================
-# 3. VERIFIKASI TAFOR CONTROLLER FORM BULANAN
-# ==========================================
 def hitung_verifikasi_TAFOR(df_input):
     df_work = df_input.copy()
     df_work['Tanggal'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.day
@@ -219,42 +214,66 @@ def hitung_verifikasi_TAFOR(df_input):
                 if tipe == 'BECMG': cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
     return rekapan
 
-# SESSION STATE
 if 'diklik_proses' not in st.session_state: st.session_state['diklik_proses'] = False
 if 'df_hasil' not in st.session_state: st.session_state['df_hasil'] = None
 if 'df_speci_report' not in st.session_state: st.session_state['df_speci_report'] = None
 
-# TAMPILKAN HISTORIS
+# DISPLAY ARCHIVE TREN
 df_tren_historis = ambil_tren_db()
 if not df_tren_historis.empty:
     st.subheader("📈 Tren Performa Stasiun Antar-Bulan (Memory Database)")
     st.line_chart(df_tren_historis.copy().set_index('bulan_tahun'), use_container_width=True)
 
-# SIDEBAR CALENDAR
+# SIDEBAR CONTROLS
 st.sidebar.header("🗓️ Filter Rentang Waktu")
 hari_ini = datetime.now().date()
 tanggal_pilihan = st.sidebar.date_input("Pilih Tanggal Mulai dan Selesai:", value=(hari_ini, hari_ini), key="rentang_tanggal")
 
-col1, col2, col3 = st.columns(3)
-with col1: file_metar = st.file_uploader("1. Unggah CSV METAR", type=["csv"], key="metar")
-with col2: file_taf = st.file_uploader("2. Unggah CSV TAF", type=["csv"], key="taf")
-with col3: file_speci = st.file_uploader("3. Unggah CSV SPECI", type=["csv"], key="speci")
+# 🔥 IMPLEMENTASI OPSI 1: GTS WATCHER AUTO-INGESTION (SIDEBAR)
+st.sidebar.markdown("---")
+st.sidebar.header("📁 Opsi 1: GTS Auto-Watcher")
+folder_lokal = st.sidebar.text_input("Jalur Folder Lokal (Jika Offline):", value="", placeholder="Contoh: C:/GTS_Data/")
 
-if file_metar is not None and file_taf is not None and file_speci is not None:
+df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
+
+if folder_lokal:
+    if os.path.exists(folder_lokal):
+        files = os.listdir(folder_lokal)
+        for f in files:
+            if f.endswith(".csv"):
+                f_lower = f.lower()
+                full_p = os.path.join(folder_lokal, f)
+                if "metar" in f_lower: df_metar_raw = pd.read_csv(full_p); st.sidebar.caption(f"✅ METAR Auto: {f}")
+                elif "taf" in f_lower: df_taf_raw = pd.read_csv(full_p); st.sidebar.caption(f"✅ TAF Auto: {f}")
+                elif "speci" in f_lower: df_speci_raw = pd.read_csv(full_p); st.sidebar.caption(f"✅ SPECI Auto: {f}")
+    else: st.sidebar.error("❌ Jalur folder tidak ditemukan!")
+
+# FALLBACK KOTAK UPLOADER MANUAL (JIKA FILE AUTO BELUM TERISI)
+col1, col2, col3 = st.columns(3)
+with col1: 
+    file_m = st.file_uploader("1. Unggah CSV METAR", type=["csv"], key="metar")
+    if file_m: df_metar_raw = pd.read_csv(file_m)
+with col2: 
+    file_t = st.file_uploader("2. Unggah CSV TAF", type=["csv"], key="taf")
+    if file_t: df_taf_raw = pd.read_csv(file_t)
+with col3: 
+    file_sp = st.file_uploader("3. Unggah CSV SPECI", type=["csv"], key="speci")
+    if file_sp: df_speci_raw = pd.read_csv(file_sp)
+
+if df_metar_raw is not None and df_taf_raw is not None and df_speci_raw is not None:
     st.markdown("---")
     if st.button("🚀 JALANKAN PROSES VERIFIKASI SEKARANG", use_container_width=True, type="primary"):
         try:
-            with st.spinner("Mengevaluasi ribuan baris data, menyisir letupan SPECI, dan mengunci database..."):
-                df_hasil, df_speci_report, _, _ = proses_verifikasi(pd.read_csv(file_metar), pd.read_csv(file_taf), pd.read_csv(file_speci))
+            with st.spinner("Mengevaluasi data, menyisir komponen crosswind & minima kritis..."):
+                df_hasil, df_speci_report, _, _ = proses_verifikasi(df_metar_raw, df_taf_raw, df_speci_raw)
                 df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
                 df_speci_report['Datetime_Obj'] = pd.to_datetime(df_speci_report['Waktu SPECI (UTC)']).dt.date
                 st.session_state['df_hasil'] = df_hasil
                 st.session_state['df_speci_report'] = df_speci_report
                 st.session_state['diklik_proses'] = True
-        except Exception as e:
-            st.error(f"Gagal memproses data: {e}")
+        except Exception as e: st.error(f"Gagal memproses data: {e}")
 
-# RENDER INTERFACE
+# GERBANG TAMPILAN INTERFACE
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
     df_hasil = st.session_state['df_hasil']
     df_speci_report = st.session_state['df_speci_report']
@@ -266,11 +285,11 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     df_speci_filtered = df_speci_report[(df_speci_report['Datetime_Obj'] >= tgl_mulai) & (df_speci_report['Datetime_Obj'] <= tgl_selesai)].copy()
     
     if df_filtered.empty:
-        st.warning(f"⚠️ Tidak ditemukan data cuaca pada rentang kalender aktif ({tgl_mulai} s.d {tgl_selesai}).")
+        st.warning(f"⚠️ Tidak ditemukan data cuaca pada rentang kalender aktif ({tgl_mulai} s.d {tgl_selesai}). Sesuaikan tanggal filter di sidebar kiri.")
     else:
         st.success(f"✅ Sinkronisasi Sukses! Menampilkan Rentang: {tgl_mulai} s.d {tgl_selesai}")
         
-        # PERHITUNGAN MATRIKS TIAP JAM
+        # HITUNGAN MATRIKS
         total_b_g, total_data_global, rows_m = 0, 0, []
         p_headers = {'A':'A (Arah Wind)','B':'B (Kec Wind)','C':'C (Visibility)','D':'D (Cuaca)','E':'E (Jml Awan)','F':'F (Tgi Awan)'}
         for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
@@ -281,7 +300,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             rows_m.append({"Nama Parameter": p_headers[k], "Jumlah Benar (B)": b, "Jumlah Salah (S)": s, "Total Sampel Data (Tiap Jam)": tot, "Prosentase Ketelitian": f"{round(pct, 2)}%"})
         akurasi_global_matriks = round((total_b_g / total_data_global * 100), 1) if total_data_global > 0 else 0
         
-        # PERHITUNGAN VERIFIKASI TAFOR
+        # HITUNGAN TAFOR FORM
         rekapan_form = hitung_verifikasi_TAFOR(df_filtered)
         rows_f, total_b_f, total_d_f = [], 0, 0
         for k in ['A', 'B', 'C', 'D', 'E', 'F']:
@@ -294,13 +313,14 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 
         simpan_rekap_db(tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
 
+        # INTERFACE TAB PACK
         st.subheader(f"📊 Panel Analisis Akurasi Periode ({tgl_mulai} s.d {tgl_selesai})")
         
-        tab_matriks, tab_form, tab_speci, tab_error = st.tabs([
-            "📊 Akurasi Matriks (Tiap Jam)", 
-            "📄 Rekapitulasi Verifikasi TAFOR (Standar Bulanan)", 
-            "🟧 Audit Trail SPECI (Letupan Ekstrem)",
-            "🎯 📊 Evaluasi & Performa Forecaster"
+        # 🔥 UPGRADE TABS: KELAHIRAN TAB 5 UNTUK BATAS KRITIS PENERBANGAN
+        tab_matriks, tab_form, tab_speci, tab_error, tab_minima = st.tabs([
+            "📊 Akurasi Matriks (Tiap Jam)", "📄 Rekapitulasi Verifikasi TAFOR (Standar Bulanan)", 
+            "🟧 Audit Trail SPECI (Letupan Ekstrem)", "🎯 📊 Evaluasi & Performa Forecaster",
+            "✈️ 🚨 Batas Kritis & Crosswind"
         ])
         
         with tab_matriks:
@@ -315,94 +335,71 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.success(f"### 🎯 TOTAL AKURASI GLOBAL VERIFIKASI TAFOR (STANDAR 029): {akurasi_global_form}%")
             st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
             
-        with tab_form:
-            st.success(f"### 🎯 TOTAL AKURASI GLOBAL VERIFIKASI TAFOR (STANDAR 029): {akurasi_global_form}%")
-            st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
-            
         with tab_speci:
             st.warning(f"### ⚡ Total Sampel Kejadian SPECI Terdeteksi: {len(df_speci_filtered)} baris")
             st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj']), use_container_width=True, hide_index=True)
             
         with tab_error:
-            # 🔥 UPGRADE AKBAR TAB 4: DUET DIAGNOSTIK PARAMETER & SHIFT JAGA (WITA)
-            st.subheader("🎯 Analisis Karakteristik Deviasi Prakiraan Stasiun")
-            
-            # --- BLOK ATAS: DISTRIBUSI UNSUR CUACA ---
             st.write("#### 1. Rangking Frekuensi Parameter yang Paling Sering Meleset")
-            p_err_mapping = {
-                'Parameter A (Arah Angin / Wind Direction)': 'S_Arah',
-                'Parameter B (Kecepatan Angin / Wind Speed + Gusts)': 'S_Kec',
-                'Parameter C (Visibility / Jarak Pandang)': 'S_Vis',
-                'Parameter D (Cuaca Signifikan / Weather Phenomena)': 'S_Wx',
-                'Parameter E (Jumlah Awan / Cloud Amount)': 'S_AwanJml',
-                'Parameter F (Tinggi Awan / Cloud Base Height)': 'S_AwanTgi'
-            }
             err_rows = []
-            for label, col_name in p_err_mapping.items():
+            for label, col_name in {'Arah Wind':'S_Arah','Kec Wind + Gusts':'S_Kec','Visibility':'S_Vis','Cuaca':'S_Wx','Jml Awan':'S_AwanJml','Tgi Awan':'S_AwanTgi'}.items():
                 s_count = (df_filtered[col_name] == 'S').sum()
                 err_rows.append({"Parameter Cuaca": label, "Jumlah Frekuensi Meleset (Kali)": int(s_count)})
-                
-            df_err_chart = pd.DataFrame(err_rows).set_index("Parameter Cuaca")
-            col_c1, col_c2 = st.columns([2, 3])
-            with col_c1:
-                st.dataframe(pd.DataFrame(err_rows).sort_values(by="Jumlah Frekuensi Meleset (Kali)", ascending=False), use_container_width=True, hide_index=True)
-            with col_c2:
-                st.bar_chart(df_err_chart, use_container_width=True)
+            st.bar_chart(pd.DataFrame(err_rows).set_index("Parameter Cuaca"), use_container_width=True)
                 
             st.markdown("---")
-            
-            # --- BLOK BAWAH: ANALISIS SHIFT JAGA OPERASIONAL (WITA) ---
             st.write("#### 2. Distribusi Akurasi Berdasarkan Regu Shift Jaga Lokal (WITA)")
-            st.caption("Penerapan pembagian jam kerja internal stasiun Waingapu: Pagi (06:30-13:30 WITA), Siang (13:30-20:30 WITA), dan Malam (20:30-06:30 WITA). Catatan: Jam kerja forecaster reguler (07:30-16:00 WITA) terdistribusi secara proporsional di dalam shift pagi dan siang.")
-            
-            # Konversi waktu UTC di file menjadi waktu WITA (UTC + 8)
             df_shift = df_filtered.copy()
             df_shift['Dt_UTC'] = pd.to_datetime(df_shift['Waktu Aktual (UTC)'])
-            df_shift['Jam_WITA'] = (df_shift['Dt_UTC'].dt.hour + 8) + (df_shift['Dt_UTC'].dt.minute / 60.0)
-            df_shift['Jam_WITA'] = df_shift['Jam_WITA'] % 24
+            df_shift['Jam_WITA'] = ((df_shift['Dt_UTC'].dt.hour + 8) + (df_shift['Dt_UTC'].dt.minute / 60.0)) % 24
             
-            def klasifikasi_shift(wita_val):
-                if 6.5 <= wita_val < 13.5:
-                    return "🌅 Shift Pagi (06:30 - 13:30 WITA)"
-                elif 13.5 <= wita_val < 20.5:
-                    return "🌆 Shift Siang (13:30 - 20:30 WITA)"
-                else:
-                    return "🌌 Shift Malam (20:30 - 06:30 WITA)"
-                    
-            df_shift['Regu Jaga'] = df_shift['Jam_WITA'].apply(klasifikasi_shift)
+            def klasifikasi_shift(w_val):
+                return "🌅 Shift Pagi (06:30-13:30 WITA)" if 6.5 <= w_val < 13.5 else ("CN" if 13.5 <= w_val < 20.5 else "🌌 Shift Malam (20:30-06:30 WITA)")
+            df_shift['Regu Jaga'] = df_shift['Jam_WITA'].apply(lambda x: "🌆 Shift Siang (13:30-20:30 WITA)" if klasifikasi_shift(x)=="CN" else klasifikasi_shift(x))
             
-            shift_rows = []
-            for name_s in ["🌅 Shift Pagi (06:30 - 13:30 WITA)", "🌆 Shift Siang (13:30 - 20:30 WITA)", "🌌 Shift Malam (20:30 - 06:30 WITA)"]:
+            s_rows = []
+            for name_s in ["🌅 Shift Pagi (06:30-13:30 WITA)", "🌆 Shift Siang (13:30-20:30 WITA)", "🌌 Shift Malam (20:30-06:30 WITA)"]:
                 sub_s = df_shift[df_shift['Regu Jaga'] == name_s]
-                if not sub_s.empty:
-                    b_s = (sub_s['Hasil Akhir'] == 'ACCURATE').sum()
-                    tot_s = len(sub_s)
-                    pct_s = round((b_s / tot_s * 100), 2)
-                else:
-                    b_s, tot_s, pct_s = 0, 0, 0.0
-                shift_rows.append({"Regu Jaga / Shift": name_s, "Akurasi (%)": pct_s, "Total Sampel Jam": tot_s})
-                
-            df_shift_chart = pd.DataFrame(shift_rows).set_index("Regu Jaga / Shift")[["Akurasi (%)"]]
-            col_s1, col_s2 = st.columns([2, 3])
-            with col_s1:
-                st.dataframe(pd.DataFrame(shift_rows), use_container_width=True, hide_index=True)
-            with col_s2:
-                st.bar_chart(df_shift_chart, use_container_width=True)
-        
+                pct_s = round(((sub_s['Hasil Akhir'] == 'ACCURATE').sum() / len(sub_s) * 100), 2) if not sub_s.empty else 0.0
+                s_rows.append({"Regu Jaga / Shift": name_s, "Akurasi (%)": pct_s, "Total Sampel Jam": len(sub_s)})
+            st.dataframe(pd.DataFrame(s_rows), use_container_width=True, hide_index=True)
+            st.bar_chart(pd.DataFrame(s_rows).set_index("Regu Jaga / Shift")[["Akurasi (%)"]], use_container_width=True)
+            
+        with tab_minima:
+            # 🔥 IMPLEMENTASI OPSI 3: VISUALISASI MONITORING BATAS OPERATIONS MINIMA
+            st.subheader("✈️ 🚨 Analisis Batas Kritis Aviasi & Crosswind Runway 15/33 WATU")
+            
+            max_m_cw = df_filtered['M_Crosswind_Knot'].max()
+            max_t_cw = df_filtered['T_Crosswind_Knot'].max()
+            total_crit_rows = (df_filtered['Status_Minima'] == 'CRITICAL MINIMA').sum()
+            
+            cm1, cm2, cm3 = st.columns(3)
+            cm1.metric("Maksimum Crosswind Riil (METAR/SPECI)", f"{max_m_cw} Knot")
+            cm2.metric("Maksimum Crosswind TAFOR (Ramalan)", f"{max_t_cw} Knot")
+            cm3.metric("Total Jam Di Bawah Minima Bandara", f"{total_crit_rows} Jam")
+            
+            st.write("\n**Grafik Tren Fluktuasi Komponen Crosswind Aktual vs Prakiraan:**")
+            df_cw_chart = df_filtered.copy().set_index("Waktu Aktual (UTC)")[["M_Crosswind_Knot", "T_Crosswind_Knot"]]
+            st.line_chart(df_cw_chart, use_container_width=True)
+            
+            df_only_crit = df_filtered[df_filtered['Status_Minima'] == 'CRITICAL MINIMA'].copy()
+            if not df_only_crit.empty:
+                st.error(f"🔍 **Log Audit Trail Cuaca di Bawah Batas Minima Operasional Penerbangan ({len(df_only_crit)} Jam Terdeteksi):**")
+                st.dataframe(df_only_crit[['Waktu Aktual (UTC)', 'Sandi METAR Aktual', 'Sandi TAF Prakiraan', 'M_Vis', 'M_AwanJml', 'M_AwanTgi', 'M_Crosswind_Knot', 'Hasil Akhir']], use_container_width=True, hide_index=True)
+            else:
+                st.success("✅ Selama periode ini, tidak ada kondisi cuaca bandara yang menembus di bawah batas kritis keselamatan (*Alternate Minima*).")
+
         # --- EXPORT PACK ZONE ---
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         st.subheader("📥 Export Paket Dokumen Verifikasi Resmi Stasiun")
-        
         df_peg_list = ambil_semua_pegawai()
         opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
         pegawai_terpilih = st.selectbox("✒️ Pilih Pegawai Penandatangan Nota Dinas PDF:", opsi_pegawai)
         row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
         
         c_dl1, c_dl2, c_dl3 = st.columns(3)
-        with c_dl1:
-            st.download_button(label="1️⃣ Unduh Matriks Tiap Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"REKAP_MATRIKS_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-        with c_dl2:
-            st.download_button(label="2️⃣ Unduh Verifikasi TAFOR (Excel)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        with c_dl1: st.download_button(label="1️⃣ Unduh Matriks Tiap Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"REKAP_MATRIKS_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        with c_dl2: st.download_button(label="2️⃣ Unduh Verifikasi TAFOR (Excel)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAFOR_{str_m}_TO_{str_s}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         with c_dl3:
             html_nota = generate_nota_dinas_html(str_m, str_s, akurasi_global_matriks, akurasi_global_form, rows_m, rows_f, len(df_speci_filtered), row_peg_terpilih['nama'], row_peg_terpilih['nip'], row_peg_terpilih['jabatan'])
             st.download_button(label="📄 3️⃣ Cetak Ringkasan Eksekutif (Nota Dinas PDF)", data=html_nota, file_name=f"NOTA_DINAS_VERIFIKASI_TAFOR_{str_m}.html", mime="text/html", use_container_width=True)
@@ -415,7 +412,6 @@ with st.expander("👥 ⚙️ PANEL UTAMA: Manajemen Data Pegawai Pembuat Lapora
     df_peg_crud = ambil_semua_pegawai()
     st.write("Daftar Pegawai Aktif Saat Ini di Database:")
     st.dataframe(df_peg_crud, use_container_width=True, hide_index=True)
-    
     tab_add, tab_edit, tab_del = st.tabs(["➕ Tambah Pegawai", "✏️ Edit Data Pegawai", "❌ Hapus Data Pegawai"])
     with tab_add:
         with st.form("form_tambah"):
@@ -427,7 +423,6 @@ with st.expander("👥 ⚙️ PANEL UTAMA: Manajemen Data Pegawai Pembuat Lapora
                     tambah_pegawai(n_nama, n_nip, n_jab)
                     st.success("✅ Pegawai baru berhasil ditambahkan! Silakan refresh halaman.")
                 else: st.error("Nama dan NIP wajib diisi!")
-                
     with tab_edit:
         if len(df_peg_crud) > 0:
             opsi_edit = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
@@ -441,7 +436,6 @@ with st.expander("👥 ⚙️ PANEL UTAMA: Manajemen Data Pegawai Pembuat Lapora
                     edit_pegawai(int(row_edit['id']), e_nama, e_nip, e_jab)
                     st.success("✅ Perubahan data berhasil disimpan! Silakan refresh halaman.")
         else: st.info("Belum ada data pegawai untuk diedit.")
-                    
     with tab_del:
         if len(df_peg_crud) > 1:
             opsi_del = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
