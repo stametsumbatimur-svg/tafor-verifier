@@ -498,7 +498,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         st.markdown("---")
         
         # TAB DETAIL VISUALISASI DATA (TIDAK ADA KARAKTER FORECASTER)
-        tab_m, tab_f, tab_sp, tab_min = st.tabs(["📄 Matriks Jam", "📄 Form Bulanan", "📄 Log SPECI", "📄 Kritis & Crosswind"])
+        tab_m, tab_f, tab_sp, tab_min = st.tabs(["📄 Matriks Jam", "📄 Verifikasi TAF", "📄 Log SPECI", "📄 Kritis & Crosswind"])
         
         with tab_m: 
             st.dataframe(pd.DataFrame(rows_m), use_container_width=True, hide_index=True)
