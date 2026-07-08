@@ -330,7 +330,15 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
 
     📝 **4. Logbook Perubahan:**
     Mencatat jejak rekam kapan sebuah TAF di-Amandemen (AMD) atau dibatalkan.
+    
+    
+    #### ⚙️ PENGATURAN RUNWAY & CROSSWIND (ANGIN SILANG)
+    SIVETA dilengkapi dengan algoritma penerbangan untuk menghitung komponen **Crosswind (Angin Potong/Silang)** secara otomatis. 
+    Karena setiap bandara memiliki orientasi landasan pacu (*heading runway*) yang berbeda, Anda wajib memastikan data stasiun Anda telah dikonfigurasi:
+    * Jika stasiun Anda memproses bandara baru yang belum terdaftar, hasil perhitungan angin silang bisa tidak akurat.
+    * **Cara Konfigurasi:** Gulir ke bagian **paling bawah** aplikasi ini. Buka panel menu **"Database Pegawai & Runway"**, lalu masukkan kode ICAO stasiun dan arah derajat *Runway* bandara Anda (Misal: Runway 12/30, maka masukkan angka 120 dan 300). SIVETA akan mengunci pengaturan ini selamanya di dalam database!
     """)
+
 # --------------------------------------------
 
 st.markdown("#### 📥 Unggah Berkas Sandi Extract GTS")
