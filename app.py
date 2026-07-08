@@ -210,8 +210,8 @@ def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_f
             <p>Dilaporkan dengan hormat bahwa sistem komputasi otomatis <b>SIVETA</b> telah merampungkan perhitungan akurasi dokumen prakiraan cuaca bandara <b>(TAFOR)</b> terhadap kondisi riil <b>(METAR)</b> serta menyelaraskan data letupan cuaca mendadak <b>(SPECI)</b> sebanyak <b>{total_speci} lembar</b> berdasarkan aturan baku SOP Meteorologi Penerbangan BMKG Edisi Terbaru 2025.</p>
             <p>Capaian Indikator Kinerja Utama stasiun pada periode ini adalah:</p>
             <ul>
-                <li><b>Total Akurasi Matriks Tiap Jam (Sains Linier):</b> <b>{acc_jam}%</b></li>
-                <li><b>Total Akurasi Resmi Bulanan Form 029 (Administrasi):</b> <b>{acc_form}%</b></li>
+                <li><b>Total Akurasi Matriks Tiap Jam:</b> <b>{acc_jam}%</b></li>
+                <li><b>Total Akurasi Verifikasi TAFOR:</b> <b>{acc_form}%</b></li>
             </ul>
             <table class="data">
                 <thead><tr><th>Nama Unsur Parameter Cuaca</th><th>Sampel Jam (B / S)</th><th>Akurasi Jam</th><th>Sampel Grup TAF (B / S)</th><th>Akurasi Bulanan</th></tr></thead>
@@ -290,7 +290,7 @@ with banner_container:
                 <div>
                     <h1 style="color: #FFFFFF !important; font-size: 26px !important; margin: 0 !important; font-weight: 700 !important;">SIVETA — SISTEM INFORMASI VERIFIKASI TAFOR</h1>
                     <p style="margin: 6px 0 0 0 !important; font-size: 13px !important; color: #E2E8F0 !important; text-transform: uppercase; letter-spacing: 1px;">
-                        QC Verification Kode ICAO Stasiun: <b style="color: #00A8E8; font-size: 14px;">{stasiun_aktif}</b>
+                        Kode ICAO Stasiun: <b style="color: #00A8E8; font-size: 14px;">{stasiun_aktif}</b>
                     </p>
                 </div>
             </div>
