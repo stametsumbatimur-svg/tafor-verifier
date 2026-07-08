@@ -6,7 +6,7 @@ import os
 import sqlite3
 from datetime import datetime
 from verification_logic import proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, hitung_verifikasi_TAFOR
-from excel_export import generate_lapbul_excel, generate_form_2026, generate_logbook_excel
+from excel_export import generate_lapbul_excel, generate_form_2026, generate_logbook_excel, generate_klasik_31_sheet
 
 st.set_page_config(page_title="SIVETA - BMKG", layout="wide")
 
@@ -389,7 +389,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     if df_filtered.empty:
         st.warning(f"⚠️ Berkas data kosong pada rentang tanggal {tgl_mulai} s.d {tgl_selesai}. Geser kalender filter di sidebar kiri ke waktu yang sesuai.")
     else:
-        # HITUNG MATRIKS JAM-JAMAN
+        # HITUNG MATRIKS TIAP JAM
         total_b_g, total_data_global, rows_m = 0, 0, []
         p_headers = {'A':'A (Arah Wind)','B':'B (Kec Wind)','C':'C (Visibility)','D':'D (Cuaca)','E':'E (Jml Awan)','F':'F (Tgi Awan)'}
         for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
@@ -400,7 +400,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             rows_m.append({"Nama Parameter": p_headers[k], "Jumlah Benar (B)": int(b), "Jumlah Salah (S)": int(s), "Total Sampel Data (Tiap Jam)": int(tot), "Prosentase Ketelitian": f"{round(pct, 2)}%"})
         akurasi_global_matriks = round((total_b_g / total_data_global * 100), 1) if total_data_global > 0 else 0
         
-        # HITUNG FORM BULANAN COCOK REGULASI SOP 2025
+        # HITUNG FORM BULANAN REGULASI SOP 2025
         rekapan_form = hitung_verifikasi_TAFOR(df_filtered)
         rows_f, total_b_f, total_d_f = [], 0, 0
         for k in ['A', 'B', 'C', 'D', 'E', 'F']:
@@ -418,27 +418,24 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         m1.metric(f"📊 Akurasi Matriks {stasiun_aktif}", f"{akurasi_global_matriks}%")
         m2.metric(f"🎯 Akurasi Verifikasi {stasiun_aktif}", f"{akurasi_global_form}%")
 
-        # AREA DOWNLOAD BUTTONS & NOTA DINAS PDF
+        # AREA DOWNLOAD BUTTONS 
         df_peg_list = ambil_semua_pegawai()
         opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
         pegawai_terpilih = st.selectbox("✒️ Petugas Penandatangan Laporan:", opsi_pegawai)
         row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
+        
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         
         c_dl1, c_dl2 = st.columns(2)
         with c_dl1: 
-            st.download_button(label="📝 1️⃣ Unduh Matriks Tiap Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"MATRIKS_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📄 1️⃣ Unduh Matriks Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"MATRIKS_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
-            conn = sqlite3.connect('verifier_db.sqlite')
-            df_nama_stn = pd.read_sql_query(f"SELECT nama FROM master_bandara WHERE icao='{stasiun_aktif}'", conn)
-            nama_stasiun_aktif = df_nama_stn.iloc[0]['nama'] if not df_nama_stn.empty else stasiun_aktif
-            conn.close()
+            st.download_button(label="📄 3️⃣ Unduh Format Klasik 31 Sheet (Excel)", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_31_SHEET_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
-            st.download_button(label="📄 3️⃣ Unduh Nota Dinas (HTML)", data=generate_nota_dinas_html(str_m, str_s, akurasi_global_matriks, akurasi_global_form, rows_m, rows_f, len(df_speci_filtered), row_peg_terpilih['nama'], row_peg_terpilih['nip'], row_peg_terpilih['jabatan'], nama_stasiun_aktif), file_name=f"NOTA_DINAS_SIVETA_{stasiun_aktif}_{str_m}.html", mime="text/html", use_container_width=True)
         with c_dl2: 
-            st.download_button(label="📝 2️⃣ Unduh Verifikasi TAF (Excel)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAF_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📄 2️⃣ Unduh Verifikasi TAF (Excel SOP 2025)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAF_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            
             st.download_button(label="📝 4️⃣ Unduh Logbook (Excel)", data=generate_logbook_excel(df_filtered).getvalue(), file_name=f"LOGBOOK_TAF_SIVETA_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-
         st.markdown("---")
         
         # TAB DETAIL VISUALISASI DATA (TIDAK ADA KARAKTER FORECASTER)
