@@ -185,7 +185,7 @@ def generate_form_2026(df_hasil, df_speci=None):
             ws.merge_range(row_idx, 8 + idx*2, row_idx, 9 + idx*2, pk, fmt_h)
             
         row_idx += 1
-        total_b_g, total_d_g = 0, 0
+        total_b_g, total_data_global = 0, 0
         for i, lbl in enumerate(["JUMLAH BENAR (B) : ", "JUMLAH SALAH (S) : ", "TOTAL DATA : ", "PROSENTASE KETELITIAN : "]):
             ws.merge_range(row_idx+i, 0, row_idx+i, 7, lbl, fmt_label_rekap)
             
@@ -194,7 +194,7 @@ def generate_form_2026(df_hasil, df_speci=None):
             tot = b + s
             pct = (b / tot * 100) if tot > 0 else 0
             total_b_g += b
-            total_d_g += tot  
+            total_data_global += tot  
             ws.merge_range(row_idx, 8 + idx*2, row_idx, 9 + idx*2, b, fmt_val_rekap)
             ws.merge_range(row_idx+1, 8 + idx*2, row_idx+1, 9 + idx*2, s, fmt_val_rekap)
             ws.merge_range(row_idx+2, 8 + idx*2, row_idx+2, 9 + idx*2, tot, fmt_val_rekap)
@@ -202,7 +202,7 @@ def generate_form_2026(df_hasil, df_speci=None):
             
         row_idx += 5
         ws.merge_range(row_idx, 0, row_idx, 7, "🔥 TOTAL AKURASI PRAKIRAAN GLOBAL (ALL PARAMETERS) : ", fmt_label_rekap)
-        ws.merge_range(row_idx, 8, row_idx, 19, (total_b_g / total_d_g * 100 if total_d_g > 0 else 0), workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#DEEBF7', 'num_format': '0.00"%"'}))
+        ws.merge_range(row_idx, 8, row_idx, 19, (total_b_g / total_data_global * 100 if total_data_global > 0 else 0), workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#DEEBF7', 'num_format': '0.00"%"'}))
         
         row_idx += 3
         fmt_leg_title = workbook.add_format({'bold': True, 'underline': True, 'font_size': 10})
@@ -223,30 +223,42 @@ def generate_form_2026(df_hasil, df_speci=None):
             
     return buffer
 
-# ==========================================
-# 🔥 BARU: GENERATOR BUKU CATATAN RAW GTS DENGAN WITA CONVERSION
-# ==========================================
 def generate_logbook_excel(df_hasil):
-    """Membuat file excel murni rapi berisi Tanggal, Jam, Sandi METAR, dan Sandi TAFOR tanpa koreksi apa pun"""
+    """Membuat file excel murni rapi berisi Riwayat Perubahan/Amandemen TAFOR Baru di GTS Tanpa Duplikasi"""
     df_log = df_hasil.copy()
     df_log['Dt_UTC'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
     
-    # Konversi ke waktu lokal stasiun Waingapu (WITA = UTC + 8 Jam)
-    df_log['Dt_WITA'] = df_log['Dt_UTC'] + pd.Timedelta(hours=8)
-    df_log['Tanggal (WITA)'] = df_log['Dt_WITA'].dt.strftime('%Y-%m-%d')
-    df_log['Jam Jaga (WITA)'] = df_log['Dt_WITA'].dt.strftime('%H:%M:%S')
+    # 🔥 CORE INJEKSI: Saring beruntun sekuensial (Hanya meloloskan baris data saat teks TAFOR berubah/ada dokumen masuk baru)
+    df_log = df_log[df_log['Sandi TAF Prakiraan'] != df_log['Sandi TAF Prakiraan'].shift()]
+    
+    stn = "WATU"
+    if 'Kode_Stasiun' in df_log.columns and not df_log.empty:
+        stn = str(df_log['Kode_Stasiun'].iloc[0]).strip().upper()
+        
+    if stn in ['WIII', 'WIRR', 'WARR', 'WIHH', 'WICC', 'WIIB']:
+        tz_label = "WIB"
+        hours_offset = 7
+    elif stn in ['WADD', 'WAAA', 'WALL', 'WATU']:
+        tz_label = "WITA"
+        hours_offset = 8
+    else:
+        tz_label = "WIT"
+        hours_offset = 9
+        
+    df_log['Dt_Lokal'] = df_log['Dt_UTC'] + pd.Timedelta(hours=hours_offset)
+    df_log['Tanggal_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%Y-%m-%d')
+    df_log['Jam_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%H:%M:%S')
     
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         workbook = writer.book
         ws = workbook.add_worksheet('LOGBOOK RAW GTS')
         
-        # Style formal logbook
         fmt_h = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#36454F', 'font_color': '#FFFFFF', 'font_size': 10})
         fmt_c = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
         fmt_l = workbook.add_format({'align': 'left', 'valign': 'vcenter', 'border': 1, 'font_size': 9, 'font_name': 'Courier New'})
         
-        headers = ["TANGGAL (WITA)", "JAM (WITA)", "SANDI METAR AKTUAL (RAW GTS)", "SANDI TAFOR PRAKIRAAN (RAW GTS)"]
+        headers = [f"TANGGAL ({tz_label})", f"JAM ({tz_label})", "SANDI METAR AKTUAL (RAW GTS)", "SANDI TAFOR PRAKIRAAN (RAW GTS)"]
         ws.write_row(0, 0, headers, fmt_h)
         ws.set_column("A:A", 16)
         ws.set_column("B:B", 14)
@@ -255,8 +267,8 @@ def generate_logbook_excel(df_hasil):
         
         for idx, row in df_log.reset_index(drop=True).iterrows():
             r_num = idx + 1
-            ws.write(r_num, 0, row['Tanggal (WITA)'], fmt_c)
-            ws.write(r_num, 1, row['Jam Jaga (WITA)'], fmt_c)
+            ws.write(r_num, 0, row['Tanggal_Lokal'], fmt_c)
+            ws.write(r_num, 1, row['Jam_Lokal'], fmt_c)
             ws.write(r_num, 2, str(row['Sandi METAR Aktual']).strip(), fmt_l)
             ws.write(r_num, 3, str(row['Sandi TAF Prakiraan']).strip(), fmt_l)
             
@@ -270,7 +282,7 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     _, s_ke = hitung_angin_kec(m_row['M_Kec'], tke)
     _, s_vi = hitung_vis(m_row['M_Vis'], tvi)
     _, s_wx = hitung_cuaca(m_row['M_Wx'], twx)
-    _, s_aj = hitung_awan_jml(m_row['M_AwanJml'], taj)
+    _, s_aj = hitung_awan_jml(m_row['M_AwanJml'], taj, m_row['M_AwanTgi'])
     _, s_at = hitung_awan_tgi(m_row['M_AwanTgi'], tat)
     
     if is_prob and base_data is not None:
@@ -278,7 +290,7 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
         _, b_ke = hitung_angin_kec(m_row['M_Kec'], base_data[1])
         _, b_vi = hitung_vis(m_row['M_Vis'], base_data[2])
         _, b_wx = hitung_cuaca(m_row['M_Wx'], base_data[3])
-        _, b_aj = hitung_awan_jml(m_row['M_AwanJml'], base_data[4])
+        _, b_aj = hitung_awan_jml(m_row['M_AwanJml'], base_data[4], m_row['M_AwanTgi'])
         _, b_at = hitung_awan_tgi(m_row['M_AwanTgi'], base_data[5])
         
         if s_ar == "S" and b_ar == "B": s_ar = "B"
@@ -317,6 +329,6 @@ def _bikin_sheet_speci(workbook, df_speci):
         for m, t, s in cols_mapping:
             ws.write(row_num, c_idx, r[m], fmt_sp)
             ws.write(row_num, c_idx+1, r[t], fmt_sp)
-            ws.write(row_num, c_idx+2, fmt_b if r[s]=='B' else fmt_s)
+            ws.write(row_num, c_idx+2, r[s], fmt_b if r[s]=='B' else fmt_s)
             c_idx += 3
         ws.write(row_num, 21, r['Hasil Akhir'], fmt_b if r['Hasil Akhir']=='ACCURATE' else fmt_s)
