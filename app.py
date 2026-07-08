@@ -281,6 +281,58 @@ banner_container = st.container()
 # ==========================================
 df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
 
+
+# --- KOTAK PANDUAN PENGGUNA (BUKU SAKU SIVETA) ---
+with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan (Klik untuk Buka)"):
+    st.markdown("""
+    ### Selamat Datang di SIVETA (Sistem Informasi Verifikasi TAFOR)
+    Aplikasi ini dirancang untuk memproses ribuan baris sandi cuaca GTS menjadi laporan verifikasi TAFOR yang akurat dan bebas dari *human error*, hanya dalam hitungan detik.
+    
+    ---
+
+    #### 🛠️ CARA PENGGUNAAN (4 LANGKAH MUDAH)
+    **1. Persiapan Data (GTS)**
+    Unduh riwayat sandi cuaca stasiun Anda dari sistem GTS dalam format `.csv`. Pastikan Anda mengunduh 3 file terpisah: **METAR, TAF, dan SPECI**.
+    
+    **2. Unggah Data**
+    Sistem sangat sensitif terhadap format sandi. Masukkan file ke slot yang tepat:
+    * **Slot 1:** Khusus untuk file `METAR.csv`
+    * **Slot 2:** Khusus untuk file `TAF.csv`
+    * **Slot 3:** Khusus untuk file `SPECI.csv`
+    
+    **3. Sesuaikan Rentang Waktu**
+    Gunakan menu kalender di *sidebar* kiri. **Penting:** Pastikan rentang tanggal yang dipilih di kalender benar-benar ada di dalam file CSV yang Anda unggah.
+    
+    **4. Proses Data**
+    Klik tombol biru **"🚀 PROSES DATA 🚀"**. Sistem akan otomatis membersihkan karakter *error* transmisi (GTS), menyingkronkan waktu, dan menghitung akurasi.
+
+    ---
+
+    #### 🖥️ MEMAHAMI TAMPILAN LAYAR (TAB MENU)
+    Setelah data diproses, Anda akan melihat 2 Tab utama di layar:
+    * 📊 **TAB 1 (Matriks Tiap Jam):** Menampilkan evaluasi cuaca secara *Time-Series* (per 30 menit / per jam). Cocok untuk menganalisa secara detail pada jam berapa prakiraan mulai meleset tebakannya.
+    * 📋 **TAB 2 (Verifikasi TAF):** Menampilkan evaluasi berdasarkan **Grup TAF** (Base, TEMPO, BECMG).
+
+    ---
+
+    #### 📥 MEMAHAMI 4 TOMBOL UNDUH (EXCEL)
+    SIVETA menjembatani masa transisi format laporan di stasiun Anda dengan menyediakan opsi unduhan yang lengkap:
+    
+    🟢 **1. Matriks Jam (Excel):**
+    Data mentah yang berisi rincian sandi TAF disandingkan dengan METAR per jamnya. Sangat berguna untuk bahan audit atau penelitian mendalam.
+
+    🔵 **2. Verifikasi TAF (Excel):**
+    *Laporan Utama.* Mengevaluasi murni berbasis *Decision-Making* (Hanya menilai Grup TAF yang dirilis). **Nilainya lebih ketat, objektif, dan adil.**
+
+    🗂️ **3. Format Klasik (Excel):**
+    *Laporan Transisi.* Membentuk 31 *sheet* harian (format A-F). Mengevaluasi secara *Time-Series* (setiap setengah jam). 
+    *(Catatan: Persentase di laporan ini biasanya **lebih tinggi/bengkak** akibat efek "Inflasi Nilai", di mana cuaca cerah yang stabil akan terus diberi poin benar secara berulang-ulang setiap 30 menit. Digunakan murni untuk arsip lokal/senior yang masih terbiasa dengan format lama).*
+
+    📝 **4. Logbook Perubahan:**
+    Mencatat jejak rekam kapan sebuah TAF di-Amandemen (AMD) atau dibatalkan.
+    """)
+# --------------------------------------------
+
 st.markdown("#### 📥 Unggah Berkas Sandi Extract GTS")
 c_up1, c_up2, c_up3 = st.columns(3)
 with c_up1:
