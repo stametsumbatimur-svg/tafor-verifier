@@ -108,32 +108,43 @@ def auto_register_stasiun_baru(icao_code):
     conn.close()
 
 def simpan_rekap_db(stasiun, bulan_tahun, jam_score, tafor_score):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    
-    # 1. Cek apakah rekaman bulan ini sudah ada di database
-    c.execute("SELECT COUNT(*) FROM rekap_performa WHERE stasiun=? AND bulan_tahun=?", (stasiun, bulan_tahun))
-    data_ada = c.fetchone()[0]
-    
-    # 2. Logika aman: Jika ada -> Update, Jika tidak ada -> Insert
-    if data_ada > 0:
-        c.execute('''UPDATE rekap_performa 
-                     SET akurasi_tiap_jam=?, akurasi_verifikasi_tafor=? 
-                     WHERE stasiun=? AND bulan_tahun=?''', 
-                  (jam_score, tafor_score, stasiun, bulan_tahun))
-    else:
-        c.execute('''INSERT INTO rekap_performa (stasiun, bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor)
-                     VALUES (?, ?, ?, ?)''', 
-                  (stasiun, bulan_tahun, jam_score, tafor_score))
-                  
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('verifier_db.sqlite')
+        c = conn.cursor()
+        
+        # Jaga-jaga: Paksa buat tabel darurat jika tiba-tiba hilang di Cloud
+        c.execute('''CREATE TABLE IF NOT EXISTS rekap_performa 
+                     (stasiun TEXT, bulan_tahun TEXT, akurasi_tiap_jam REAL, akurasi_verifikasi_tafor REAL,
+                      PRIMARY KEY (stasiun, bulan_tahun))''')
+                      
+        c.execute("SELECT COUNT(*) FROM rekap_performa WHERE stasiun=? AND bulan_tahun=?", (stasiun, bulan_tahun))
+        data_ada = c.fetchone()[0]
+        
+        if data_ada > 0:
+            c.execute('''UPDATE rekap_performa 
+                         SET akurasi_tiap_jam=?, akurasi_verifikasi_tafor=? 
+                         WHERE stasiun=? AND bulan_tahun=?''', 
+                      (jam_score, tafor_score, stasiun, bulan_tahun))
+        else:
+            c.execute('''INSERT INTO rekap_performa (stasiun, bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor)
+                         VALUES (?, ?, ?, ?)''', 
+                      (stasiun, bulan_tahun, jam_score, tafor_score))
+                      
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        # Jika database cloud sedang error, biarkan saja (jangan hancurkan aplikasinya)
+        pass
 
 def ambil_tren_db(stasiun):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    df = pd.read_sql_query("SELECT bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor FROM rekap_performa WHERE stasiun=? ORDER BY bulan_tahun ASC", conn, params=(stasiun,))
-    conn.close()
-    return df
+    try:
+        conn = sqlite3.connect('verifier_db.sqlite')
+        df = pd.read_sql_query("SELECT bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor FROM rekap_performa WHERE stasiun=? ORDER BY bulan_tahun ASC", conn, params=(stasiun,))
+        conn.close()
+        return df
+    except Exception as e:
+        # Jika database kosong/error, kembalikan tabel kosong tanpa membuat aplikasi crash
+        return pd.DataFrame()
 
 def ambil_semua_bandara():
     conn = sqlite3.connect('verifier_db.sqlite')
