@@ -110,10 +110,22 @@ def auto_register_stasiun_baru(icao_code):
 def simpan_rekap_db(stasiun, bulan_tahun, jam_score, tafor_score):
     conn = sqlite3.connect('verifier_db.sqlite')
     c = conn.cursor()
-    c.execute('''INSERT INTO rekap_performa (stasiun, bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor)
-                 VALUES (?, ?, ?, ?) ON CONFLICT(stasiun, bulan_tahun) DO UPDATE SET
-                 akurasi_tiap_jam=excluded.akurasi_tiap_jam, akurasi_verifikasi_tafor=excluded.akurasi_verifikasi_tafor''', 
-              (stasiun, bulan_tahun, jam_score, tafor_score))
+    
+    # 1. Cek apakah rekaman bulan ini sudah ada di database
+    c.execute("SELECT COUNT(*) FROM rekap_performa WHERE stasiun=? AND bulan_tahun=?", (stasiun, bulan_tahun))
+    data_ada = c.fetchone()[0]
+    
+    # 2. Logika aman: Jika ada -> Update, Jika tidak ada -> Insert
+    if data_ada > 0:
+        c.execute('''UPDATE rekap_performa 
+                     SET akurasi_tiap_jam=?, akurasi_verifikasi_tafor=? 
+                     WHERE stasiun=? AND bulan_tahun=?''', 
+                  (jam_score, tafor_score, stasiun, bulan_tahun))
+    else:
+        c.execute('''INSERT INTO rekap_performa (stasiun, bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor)
+                     VALUES (?, ?, ?, ?)''', 
+                  (stasiun, bulan_tahun, jam_score, tafor_score))
+                  
     conn.commit()
     conn.close()
 
