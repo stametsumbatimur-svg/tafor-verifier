@@ -155,7 +155,8 @@ def ambil_semua_bandara():
 def tambah_bandara(icao, nama, heading_a, heading_b):
     conn = sqlite3.connect('verifier_db.sqlite')
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO master_bandara VALUES (?, ?, ?, ?)", (str(icao).upper(), str(nama).strip(), int(heading_a), int(heading_b)))
+    # Ubah int() menjadi str() agar SQLite bisa menyimpan deretan teks koma "90, 270"
+    c.execute("INSERT OR REPLACE INTO master_bandara VALUES (?, ?, ?, ?)", (str(icao).upper(), str(nama).strip(), str(heading_a), str(heading_b)))
     conn.commit()
     conn.close()
 
@@ -573,16 +574,19 @@ with st.expander("👥 ⚙️ Panel Manajemen"):
                     hapus_pegawai(int(row_del['id']))
                     st.success("❌ Pegawai dihapus! Silakan refresh browser.")
                         
-    with tab_rw:
-        st.write("Gunakan menu ini untuk mengatur sudut landasan pacu (*Runway*) jika Anda memproses stasiun baru agar perhitungan angin potong (*Crosswind*) akurat.")
-        df_all_rw = ambil_semua_bandara()
-        st.dataframe(df_all_rw, use_container_width=True, hide_index=True)
-        with st.form("form_bandara"):
+    with st.form("form_bandara"):
             add_icao = st.text_input("Kode ICAO Stasiun target (4 Huruf):", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "").upper()
             add_nama = st.text_input("Nama Bandara/Stasiun:", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "")
-            add_rw_a = st.number_input("Heading Runway Utama (Derajat, Misal: Runway 12 = 120):", min_value=0, max_value=360, value=120)
-            add_rw_b = st.number_input("Heading Runway Sebaliknya (Derajat, Misal: Runway 30 = 300):", min_value=0, max_value=360, value=300)
+            
+            # --- UBAH MENJADI TEXT_INPUT BEBAS KOMA ---
+            add_rw_a = st.text_input("Heading Runway Set 1 (Misal tunggal: 120, atau multi: 120, 090):", value="120")
+            add_rw_b = st.text_input("Heading Runway Set 2 (Misal tunggal: 300, atau multi: 300, 270):", value="300")
+            
             if st.form_submit_button("Update Sudut Runway"):
                 if len(add_icao) == 4:
-                    tambah_bandara(add_icao, add_nama, add_rw_a, add_rw_b)
-                    st.success(f"🎉 Sudut landasan pacu stasiun {add_icao} sukses diperbarui!")
+                    # Bersihkan spasi-spasi hantu sebelum dikirim ke database
+                    rw_a_bersih = ",".join([x.strip() for x in add_rw_a.split(",") if x.strip()])
+                    rw_b_bersih = ",".join([x.strip() for x in add_rw_b.split(",") if x.strip()])
+                    
+                    tambah_bandara(add_icao, add_nama, rw_a_bersih, rw_b_bersih)
+                    st.success(f"🎉 Sudut landasan pacu MULTI-RUNWAY stasiun {add_icao} sukses diperbarui!")
