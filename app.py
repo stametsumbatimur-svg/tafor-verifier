@@ -326,8 +326,7 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
 
     🗂️ **3. Format Klasik (Excel):**
     *Laporan Transisi.* Membentuk 31 *sheet* harian (format A-F). Mengevaluasi secara *Time-Series* (setiap setengah jam). 
-    *(Catatan: Persentase di laporan ini biasanya **lebih tinggi/bengkak** akibat efek "Inflasi Nilai", di mana cuaca cerah yang stabil akan terus diberi poin benar secara berulang-ulang setiap 30 menit. Digunakan murni untuk arsip lokal/senior yang masih terbiasa dengan format lama).*
-
+    
     📝 **4. Logbook Perubahan:**
     Mencatat jejak rekam kapan sebuah TAF di-Amandemen (AMD) atau dibatalkan.
     
