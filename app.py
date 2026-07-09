@@ -294,9 +294,10 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
     #### 🛠️ CARA PENGGUNAAN (4 LANGKAH MUDAH)
     **1. Persiapan Data (GTS)**
     Unduh riwayat sandi cuaca stasiun Anda dari sistem GTS dalam format `.csv`. Pastikan Anda mengunduh 3 file terpisah: **METAR, TAF, dan SPECI**.
+    Melalui portal "https://bmkgsatu.bmkg.go.id/extractgts" atau menu "Output Data > Extract" pada web bmkgsatu, data yang digunakan memiliki status "SENT".
     
     **2. Unggah Data**
-    Sistem sangat sensitif terhadap format sandi. Masukkan file ke slot yang tepat:
+    Sistem sangat sensitif terhadap format sandi tetapi tidak ada aturan baku penamaan file, Masukkan file ke slot yang tepat:
     * **Slot 1:** Khusus untuk file `METAR.csv`
     * **Slot 2:** Khusus untuk file `TAF.csv`
     * **Slot 3:** Khusus untuk file `SPECI.csv`
