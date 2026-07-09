@@ -485,11 +485,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         m2.metric(f"🎯 Akurasi Verifikasi {stasiun_aktif}", f"{akurasi_global_form}%")
 
         # AREA DOWNLOAD BUTTONS 
-        #df_peg_list = ambil_semua_pegawai()
-        #opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
-        #pegawai_terpilih = st.selectbox("✒️ Petugas Penandatangan Laporan:", opsi_pegawai)
-        #row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
-        
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         
         c_dl1, c_dl2 = st.columns(2)
@@ -538,66 +533,23 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 # EXPANDER CONFIGURATION PANELS
 # ==========================================
 st.write("")
-with st.expander("👥 ⚙️ Panel Manajemen"):
-    #tab_p, tab_rw = st.tabs(["👥 Pegawai", "✈️ Heading Runway"])
-    tab_rw = st.tabs(["✈️ Heading Runway"])
-    
-    #with tab_p:
-        #df_peg_crud = ambil_semua_pegawai()
-       # st.dataframe(df_peg_crud, use_container_width=True, hide_index=True)
+with st.expander("✈️ ⚙️ Panel Manajemen Heading Runway"):
+    st.write("Gunakan menu ini untuk mengatur sudut landasan pacu (*Runway*) jika Anda memproses stasiun baru agar perhitungan angin potong (*Crosswind*) akurat.")
+    df_all_rw = ambil_semua_bandara()
+    st.dataframe(df_all_rw, use_container_width=True, hide_index=True)
+    with st.form("form_bandara"):
+        add_icao = st.text_input("Kode ICAO Stasiun target (4 Huruf):", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "").upper()
+        add_nama = st.text_input("Nama Bandara/Stasiun:", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "")
         
-        # 🔥 AMUNISI ANTI-BUG: Menggunakan st.radio horizontal menggantikan st.tabs yang nested
-       # aksi_pegawai = st.radio("Pilih Aksi Manajemen Pegawai:", ["➕ Tambah", "✏️ Edit", "❌ Hapus"], horizontal=True)
+        # --- INPUT TEXT KHUSUS MULTI RUNWAY (ANTI-MEMBULAT) ---
+        add_rw_a = st.text_input("Heading Runway Set 1 (Misal tunggal: 120, atau multi: 120, 090):", value="120")
+        add_rw_b = st.text_input("Heading Runway Set 2 (Misal tunggal: 300, atau multi: 300, 270):", value="300")
         
-       # if aksi_pegawai == "➕ Tambah":
-        #    with st.form("form_tambah"):
-         #       n_nama = st.text_input("Nama Lengkap & Gelar:")
-         #       n_nip = st.text_input("NIP / Identitas:")
-         #       n_jab = st.text_input("Jabatan:", value="Prakirawan / Forecaster")
-           #     if st.form_submit_button("Simpan Pegawai"):
-         #           if n_nama and n_nip:
-         #               tambah_pegawai(n_nama, n_nip, n_jab)
-         #               st.success("✅ Pegawai disimpan! Silakan refresh browser.")
-                        
-      #  elif aksi_pegawai == "✏️ Edit":
-           # if len(df_peg_crud) > 0:
-            #    opsi_edit = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
-            #    edit_sel = st.selectbox("Pilih Target Edit:", opsi_edit)
-             #   row_edit = df_peg_crud.iloc[opsi_edit.index(edit_sel)]
-            #    with st.form("form_edit"):
-            #        e_nama = st.text_input("Ubah Nama:", value=row_edit['nama'])
-               #     e_nip = st.text_input("Ubah NIP:", value=row_edit['nip'])
-             #       e_jab = st.text_input("Ubah Jabatan:", value=row_edit['jabatan'])
-              #      if st.form_submit_button("Simpan Perubahan"):
-              #          edit_pegawai(int(row_edit['id']), e_nama, e_nip, e_jab)
-               #         st.success("✅ Perubahan disimpan! Silakan refresh browser.")
-                        
-       # elif aksi_pegawai == "❌ Hapus":
-           # if len(df_peg_crud) > 1:
-            #    opsi_del = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
-            #    del_sel = st.selectbox("Pilih Target Hapus:", opsi_del)
-             #   row_del = df_peg_crud.iloc[opsi_del.index(del_sel)]
-             #   if st.button("🚨 HAPUS PEGAWAI", type="primary"):
-              #      hapus_pegawai(int(row_del['id']))
-              #      st.success("❌ Pegawai dihapus! Silakan refresh browser.")
-                        
-    with tab_rw:
-        st.write("Gunakan menu ini untuk mengatur sudut landasan pacu (*Runway*) jika Anda memproses stasiun baru agar perhitungan angin potong (*Crosswind*) akurat.")
-        df_all_rw = ambil_semua_bandara()
-        st.dataframe(df_all_rw, use_container_width=True, hide_index=True)
-        with st.form("form_bandara"):
-            add_icao = st.text_input("Kode ICAO Stasiun target (4 Huruf):", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "").upper()
-            add_nama = st.text_input("Nama Bandara/Stasiun:", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "")
-            
-            # --- INPUT TEXT KHUSUS MULTI RUNWAY (ANTI-MEMBULAT) ---
-            add_rw_a = st.text_input("Heading Runway Set 1 (Misal tunggal: 120, atau multi: 120, 090):", value="120")
-            add_rw_b = st.text_input("Heading Runway Set 2 (Misal tunggal: 300, atau multi: 300, 270):", value="300")
-            
-            if st.form_submit_button("Update Sudut Runway"):
-                if len(add_icao) == 4:
-                    # Bersihkan spasi hantu sebelum disetor ke database
-                    rw_a_bersih = ",".join([x.strip() for x in add_rw_a.split(",") if x.strip()])
-                    rw_b_bersih = ",".join([x.strip() for x in add_rw_b.split(",") if x.strip()])
-                    
-                    tambah_bandara(add_icao, add_nama, rw_a_bersih, rw_b_bersih)
-                    st.success(f"🎉 Sudut landasan pacu MULTI-RUNWAY stasiun {add_icao} sukses diperbarui!")
+        if st.form_submit_button("Update Sudut Runway"):
+            if len(add_icao) == 4:
+                # Bersihkan spasi hantu sebelum disetor ke database
+                rw_a_bersih = ",".join([x.strip() for x in add_rw_a.split(",") if x.strip()])
+                rw_b_bersih = ",".join([x.strip() for x in add_rw_b.split(",") if x.strip()])
+                
+                tambah_bandara(add_icao, add_nama, rw_a_bersih, rw_b_bersih)
+                st.success(f"🎉 Sudut landasan pacu MULTI-RUNWAY stasiun {add_icao} sukses diperbarui!")
