@@ -229,9 +229,6 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
     Karena setiap bandara memiliki orientasi landasan pacu (*heading runway*) yang berbeda, Anda wajib memastikan data stasiun Anda telah dikonfigurasi:
     * Jika stasiun Anda memproses bandara baru yang belum terdaftar, hasil perhitungan angin silang bisa tidak akurat.
     * **Cara Konfigurasi:** Gulir ke bagian **paling bawah** aplikasi ini. Buka panel menu **"Manajemen"**, lalu masukkan kode ICAO stasiun dan arah derajat *Runway* bandara Anda (Misal: Runway 12/30, maka masukkan angka 120 dan 300). SIVETA akan mengunci pengaturan ini selamanya di dalam database!
-            **Bagaimana jika bandara memiliki LEBIH DARI 1 Landasan?**
-    * Secara operasional penerbangan, pesawat akan selalu diarahkan ke landasan dengan angin silang terkecil. 
-    * SIVETA mengadopsi aturan ini: Jika Anda memasukkan lebih dari satu landasan, sistem akan menghitung crosswind untuk **semua** landasan tersebut secara paralel, lalu otomatis mengambil **nilai crosswind terkecil (paling aman)** sebagai hasil laporan operasional.
     * Jika bandara Anda memiliki 2 landasan (misal Runway 09/27 dan Runway 10/28), masukkan semua angkanya dengan dipisahkan tanda koma, contoh: `90, 270, 100, 280`. SIVETA akan langsung mengunci dan memproses multi-runway tersebut dengan sempurna!
     """)
 
