@@ -320,13 +320,13 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
     #### 📥 MEMAHAMI 4 TOMBOL UNDUH (EXCEL)
     SIVETA menjembatani masa transisi format laporan di stasiun Anda dengan menyediakan opsi unduhan yang lengkap:
     
-    🟢 **1. Matriks Jam (Excel):**
+    📄 **1. Matriks Jam (Excel):**
     Data mentah yang berisi rincian sandi TAF disandingkan dengan METAR per jamnya. Sangat berguna untuk bahan audit atau penelitian mendalam.
 
-    🔵 **2. Verifikasi TAF (Excel):**
+    📄 **2. Verifikasi TAF (Excel):**
     *Laporan Utama.* Mengevaluasi murni berbasis *Decision-Making* (Hanya menilai Grup TAF yang dirilis). **Nilainya lebih ketat, objektif, dan adil.**
 
-    🗂️ **3. Format Klasik (Excel):**
+    📄 **3. Format Klasik (Excel):**
     *Laporan Transisi.* Membentuk 31 *sheet* harian (format A-F). Mengevaluasi secara *Time-Series* (setiap setengah jam). 
     
     📝 **4. Logbook Perubahan:**
@@ -489,14 +489,14 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         
         c_dl1, c_dl2 = st.columns(2)
         with c_dl1: 
-            st.download_button(label="📄 1️⃣ Unduh Matriks Jam (Excel)", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"MATRIKS_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📄 1️⃣ Unduh Matriks", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"MATRIKS_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
-            st.download_button(label="📄 3️⃣ Unduh Format Klasik 31 Sheet (Excel)", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_31_SHEET_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📄 3️⃣ Unduh Format Klasik 31 Sheet", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_31_SHEET_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
         with c_dl2: 
-            st.download_button(label="📄 2️⃣ Unduh Verifikasi TAF (Excel SOP 2025)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAF_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📄 2️⃣ Unduh Verifikasi TAF", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAF_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
             
-            st.download_button(label="📝 4️⃣ Unduh Logbook (Excel)", data=generate_logbook_excel(df_filtered).getvalue(), file_name=f"LOGBOOK_TAF_SIVETA_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(label="📝 4️⃣ Unduh Logbook", data=generate_logbook_excel(df_filtered).getvalue(), file_name=f"LOGBOOK_TAF_SIVETA_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         st.markdown("---")
         
         # TAB DETAIL VISUALISASI DATA (TIDAK ADA KARAKTER FORECASTER)
@@ -533,7 +533,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 # EXPANDER CONFIGURATION PANELS
 # ==========================================
 st.write("")
-with st.expander("✈️ ⚙️ Panel Manajemen Heading Runway"):
+with st.expander("✈️ ⚙️ Panel Manajemen"):
     st.write("Gunakan menu ini untuk mengatur sudut landasan pacu (*Runway*) jika Anda memproses stasiun baru agar perhitungan angin potong (*Crosswind*) akurat.")
     df_all_rw = ambil_semua_bandara()
     st.dataframe(df_all_rw, use_container_width=True, hide_index=True)
@@ -552,4 +552,4 @@ with st.expander("✈️ ⚙️ Panel Manajemen Heading Runway"):
                 rw_b_bersih = ",".join([x.strip() for x in add_rw_b.split(",") if x.strip()])
                 
                 tambah_bandara(add_icao, add_nama, rw_a_bersih, rw_b_bersih)
-                st.success(f"🎉 Sudut landasan pacu MULTI-RUNWAY stasiun {add_icao} sukses diperbarui!")
+                st.success(f"🎉 Sudut landasan pacu stasiun {add_icao} sukses diperbarui!")
