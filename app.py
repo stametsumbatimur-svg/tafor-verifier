@@ -87,14 +87,8 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS rekap_performa 
                  (stasiun TEXT, bulan_tahun TEXT, akurasi_tiap_jam REAL, akurasi_verifikasi_tafor REAL,
                   PRIMARY KEY (stasiun, bulan_tahun))''')
-    c.execute('''CREATE TABLE IF NOT EXISTS pegawai 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT, nip TEXT, jabatan TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS master_bandara 
                  (icao TEXT PRIMARY KEY, nama TEXT, heading_a INTEGER, heading_b INTEGER)''')
-    
-    c.execute("SELECT COUNT(*) FROM pegawai")
-    if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO pegawai (nama, nip, jabatan) VALUES ('TIM DATA & INFORMASI', 'Stasiun Meteorologi BMKG', 'Penyusun Laporan')")
     conn.commit()
     conn.close()
 
@@ -160,110 +154,7 @@ def tambah_bandara(icao, nama, heading_a, heading_b):
     conn.commit()
     conn.close()
 
-def ambil_semua_pegawai():
-    conn = sqlite3.connect('verifier_db.sqlite')
-    df = pd.read_sql_query("SELECT * FROM pegawai ORDER BY id ASC", conn)
-    conn.close()
-    return df
-
-def tambah_pegawai(nama, nip, jabatan):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    c.execute("INSERT INTO pegawai (nama, nip, jabatan) VALUES (?, ?, ?)", (nama, nip, jabatan))
-    conn.commit()
-    conn.close()
-
-def edit_pegawai(id_peg, nama, nip, jabatan):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    c.execute("UPDATE pegawai SET nama=?, nip=?, jabatan=? WHERE id=?", (nama, nip, jabatan, id_peg))
-    conn.commit()
-    conn.close()
-
-def hapus_pegawai(id_peg):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    c.execute("DELETE FROM pegawai WHERE id=?", (id_peg,))
-    conn.commit()
-    conn.close()
-
 init_db()
-
-# ==========================================
-# 📄 GENERATOR NOTA DINAS ADM SIAP CETAK
-# ==========================================
-def generate_nota_dinas_html(tgl_m, tgl_s, acc_jam, acc_form, table_jam, table_form, total_speci, nama_ttd, nip_ttd, jab_ttd, st_name):
-    str_tgl = datetime.now().strftime('%d %B %Y')
-    param_terendah = "Visibility (Jarak Pandang)"
-    min_score = 100.0
-    for r in table_form:
-        score_val = float(str(r['Prosentase Ketelitian']).replace('%',''))
-        if score_val < min_score:
-            min_score = score_val
-            param_terendah = r['Nama Parameter']
-
-    html_content = f"""
-    <html>
-    <head><style>
-        body {{ font-family: 'Arial', sans-serif; margin: 40px; color: #000; line-height: 1.4; }}
-        .kop {{ text-align: center; font-weight: bold; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px; }}
-        .kop h2 {{ margin: 0; font-size: 14px; }}
-        .kop h1 {{ margin: 5px 0; font-size: 16px; text-transform: uppercase; }}
-        .judul {{ text-align: center; font-weight: bold; text-decoration: underline; font-size: 14px; margin-top: 15px; }}
-        .nomor {{ text-align: center; font-size: 12px; margin-bottom: 25px; }}
-        .meta-table {{ width: 100%; margin-bottom: 20px; font-size: 13px; }}
-        table.data {{ width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px; }}
-        table.data th, table.data td {{ border: 1px solid #000; padding: 6px; text-align: center; }}
-        table.data th {{ background-color: #F2F2F2; }}
-        .ttd-container {{ float: right; width: 280px; margin-top: 40px; font-size: 13px; text-align: center; }}
-    </style></head>
-    <body>
-        <div class="kop">
-            <h2>BADAN METEOROLOGI, KLIMATOLOGI, DAN GEOFISIKA</h2>
-            <h1>STASIUN METEOROLOGI {st_name}</h1>
-        </div>
-        <div class="judul">NOTA DINAS RESMI INTERNAL</div>
-        <div class="nomor">NOMOR: ME.02.01 / ND / REGIONAL / {datetime.now().strftime('%m/%Y')}</div>
-        <table class="meta-table">
-            <tr><td style="width: 80px;"><b>Kepada</b></td><td>: Kepala Stasiun Meteorologi</td></tr>
-            <tr><td><b>Dari</b></td><td>: Koordinator Data dan Informasi / Senior Forecaster</td></tr>
-            <tr><td><b>Tanggal</b></td><td>: {str_tgl}</td></tr>
-            <tr><td><b>Hal</b></td><td>: Laporan Hasil Audit Kepatuhan Verifikasi TAFOR SOP 2025 Periode {tgl_m} s.d {tgl_s}</td></tr>
-        </table>
-        <div class="isi" style="font-size:13px; text-align:justify;">
-            <p>Dilaporkan dengan hormat bahwa sistem komputasi otomatis <b>SIVETA</b> telah merampungkan perhitungan akurasi dokumen prakiraan cuaca bandara <b>(TAFOR)</b> terhadap kondisi riil <b>(METAR)</b> serta menyelaraskan data letupan cuaca mendadak <b>(SPECI)</b> sebanyak <b>{total_speci} lembar</b> berdasarkan aturan baku SOP Meteorologi Penerbangan BMKG Edisi Terbaru 2025.</p>
-            <p>Capaian Indikator Kinerja Utama stasiun pada periode ini adalah:</p>
-            <ul>
-                <li><b>Total Akurasi Matriks Tiap Jam:</b> <b>{acc_jam}%</b></li>
-                <li><b>Total Akurasi Verifikasi TAFOR:</b> <b>{acc_form}%</b></li>
-            </ul>
-            <table class="data">
-                <thead><tr><th>Nama Unsur Parameter Cuaca</th><th>Sampel Jam (B / S)</th><th>Akurasi Jam</th><th>Sampel Grup TAF (B / S)</th><th>Akurasi Bulanan</th></tr></thead>
-                <tbody>
-    """
-    for j, f in zip(table_jam, table_form):
-        html_content += f"""
-                    <tr>
-                        <td style="text-align:left;"><b>{f['Nama Parameter']}</b></td>
-                        <td>{j['Jumlah Benar (B)']} / {j['Jumlah Salah (S)']}</td>
-                        <td>{j['Prosentase Ketelitian']}</td>
-                        <td>{f['Jumlah Benar (B)']} / {f['Jumlah Salah (S)']}</td>
-                        <td>{f['Prosentase Ketelitian']}</td>
-                    </tr>
-        """
-    html_content += f"""
-                </tbody>
-            </table>
-            <p>Catatan Evaluasi: Unsur dengan ketelitian terendah berada pada parameter <b>{param_terendah}</b> dengan skor <b>{min_score}%</b>. Disarankan evaluasi internal forecaster dilakukan untuk meminimalisir deviasi tersebut.</p>
-        </div>
-        <div class="ttd-container">
-            <p>{str_tgl}<br>{jab_ttd},</p><br><br><br>
-            <p><b><u>{nama_ttd}</u></b><br>{nip_ttd}</p>
-        </div>
-    </body>
-    </html>
-    """
-    return html_content
 
 # ==========================================
 # 🗓️ SIDEBAR (HANYA UNTUK FILTER TANGGAL)
