@@ -485,10 +485,10 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         m2.metric(f"🎯 Akurasi Verifikasi {stasiun_aktif}", f"{akurasi_global_form}%")
 
         # AREA DOWNLOAD BUTTONS 
-        df_peg_list = ambil_semua_pegawai()
-        opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
-        pegawai_terpilih = st.selectbox("✒️ Petugas Penandatangan Laporan:", opsi_pegawai)
-        row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
+        #df_peg_list = ambil_semua_pegawai()
+        #opsi_pegawai = [f"{r['nama']} ({r['jabatan']})" for _, r in df_peg_list.iterrows()]
+        #pegawai_terpilih = st.selectbox("✒️ Petugas Penandatangan Laporan:", opsi_pegawai)
+        #row_peg_terpilih = df_peg_list.iloc[opsi_pegawai.index(pegawai_terpilih)]
         
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         
@@ -539,46 +539,47 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 # ==========================================
 st.write("")
 with st.expander("👥 ⚙️ Panel Manajemen"):
-    tab_p, tab_rw = st.tabs(["👥 Pegawai", "✈️ Heading Runway"])
+    #tab_p, tab_rw = st.tabs(["👥 Pegawai", "✈️ Heading Runway"])
+    tab_rw = st.tabs(["✈️ Heading Runway"])
     
-    with tab_p:
-        df_peg_crud = ambil_semua_pegawai()
-        st.dataframe(df_peg_crud, use_container_width=True, hide_index=True)
+    #with tab_p:
+        #df_peg_crud = ambil_semua_pegawai()
+       # st.dataframe(df_peg_crud, use_container_width=True, hide_index=True)
         
         # 🔥 AMUNISI ANTI-BUG: Menggunakan st.radio horizontal menggantikan st.tabs yang nested
-        aksi_pegawai = st.radio("Pilih Aksi Manajemen Pegawai:", ["➕ Tambah", "✏️ Edit", "❌ Hapus"], horizontal=True)
+       # aksi_pegawai = st.radio("Pilih Aksi Manajemen Pegawai:", ["➕ Tambah", "✏️ Edit", "❌ Hapus"], horizontal=True)
         
-        if aksi_pegawai == "➕ Tambah":
-            with st.form("form_tambah"):
-                n_nama = st.text_input("Nama Lengkap & Gelar:")
-                n_nip = st.text_input("NIP / Identitas:")
-                n_jab = st.text_input("Jabatan:", value="Prakirawan / Forecaster")
-                if st.form_submit_button("Simpan Pegawai"):
-                    if n_nama and n_nip:
-                        tambah_pegawai(n_nama, n_nip, n_jab)
-                        st.success("✅ Pegawai disimpan! Silakan refresh browser.")
+       # if aksi_pegawai == "➕ Tambah":
+        #    with st.form("form_tambah"):
+         #       n_nama = st.text_input("Nama Lengkap & Gelar:")
+         #       n_nip = st.text_input("NIP / Identitas:")
+         #       n_jab = st.text_input("Jabatan:", value="Prakirawan / Forecaster")
+           #     if st.form_submit_button("Simpan Pegawai"):
+         #           if n_nama and n_nip:
+         #               tambah_pegawai(n_nama, n_nip, n_jab)
+         #               st.success("✅ Pegawai disimpan! Silakan refresh browser.")
                         
-        elif aksi_pegawai == "✏️ Edit":
-            if len(df_peg_crud) > 0:
-                opsi_edit = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
-                edit_sel = st.selectbox("Pilih Target Edit:", opsi_edit)
-                row_edit = df_peg_crud.iloc[opsi_edit.index(edit_sel)]
-                with st.form("form_edit"):
-                    e_nama = st.text_input("Ubah Nama:", value=row_edit['nama'])
-                    e_nip = st.text_input("Ubah NIP:", value=row_edit['nip'])
-                    e_jab = st.text_input("Ubah Jabatan:", value=row_edit['jabatan'])
-                    if st.form_submit_button("Simpan Perubahan"):
-                        edit_pegawai(int(row_edit['id']), e_nama, e_nip, e_jab)
-                        st.success("✅ Perubahan disimpan! Silakan refresh browser.")
+      #  elif aksi_pegawai == "✏️ Edit":
+           # if len(df_peg_crud) > 0:
+            #    opsi_edit = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
+            #    edit_sel = st.selectbox("Pilih Target Edit:", opsi_edit)
+             #   row_edit = df_peg_crud.iloc[opsi_edit.index(edit_sel)]
+            #    with st.form("form_edit"):
+            #        e_nama = st.text_input("Ubah Nama:", value=row_edit['nama'])
+               #     e_nip = st.text_input("Ubah NIP:", value=row_edit['nip'])
+             #       e_jab = st.text_input("Ubah Jabatan:", value=row_edit['jabatan'])
+              #      if st.form_submit_button("Simpan Perubahan"):
+              #          edit_pegawai(int(row_edit['id']), e_nama, e_nip, e_jab)
+               #         st.success("✅ Perubahan disimpan! Silakan refresh browser.")
                         
-        elif aksi_pegawai == "❌ Hapus":
-            if len(df_peg_crud) > 1:
-                opsi_del = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
-                del_sel = st.selectbox("Pilih Target Hapus:", opsi_del)
-                row_del = df_peg_crud.iloc[opsi_del.index(del_sel)]
-                if st.button("🚨 HAPUS PEGAWAI", type="primary"):
-                    hapus_pegawai(int(row_del['id']))
-                    st.success("❌ Pegawai dihapus! Silakan refresh browser.")
+       # elif aksi_pegawai == "❌ Hapus":
+           # if len(df_peg_crud) > 1:
+            #    opsi_del = [f"ID {r['id']} - {r['nama']}" for _, r in df_peg_crud.iterrows()]
+            #    del_sel = st.selectbox("Pilih Target Hapus:", opsi_del)
+             #   row_del = df_peg_crud.iloc[opsi_del.index(del_sel)]
+             #   if st.button("🚨 HAPUS PEGAWAI", type="primary"):
+              #      hapus_pegawai(int(row_del['id']))
+              #      st.success("❌ Pegawai dihapus! Silakan refresh browser.")
                         
     with tab_rw:
         st.write("Gunakan menu ini untuk mengatur sudut landasan pacu (*Runway*) jika Anda memproses stasiun baru agar perhitungan angin potong (*Crosswind*) akurat.")
