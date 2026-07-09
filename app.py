@@ -232,7 +232,7 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
             **Bagaimana jika bandara memiliki LEBIH DARI 1 Landasan?**
     * Secara operasional penerbangan, pesawat akan selalu diarahkan ke landasan dengan angin silang terkecil. 
     * SIVETA mengadopsi aturan ini: Jika Anda memasukkan lebih dari satu landasan, sistem akan menghitung crosswind untuk **semua** landasan tersebut secara paralel, lalu otomatis mengambil **nilai crosswind terkecil (paling aman)** sebagai hasil laporan operasional.
-    * **Cara Input Banyak Landasan:** Gulir ke panel **"Database Pegawai & Runway"** di bagian bawah. Jika bandara Anda memiliki 2 landasan (misal Runway 09/27 dan Runway 10/28), masukkan semua angkanya dengan dipisahkan tanda koma, contoh: `90, 270, 100, 280`. SIVETA akan langsung mengunci dan memproses multi-runway tersebut dengan sempurna!
+    * Jika bandara Anda memiliki 2 landasan (misal Runway 09/27 dan Runway 10/28), masukkan semua angkanya dengan dipisahkan tanda koma, contoh: `90, 270, 100, 280`. SIVETA akan langsung mengunci dan memproses multi-runway tersebut dengan sempurna!
     """)
 
 # --------------------------------------------
