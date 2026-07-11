@@ -121,14 +121,22 @@ def hitung_komponen_crosswind(arah_str, kec_str, kode_stasiun="WATU"):
 # 3. UPGRADE MATEMATIKA TOLERANSI DAN AMBANG BATAS SOP BMKG 2025
 # =========================================================================
 
-def hitung_angin_arah(m_arah, t_arah):
-    if m_arah == "-" or t_arah == "-": return "-", "NIL"
-    if m_arah == "VRB" or t_arah == "VRB": return "0", "B"
+def hitung_angin_arah(m_dir, t_dir):
     try:
-        diff = abs(int(m_arah) - int(t_arah))
-        if diff > 180: diff = 360 - diff
-        return str(diff), ("B" if diff <= 60 else "S")
-    except: return "-", "S"
+        m = int(m_dir)
+        t = int(t_dir)
+    except:
+        return "S"
+    
+    diff = abs(m - t)
+    if diff > 180:
+        diff = 360 - diff
+        
+    # Poin 3: Selisih < 60° adalah B (Benar), selebihnya S (Salah)
+    if diff < 60:
+        return "B"
+    else:
+        return "S"
 
 def hitung_angin_kec(m_kec, t_kec):
     if m_kec == "-" or t_kec == "-": return "-", "NIL"
@@ -148,21 +156,35 @@ def hitung_angin_kec(m_kec, t_kec):
         return str(diff_base), stat_base
     except: return "-", "S"
 
-def dapatkan_kelas_vis(vis_str):
-    try:
-        v = int(vis_str)
-        if 0 <= v <= 800: return 1
-        elif 800 < v <= 1500: return 2
-        elif 1500 < v <= 3000: return 3
-        elif 3000 < v <= 5000: return 4
-        else: return 5
-    except: return 5
+def get_vis_class(vis_value):
+    # Fungsi pembantu untuk menentukan "Kelas/Kamar" dari sebuah angka visibility
+    if vis_value < 800:
+        return 1
+    elif 800 <= vis_value < 1500:
+        return 2
+    elif 1500 <= vis_value < 3000:
+        return 3
+    elif 3000 <= vis_value < 5000:
+        return 4
+    else:
+        return 5 # Kelas 5 untuk Visibility >= 5000 (Aman)
 
 def hitung_vis(m_vis, t_vis):
-    if m_vis == "-" or t_vis == "-": return "-", "NIL"
-    km = dapatkan_kelas_vis(m_vis)
-    kt = dapatkan_kelas_vis(t_vis)
-    return f"K:{km}vs{kt}", ("B" if km == kt else "S")
+    try:
+        m = int(m_vis)
+        t = int(t_vis)
+    except:
+        return "S"
+        
+    # Tentukan METAR dan TAF masuk ke kelas mana
+    kelas_metar = get_vis_class(m)
+    kelas_taf = get_vis_class(t)
+    
+    # Jika keduanya berada di dalam KELAS YANG SAMA, maka Benar (B)
+    if kelas_metar == kelas_taf:
+        return "B"
+    else:
+        return "S"
 
 def is_endapan(wx_str):
     if wx_str == "-" or pd.isna(wx_str): return False
