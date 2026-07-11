@@ -363,23 +363,64 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         simpan_rekap_db(stasiun_aktif, tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
 
         # ==========================================
-        # Poin 2: WIDGET TAMPILAN PER PARAMETER
+        # 📊 KOMPARASI AKURASI PER UNSUR CUACA (DUAL MODE)
         # ==========================================
         st.markdown("### 📊 Komparasi Akurasi per Unsur Cuaca")
         
-        # Membuat header tabel bayangan
-        c_head1, c_head2, c_head3 = st.columns([2, 1.5, 1.5])
-        c_head1.write("**Nama Unsur (Parameter)**")
-        c_head2.write("**⏱️ Akurasi Klasik 31**")
-        c_head3.write("**🎯 Akurasi SOP 2025**")
-        st.markdown("---")
+        ada_speci = st.session_state.get('ada_speci', False)
         
-        # Looping 6 parameter berjejer sejajar
-        for i in range(6):
-            c1, c2, c3 = st.columns([2, 1.5, 1.5])
-            c1.write(f"**{rows_m[i]['Nama Parameter']}**")
-            c2.write(f"**{rows_m[i]['Prosentase Ketelitian']}**")
-            c3.write(f"**{rows_f[i]['Prosentase Ketelitian']}**")
+        if ada_speci:
+            # --- JIKA ADA SPECI: BUAT TABEL 5 KOLOM ---
+            df_fil_nosp = st.session_state['df_hasil_no_sp']
+            df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
+            
+            # Hitung rincian parameter untuk versi Tanpa SPECI
+            rows_m_nosp = []
+            for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
+                b, s = (df_fil_nosp[col_name] == "B").sum(), (df_fil_nosp[col_name] == "S").sum()
+                tot = b + s
+                pct = (b / tot * 100) if tot > 0 else 0
+                rows_m_nosp.append({"B": int(b), "T": int(tot), "Pct": f"{round(pct, 2)}%"})
+                
+            rek_nosp = hitung_verifikasi_TAFOR(df_fil_nosp)
+            rows_f_nosp = []
+            for k in ['A', 'B', 'C', 'D', 'E', 'F']:
+                b_f, s_f = rek_nosp[k]['B'], rek_nosp[k]['S']
+                tot_f = b_f + s_f
+                pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
+                rows_f_nosp.append({"B": int(b_f), "T": int(tot_f), "Pct": f"{round(pct_f, 2)}%"})
+            
+            # Header Tabel 5 Kolom
+            c_head1, c_head2, c_head3, c_head4, c_head5 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2])
+            c_head1.write("📝 **Parameter**")
+            c_head2.write("🌪️ **Klasik (+SPECI)**")
+            c_head3.write("🌪️ **SOP (+SPECI)**")
+            c_head4.write("☀️ **Klasik (-SPECI)**")
+            c_head5.write("☀️ **SOP (-SPECI)**")
+            st.markdown("---")
+            
+            # Looping 6 Parameter
+            for i in range(6):
+                c1, c2, c3, c4, c5 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2])
+                c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
+                c3.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
+                c4.code(f"{rows_m_nosp[i]['Pct']} ({rows_m_nosp[i]['B']}/{rows_m_nosp[i]['T']})")
+                c5.code(f"{rows_f_nosp[i]['Pct']} ({rows_f_nosp[i]['B']}/{rows_f_nosp[i]['T']})")
+                
+        else:
+            # --- JIKA TIDAK ADA SPECI: TABEL 3 KOLOM STANDAR ---
+            c_head1, c_head2, c_head3 = st.columns([2, 1.5, 1.5])
+            c_head1.write("📝 **Nama Unsur (Parameter)**")
+            c_head2.write("⏱️ **Akurasi Klasik 31**")
+            c_head3.write("🎯 **Akurasi SOP 2025**")
+            st.markdown("---")
+            
+            for i in range(6):
+                c1, c2, c3 = st.columns([2, 1.5, 1.5])
+                c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                c2.code(f"{rows_m[i]['Prosentase Ketelitian']}  ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
+                c3.code(f"{rows_f[i]['Prosentase Ketelitian']}  ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
             
         st.markdown("---")
         
