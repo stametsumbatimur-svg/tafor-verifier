@@ -126,17 +126,16 @@ def hitung_angin_arah(m_dir, t_dir):
         m = int(m_dir)
         t = int(t_dir)
     except:
-        return "S"
+        return (None, "S") # <-- Mengembalikan 2 nilai (Kosong, Salah) agar mesin tidak error
     
     diff = abs(m - t)
     if diff > 180:
         diff = 360 - diff
         
-    # Poin 3: Selisih < 60° adalah B (Benar), selebihnya S (Salah)
     if diff < 60:
-        return "B"
+        return (m, "B") # <-- Mengembalikan 2 nilai (Angka METAR, Benar)
     else:
-        return "S"
+        return (m, "S")
 
 def hitung_angin_kec(m_kec, t_kec):
     if m_kec == "-" or t_kec == "-": return "-", "NIL"
@@ -157,34 +156,26 @@ def hitung_angin_kec(m_kec, t_kec):
     except: return "-", "S"
 
 def get_vis_class(vis_value):
-    # Fungsi pembantu untuk menentukan "Kelas/Kamar" dari sebuah angka visibility
-    if vis_value < 800:
-        return 1
-    elif 800 <= vis_value < 1500:
-        return 2
-    elif 1500 <= vis_value < 3000:
-        return 3
-    elif 3000 <= vis_value < 5000:
-        return 4
-    else:
-        return 5 # Kelas 5 untuk Visibility >= 5000 (Aman)
+    if vis_value < 800: return 1
+    elif 800 <= vis_value < 1500: return 2
+    elif 1500 <= vis_value < 3000: return 3
+    elif 3000 <= vis_value < 5000: return 4
+    else: return 5
 
 def hitung_vis(m_vis, t_vis):
     try:
         m = int(m_vis)
         t = int(t_vis)
     except:
-        return "S"
+        return (None, "S")
         
-    # Tentukan METAR dan TAF masuk ke kelas mana
     kelas_metar = get_vis_class(m)
     kelas_taf = get_vis_class(t)
     
-    # Jika keduanya berada di dalam KELAS YANG SAMA, maka Benar (B)
     if kelas_metar == kelas_taf:
-        return "B"
+        return (m, "B")
     else:
-        return "S"
+        return (m, "S")
 
 def is_endapan(wx_str):
     if wx_str == "-" or pd.isna(wx_str): return False
