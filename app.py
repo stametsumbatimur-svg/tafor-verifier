@@ -161,34 +161,34 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan
 
     #### 🛠️ CARA PENGGUNAAN (4 LANGKAH MUDAH)
     **1. Persiapan Data (GTS)**
-    Unduh riwayat sandi cuaca stasiun Anda dari sistem GTS (menu Extract) dalam format `.csv`. Data yang valid adalah data dengan status "SENT".
+    Unduh riwayat sandi cuaca stasiun Anda dari sistem GTS "https://bmkgsatu.bmkg.go.id/extractgts" (menu Extract) dalam format `.csv`. Data yang valid adalah data dengan status "SENT".
     
     **2. Unggah Data**
     Masukkan file ke slot yang tepat:
     * **Slot 1 (Wajib):** File `METAR.csv`
     * **Slot 2 (Wajib):** File `TAF.csv`
-    * **Slot 3 (Opsional):** File `SPECI.csv` *(Jika ada cuaca buruk mendadak, unggah file ini untuk melihat dampaknya pada nilai akurasi).*
+    * **Slot 3 (Opsional):** File `SPECI.csv`
 
     **3. Sesuaikan Rentang Waktu**
     Gunakan menu kalender di *sidebar* kiri. Pastikan rentang tanggal yang dipilih benar-benar ada di dalam file CSV yang Anda unggah.
 
     **4. Proses Data**
-    Klik tombol biru **"🚀 PROSES DATA 🚀"**. *(Catatan: Jika Anda memiliki SPECI tetapi ingin mematikan efeknya, centang opsi 'Abaikan data SPECI' di atas tombol proses).*
+    Klik tombol biru **"🚀 PROSES DATA 🚀"**.*
 
     ---
 
     #### 🖥️ MEMAHAMI TAMPILAN DASHBOARD KOMPARASI
-    SIVETA kini dilengkapi dengan **Dashboard Komparasi (Dual Mode)**. Jika Anda mengunggah file SPECI, SIVETA akan membelah hasil menjadi dua skenario:
+    SIVETA dilengkapi dengan **Dashboard Komparasi**. Jika Anda mengunggah file SPECI, SIVETA akan menghasilka dua laporan:
     * 🌪️ **(+SPECI):** Nilai akurasi yang dihitung dengan memasukkan unsur cuaca ekstrem/kejadian mendadak dari SPECI.
-    * ☀️ **(-SPECI):** Nilai akurasi "murni" yang dihitung hanya menggunakan data METAR jam-jaman (seperti hitungan manual lama).
+    * ☀️ **(-SPECI):** Nilai akurasi yang dihitung menggunakan data METAR.
     * 📉 **Kolom Selisih:** Menampilkan indikator (🟢 / 🔴 / ⚪) seberapa besar dampak SPECI menaikkan atau menurunkan nilai Anda.
 
     ---
 
-    #### 📥 MEMAHAMI TOMBOL UNDUH LAPORAN (DINAMIS)
-    Sistem cetak Excel SIVETA beroperasi secara cerdas menyesuaikan data yang Anda unggah:
-    * **Jika TIDAK ADA SPECI:** Sistem akan mencetak 2 dokumen standar (Klasik 31 Sheet dan Form 029 SOP 2025).
-    * **Jika ADA SPECI:** Sistem akan membelah diri menjadi 2 jalur dan menyediakan **4 tombol unduh** sekaligus! Anda bisa mengunduh laporan versi "Murni (-SPECI)" maupun laporan versi ketat yang sudah diintervensi oleh data cuaca ekstrem "(+SPECI)".
+    #### 📥 MEMAHAMI TOMBOL UNDUH LAPORAN
+    Sistem cetak Excel SIVETA beroperasi menyesuaikan data yang Anda unggah:
+    * **Jika TIDAK ADA SPECI:** Sistem akan mencetak 2 dokumen standar (Klasik 31 Sheet dan Verifikasi TAF).
+    * **Jika ADA SPECI:** Sistem akan menyediakan **4 tombol unduh**! Anda bisa mengunduh laporan versi tanpa dipengaruhi SPECI dan laporan dipengaruhi SPECI.
     """)
 # --------------------------------------------
 
