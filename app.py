@@ -246,8 +246,15 @@ if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
       
 
 st.sidebar.markdown("---")
-# Mengisi Banner Biru Mewah (Logo + Jam Digital) ke dalam Container
+# ==========================================
+# 🎨 BANNER BIRU MEWAH (VERSI AMAN & LULUS REGULASI)
+# ==========================================
 with banner_container:
+    # Mengambil waktu saat ini lewat Python yang stabil dan aman
+    waktu_sekarang = datetime.now()
+    jam_statis = waktu_sekarang.strftime('%H:%M')
+    tgl_statis = waktu_sekarang.strftime('%d %b %Y')
+    
     st.markdown(f"""
         <div class="bmkg-portal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="display: flex; align-items: center;">
@@ -260,49 +267,15 @@ with banner_container:
                 </div>
             </div>
             <div style="text-align: right; background: rgba(0,0,0,0.25); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                <div id="live_clock" style="font-size: 24px; font-weight: 800; color: #FFFFFF; font-family: monospace; letter-spacing: 2px;">
-                    🕰️ Memuat...
+                <div style="font-size: 24px; font-weight: 800; color: #FFFFFF; font-family: monospace; letter-spacing: 2px;">
+                    🕰️ {jam_statis} UTC
                 </div>
-                <div id="live_date" style="font-size: 12px; color: #00A8E8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;">
-                    Memuat Tanggal...
+                <div style="font-size: 12px; color: #00A8E8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;">
+                    {tgl_statis}
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
-
-    # Injeksi Javascript Tak Terlihat (Berdetak Otomatis di Latar Belakang)
-    components.html("""
-        <script>
-            function updateClock() {
-                var doc = window.parent.document;
-                var clockEl = doc.getElementById('live_clock');
-                var dateEl = doc.getElementById('live_date');
-                
-                if (clockEl && dateEl) {
-                    var now = new Date();
-                    
-                    // Format Jam:Menit:Detik
-                    var h = String(now.getHours()).padStart(2, '0');
-                    var m = String(now.getMinutes()).padStart(2, '0');
-                    var s = String(now.getSeconds()).padStart(2, '0');
-                    clockEl.innerHTML = '🕰️ ' + h + ':' + m + ':' + s;
-                    
-                    // Format Tanggal Indonesia
-                    var days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-                    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
-                    var dayName = days[now.getDay()];
-                    var d = String(now.getDate()).padStart(2, '0');
-                    var monthName = months[now.getMonth()];
-                    var y = now.getFullYear();
-                    
-                    dateEl.innerHTML = dayName + ', ' + d + ' ' + monthName + ' ' + y;
-                }
-            }
-            // Perintahkan komputer mengeksekusi updateClock setiap 1000 milidetik (1 Detik)
-            setInterval(updateClock, 1000);
-            updateClock();
-        </script>
-    """, height=0, width=0)
 
 # ==========================================
 # 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA (SPECI OPSIONAL & EKSEKUSI GANDA Optimized)
