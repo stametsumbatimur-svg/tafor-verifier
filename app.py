@@ -315,27 +315,17 @@ with banner_container:
         </script>
     """, height=0, width=0)
 
-# 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA
-# Poin 1: Syarat aktif tombol sekarang HANYA butuh file METAR dan TAF saja (SPECI opsional)
+# 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA (SPECI OPSIONAL & EKSEKUSI GANDA)
 if df_metar_raw is not None and df_taf_raw is not None:
-    
-    # Opsi jika file diunggah tapi tetap ingin diabaikan
-    mode_tanpa_speci = st.checkbox("⚠️ Abaikan data SPECI (Hitung murni METAR jam-jaman)", value=False)
-    
     if st.button("🚀 PROSES DATA 🚀", use_container_width=True, type="primary"):
         try:
             with st.spinner(f"Sedang menganalisa data stasiun {stasiun_aktif}..."):
                 
-                # Injeksi DataFrame kosong jika SPECI tidak diupload / diabaikan
-                if df_speci_raw is None or mode_tanpa_speci:
-                    df_speci_umpan = pd.DataFrame(columns=df_metar_raw.columns)
-                else:
-                    df_speci_umpan = df_speci_raw
-                
+                # 1. Jalankan Komputasi Jalur Utama (Dengan SPECI jika ada, Tanpa SPECI jika tidak diupload)
+                df_speci_umpan = df_speci_raw if df_speci_raw is not None else pd.DataFrame(columns=df_metar_raw.columns)
                 df_hasil, df_speci_report, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
                 df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
                 
-                # Validasi anti-error jika SPECI kosong
                 if 'Waktu SPECI (UTC)' in df_speci_report.columns and not df_speci_report.empty:
                     df_speci_report['Datetime_Obj'] = pd.to_datetime(df_speci_report['Waktu SPECI (UTC)']).dt.date
                 else:
@@ -344,9 +334,20 @@ if df_metar_raw is not None and df_taf_raw is not None:
                 
                 st.session_state['df_hasil'] = df_hasil
                 st.session_state['df_speci_report'] = df_speci_report
+                
+                # 2. JIKA SPECI ADA: Jalankan komputasi bayangan ke-2 (Khusus Tanpa SPECI)
+                if df_speci_raw is not None and not df_speci_raw.empty:
+                    df_speci_kosong = pd.DataFrame(columns=df_metar_raw.columns)
+                    df_hasil_no_sp, _, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_kosong)
+                    df_hasil_no_sp['Datetime_Obj'] = pd.to_datetime(df_hasil_no_sp['Waktu Aktual (UTC)']).dt.date
+                    st.session_state['df_hasil_no_sp'] = df_hasil_no_sp
+                    st.session_state['ada_speci'] = True
+                else:
+                    st.session_state['ada_speci'] = False
+                    
                 st.session_state['diklik_proses'] = True
         except Exception as e: st.error(f"Gagal memproses data: {e}")
-
+            
 # INTERFACE DASHBOARD UTAMA
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
     df_hasil = st.session_state['df_hasil']
@@ -412,19 +413,39 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         c_tot2.metric("Nilai IKU Klasik", f"{akurasi_global_matriks}%")
         c_tot3.metric("Nilai Audit SOP", f"{akurasi_global_form}%")
 
-        # AREA DOWNLOAD BUTTONS
-        str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')        
-        c_dl1, c_dl2 = st.columns(2)
-        with c_dl1: 
-            st.download_button(label="📄 1️⃣ Unduh Matriks", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"MATRIKS_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        # ==========================================
+        # AREA DOWNLOAD BUTTONS (CERDAS & DINAMIS)
+        # ==========================================
+        str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
+        
+        st.markdown("### 📥 Unduh Laporan Excel")
+        if st.session_state.get('ada_speci', False):
+            st.success("✨ **Berkas SPECI terdeteksi!** SIVETA secara otomatis membelah diri dan menghasilkan 2 versi laporan untuk Anda.")
+            c_dl1, c_dl2 = st.columns(2)
             
-            st.download_button(label="📄 3️⃣ Unduh Format Klasik 31 Sheet", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_31_SHEET_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            # --- VERSI DIPENGARUHI SPECI ---
+            with c_dl1:
+                st.write("**🌪️ VERSI LENGKAP (DIPENGARUHI SPECI)**")
+                st.download_button("📄 Klasik 31 (+SPECI)", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                st.download_button("📄 Verifikasi SOP (+SPECI)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"SOP_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
             
-        with c_dl2: 
-            st.download_button(label="📄 2️⃣ Unduh Verifikasi TAF", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"VERIFIKASI_TAF_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-            
-            st.download_button(label="📝 4️⃣ Unduh Logbook", data=generate_logbook_excel(df_filtered).getvalue(), file_name=f"LOGBOOK_TAF_SIVETA_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-        st.markdown("---")
+            # --- VERSI TANPA SPECI ---
+            with c_dl2:
+                st.write("**☀️ VERSI MURNI (TANPA SPECI)**")
+                df_fil_nosp = st.session_state['df_hasil_no_sp']
+                df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
+                empty_sp = pd.DataFrame(columns=df_speci_filtered.columns)
+                
+                st.download_button("📄 Klasik 31 (Tanpa SPECI)", data=generate_klasik_31_sheet(df_fil_nosp).getvalue(), file_name=f"KLASIK_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                st.download_button("📄 Verifikasi SOP (Tanpa SPECI)", data=generate_form_2026(df_fil_nosp, empty_sp).getvalue(), file_name=f"SOP_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                
+        else:
+            st.info("ℹ️ Tidak ada berkas SPECI yang diunggah. Menghasilkan 1 versi laporan murni.")
+            c_dl1, c_dl2 = st.columns(2)
+            with c_dl1:
+                st.download_button("📄 Unduh Klasik 31 Sheet", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+            with c_dl2:
+                st.download_button("📄 Unduh Verifikasi SOP 2025", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"SOP_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
         
         # ==========================================
         # 📊 DASHBOARD PREVIEW KOMPARASI (KLASIK VS SOP 2025)
