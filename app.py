@@ -296,11 +296,16 @@ with banner_container:
         </script>
     """, height=0, width=0)
 
-# 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA (SPECI OPSIONAL & EKSEKUSI GANDA)
+# ==========================================
+# 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA (SPECI OPSIONAL & EKSEKUSI GANDA Optimized)
+# ==========================================
 if df_metar_raw is not None and df_taf_raw is not None:
     if st.button("🚀 PROSES DATA 🚀", use_container_width=True, type="primary"):
         try:
             with st.spinner(f"Sedang menganalisa data stasiun {stasiun_aktif}..."):
+                
+                # Reset status berkas unduhan Excel lama agar dirakit ulang jika ada upload data baru
+                st.session_state['excel_ready'] = False
                 
                 # 1. Jalankan Komputasi Jalur Utama (Dengan SPECI jika ada, Tanpa SPECI jika tidak diupload)
                 df_speci_umpan = df_speci_raw if df_speci_raw is not None else pd.DataFrame(columns=df_metar_raw.columns)
@@ -323,11 +328,49 @@ if df_metar_raw is not None and df_taf_raw is not None:
                     df_hasil_no_sp['Datetime_Obj'] = pd.to_datetime(df_hasil_no_sp['Waktu Aktual (UTC)']).dt.date
                     st.session_state['df_hasil_no_sp'] = df_hasil_no_sp
                     st.session_state['ada_speci'] = True
+                    
+                    # 🟢 --- [START] KODE OPTIMISASI PERFORMA DITEMPATKAN DI SINI ---
+                    # Filter data non-speci berdasarkan tanggal & stasiun aktif sekali jalan di memori
+                    df_fil_nosp = df_hasil_no_sp[(df_hasil_no_sp['Datetime_Obj'] >= tgl_mulai) & (df_hasil_no_sp['Datetime_Obj'] <= tgl_selesai) & (df_hasil_no_sp['Kode_Stasiun'] == stasiun_aktif)].copy()
+                    
+                    # A. Hitung Total Akurasi Klasik (Tanpa SPECI)
+                    tot_b_m_nosp = sum((df_fil_nosp[c] == "B").sum() for c in ["S_Arah","S_Kec","S_Vis","S_Wx","S_AwanJml","S_AwanTgi"])
+                    tot_s_m_nosp = sum((df_fil_nosp[c] == "S").sum() for c in ["S_Arah","S_Kec","S_Vis","S_Wx","S_AwanJml","S_AwanTgi"])
+                    tot_data_m_nosp = tot_b_m_nosp + tot_s_m_nosp
+                    st.session_state['ak_klasik_nosp'] = round((tot_b_m_nosp / tot_data_m_nosp * 100), 1) if tot_data_m_nosp > 0 else 0
+                    
+                    # B. Hitung Total Akurasi SOP (Tanpa SPECI)
+                    rek_nosp = hitung_verifikasi_TAFOR(df_fil_nosp)
+                    tot_b_f_nosp = sum(rek_nosp[k]['B'] for k in ['A','B','C','D','E','F'])
+                    tot_s_f_nosp = sum(rek_nosp[k]['S'] for k in ['A','B','C','D','E','F'])
+                    tot_data_f_nosp = tot_b_f_nosp + tot_s_f_nosp
+                    st.session_state['ak_sop_nosp'] = round((tot_b_f_nosp / tot_data_f_nosp * 100), 1) if tot_data_f_nosp > 0 else 0
+                    
+                    # C. Hitung Rincian Parameter Klasik (Tanpa SPECI)
+                    rows_m_nosp = []
+                    for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
+                        b, s = (df_fil_nosp[col_name] == "B").sum(), (df_fil_nosp[col_name] == "S").sum()
+                        tot = b + s
+                        pct = (b / tot * 100) if tot > 0 else 0
+                        rows_m_nosp.append({"B": int(b), "T": int(tot), "Pct": f"{round(pct, 2)}%"})
+                    st.session_state['rows_m_nosp'] = rows_m_nosp
+                    
+                    # D. Hitung Rincian Parameter SOP (Tanpa SPECI)
+                    rows_f_nosp = []
+                    for k in ['A', 'B', 'C', 'D', 'E', 'F']:
+                        b_f, s_f = rek_nosp[k]['B'], rek_nosp[k]['S']
+                        tot_f = b_f + s_f
+                        pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
+                        rows_f_nosp.append({"B": int(b_f), "T": int(tot_f), "Pct": f"{round(pct_f, 2)}%"})
+                    st.session_state['rows_f_nosp'] = rows_f_nosp
+                    # 🔴 --- [END] KODE OPTIMISASI PERFORMA ---
+                    
                 else:
                     st.session_state['ada_speci'] = False
                     
                 st.session_state['diklik_proses'] = True
-        except Exception as e: st.error(f"Gagal memproses data: {e}")
+        except Exception as e: 
+            st.error(f"Gagal memproses data: {e}")
             
 # INTERFACE DASHBOARD UTAMA
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
