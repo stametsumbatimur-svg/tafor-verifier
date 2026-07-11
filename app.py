@@ -383,11 +383,45 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             
         st.markdown("---")
         
-        # Kesimpulan Total Keseluruhan
-        c_tot1, c_tot2, c_tot3 = st.columns([2, 1.5, 1.5])
-        c_tot1.subheader("🏆 TOTAL KESELURUHAN")
-        c_tot2.metric("Nilai IKU Klasik", f"{akurasi_global_matriks}%")
-        c_tot3.metric("Nilai Audit SOP", f"{akurasi_global_form}%")
+        # ==========================================
+        # 🏆 KESIMPULAN TOTAL KESELURUHAN (DENGAN VS TANPA SPECI)
+        # ==========================================
+        st.subheader("🏆 TOTAL AKURASI KESELURUHAN")
+        
+        if st.session_state.get('ada_speci', False):
+            # --- MESIN HITUNG CEPAT (VERSI TANPA SPECI) ---
+            df_fil_nosp = st.session_state['df_hasil_no_sp']
+            df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
+            
+            # Kalkulasi Klasik 31 Tanpa SPECI
+            tot_b_m_nosp = sum((df_fil_nosp[c] == "B").sum() for c in ["S_Arah","S_Kec","S_Vis","S_Wx","S_AwanJml","S_AwanTgi"])
+            tot_s_m_nosp = sum((df_fil_nosp[c] == "S").sum() for c in ["S_Arah","S_Kec","S_Vis","S_Wx","S_AwanJml","S_AwanTgi"])
+            tot_data_m_nosp = tot_b_m_nosp + tot_s_m_nosp
+            ak_klasik_nosp = round((tot_b_m_nosp / tot_data_m_nosp * 100), 1) if tot_data_m_nosp > 0 else 0
+            
+            # Kalkulasi SOP 2025 Tanpa SPECI
+            rek_nosp = hitung_verifikasi_TAFOR(df_fil_nosp)
+            tot_b_f_nosp = sum(rek_nosp[k]['B'] for k in ['A','B','C','D','E','F'])
+            tot_s_f_nosp = sum(rek_nosp[k]['S'] for k in ['A','B','C','D','E','F'])
+            tot_data_f_nosp = tot_b_f_nosp + tot_s_f_nosp
+            ak_sop_nosp = round((tot_b_f_nosp / tot_data_f_nosp * 100), 1) if tot_data_f_nosp > 0 else 0
+
+            # Tampilkan 4 Kotak Metrik Komparasi
+            st.info("💡 **Dampak SPECI:** Anda bisa melihat perbedaan nilai evaluasi ketika stasiun memperhitungkan cuaca ekstrem mendadak (SPECI) dibandingkan dengan mengabaikannya.")
+            c_tot1, c_tot2, c_tot3, c_tot4 = st.columns(4)
+            c_tot1.metric("🌪️ Klasik (+SPECI)", f"{akurasi_global_matriks}%")
+            c_tot2.metric("🌪️ SOP 2025 (+SPECI)", f"{akurasi_global_form}%")
+            c_tot3.metric("☀️ Klasik (Tanpa SPECI)", f"{ak_klasik_nosp}%")
+            c_tot4.metric("☀️ SOP 2025 (Tanpa SPECI)", f"{ak_sop_nosp}%")
+            
+        else:
+            # Jika SPECI tidak diupload, tampilkan 2 kotak standar
+            c_tot1, c_tot2, c_tot3 = st.columns([2, 1.5, 1.5])
+            c_tot1.write("**Data Murni (Tanpa SPECI)**")
+            c_tot2.metric("Nilai IKU Klasik", f"{akurasi_global_matriks}%")
+            c_tot3.metric("Nilai Audit SOP", f"{akurasi_global_form}%")
+            
+        st.markdown("---")
 
         # ==========================================
         # AREA DOWNLOAD BUTTONS (CERDAS & DINAMIS)
