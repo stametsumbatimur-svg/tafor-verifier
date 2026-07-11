@@ -140,20 +140,6 @@ def ambil_tren_db(stasiun):
         # Jika database kosong/error, kembalikan tabel kosong tanpa membuat aplikasi crash
         return pd.DataFrame()
 
-def ambil_semua_bandara():
-    conn = sqlite3.connect('verifier_db.sqlite')
-    df = pd.read_sql_query("SELECT * FROM master_bandara ORDER BY icao ASC", conn)
-    conn.close()
-    return df
-
-def tambah_bandara(icao, nama, heading_a, heading_b):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    # Ubah int() menjadi str() agar SQLite bisa menyimpan deretan teks koma "90, 270"
-    c.execute("INSERT OR REPLACE INTO master_bandara VALUES (?, ?, ?, ?)", (str(icao).upper(), str(nama).strip(), str(heading_a), str(heading_b)))
-    conn.commit()
-    conn.close()
-
 init_db()
 
 # ==========================================
@@ -446,71 +432,4 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                 st.download_button("📄 Unduh Klasik 31 Sheet", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
             with c_dl2:
                 st.download_button("📄 Unduh Verifikasi SOP 2025", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"SOP_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
-        
-        # ==========================================
-        # 📊 DASHBOARD PREVIEW KOMPARASI (KLASIK VS SOP 2025)
-        # ==========================================
-        st.markdown("---")
-        st.markdown("### ⚖️ PREVIEW HASIL VERIFIKASI: KLASIK 31 VS SOP 2025")
-        st.info("💡 **Petunjuk:** Tabel di bawah membandingkan langsung hasil perhitungan format Klasik (Berbasis Waktu) dengan SOP 2025 (Berbasis Keputusan TAF) untuk setiap parameter cuaca.")
-        
-        # Membuat header tabel dengan 3 kolom
-        c_head1, c_head2, c_head3 = st.columns([2, 1.5, 1.5])
-        c_head1.write("📝 **Nama Parameter Cuaca**")
-        c_head2.write("⏱️ **Akurasi Klasik 31 Sheet**")
-        c_head3.write("🎯 **Akurasi SOP 2025 (Form 029)**")
-        st.markdown("---")
-        
-        # Looping untuk mengadu 6 parameter (A sampai F) secara berjejer
-        for i in range(6):
-            c1, c2, c3 = st.columns([2, 1.5, 1.5])
-            c1.write(f"**{rows_m[i]['Nama Parameter']}**")
             
-            # Kolom Klasik
-            skor_klasik = rows_m[i]['Prosentase Ketelitian']
-            c2.code(f"{skor_klasik}  ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
-            
-            # Kolom SOP 2025
-            skor_sop = rows_f[i]['Prosentase Ketelitian']
-            c3.code(f"{skor_sop}  ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
-            
-        st.markdown("---")
-        
-        # TAB TAMBAHAN UNTUK LOG SPECI DAN GRAFIK CROSSWIND
-        st.markdown("### 📈 Detail Log Ekstra")
-        tab_sp, tab_min = st.tabs(["🌩️ Log Data SPECI", "🌬️ Kritis & Crosswind"])
-        
-        with tab_sp: 
-            st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj'], errors='ignore'), use_container_width=True, hide_index=True)
-            
-        with tab_min:
-            max_m_cw = df_filtered['M_Crosswind_Knot'].max()
-            max_t_cw = df_filtered['T_Crosswind_Knot'].max()
-            st.write(f"**Crosswind Maksimum Runway {stasiun_aktif}:** Aktual {max_m_cw} Kt | Ramalan {max_t_cw} Kt")
-            df_cw_chart = df_filtered.copy().set_index("Waktu Aktual (UTC)")[["M_Crosswind_Knot", "T_Crosswind_Knot"]]
-            st.line_chart(df_cw_chart, use_container_width=True)
-
-# ==========================================
-# EXPANDER CONFIGURATION PANELS
-# ==========================================
-st.write("")
-with st.expander("✈️ ⚙️ Panel Manajemen"):
-    st.write("Gunakan menu ini untuk mengatur sudut landasan pacu (*Runway*) jika Anda memproses stasiun baru agar perhitungan angin potong (*Crosswind*) akurat.")
-    df_all_rw = ambil_semua_bandara()
-    st.dataframe(df_all_rw, use_container_width=True, hide_index=True)
-    with st.form("form_bandara"):
-        add_icao = st.text_input("Kode ICAO Stasiun target (4 Huruf):", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "").upper()
-        add_nama = st.text_input("Nama Bandara/Stasiun:", value=stasiun_aktif if stasiun_aktif != "Menunggu Berkas..." else "")
-        
-        # --- INPUT TEXT KHUSUS MULTI RUNWAY (ANTI-MEMBULAT) ---
-        add_rw_a = st.text_input("Heading Runway Set 1 (Misal tunggal: 120, atau multi: 120, 090):", value="120")
-        add_rw_b = st.text_input("Heading Runway Set 2 (Misal tunggal: 300, atau multi: 300, 270):", value="300")
-        
-        if st.form_submit_button("Update Sudut Runway"):
-            if len(add_icao) == 4:
-                # Bersihkan spasi hantu sebelum disetor ke database
-                rw_a_bersih = ",".join([x.strip() for x in add_rw_a.split(",") if x.strip()])
-                rw_b_bersih = ",".join([x.strip() for x in add_rw_b.split(",") if x.strip()])
-                
-                tambah_bandara(add_icao, add_nama, rw_a_bersih, rw_b_bersih)
-                st.success(f"🎉 Sudut landasan pacu stasiun {add_icao} sukses diperbarui!")
