@@ -316,31 +316,39 @@ with banner_container:
     """, height=0, width=0)
 
 # 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA
-# Syarat diaktifkan sekarang HANYA memerlukan METAR dan TAF saja
 if df_metar_raw is not None and df_taf_raw is not None:
     
-    # Sakelar opsional (jika ingin mematikan SPECI secara manual walaupun filenya diunggah)
     mode_tanpa_speci = st.checkbox("⚠️ Abaikan data SPECI", value=False)
     
     if st.button("🚀 PROSES DATA 🚀", use_container_width=True, type="primary"):
         try:
             with st.spinner(f"Sedang menganalisa data stasiun {stasiun_aktif}..."):
                 
-                # JIKA SPECI KOSONG ATAU DICENTANG ABAIKAN: Buat kloningan kolom kosong dari METAR
+                # Umpan data kosong jika SPECI tidak diunggah atau diabaikan
                 if df_speci_raw is None or mode_tanpa_speci:
                     df_speci_umpan = pd.DataFrame(columns=df_metar_raw.columns)
                 else:
                     df_speci_umpan = df_speci_raw
                 
-                # Alirkan data umpan yang sudah aman ke mesin komputasi
                 df_hasil, df_speci_report, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
                 
+                # Konversi tanggal METAR
                 df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
-                df_speci_report['Datetime_Obj'] = pd.to_datetime(df_speci_report['Waktu SPECI (UTC)']).dt.date
+                
+                # --- VALIDASI ANTI-ERROR UNTUK SPECI ---
+                # Jika kolom tersedia dan data tidak kosong, lakukan konversi
+                if 'Waktu SPECI (UTC)' in df_speci_report.columns and not df_speci_report.empty:
+                    df_speci_report['Datetime_Obj'] = pd.to_datetime(df_speci_report['Waktu SPECI (UTC)']).dt.date
+                else:
+                    # Jika kosong, buat kolom buatan agar fungsi ekspor Excel tidak crash
+                    df_speci_report['Waktu SPECI (UTC)'] = pd.Series(dtype='object')
+                    df_speci_report['Datetime_Obj'] = pd.Series(dtype='object')
+                
                 st.session_state['df_hasil'] = df_hasil
                 st.session_state['df_speci_report'] = df_speci_report
                 st.session_state['diklik_proses'] = True
-        except Exception as e: st.error(f"Gagal memproses data: {e}")
+        except Exception as e: 
+            st.error(f"Gagal memproses data: {e}")
 
 # INTERFACE DASHBOARD UTAMA
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
