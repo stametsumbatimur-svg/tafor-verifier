@@ -1,4 +1,3 @@
-Ini, TOML
 [server]
 # Matikan pengawas file di server produksi agar tidak terjadi loop reload
 fileWatcherType = "none"
