@@ -152,6 +152,14 @@ st.sidebar.header("🗓️ Navigasi Laporan")
 hari_ini = datetime.now().date()
 tanggal_pilihan = st.sidebar.date_input("Filter Rentang Waktu:", value=(hari_ini, hari_ini), key="rentang_tanggal")
 
+# --- KODE PENYELAMAT: Pecah tanggal di atas agar siap dipakai tombol di bawah ---
+if isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 2:
+    tgl_mulai, tgl_selesai = tanggal_pilihan
+elif isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 1:
+    tgl_mulai = tgl_selesai = tanggal_pilihan[0]
+else:
+    tgl_mulai = tgl_selesai = tanggal_pilihan[0] if isinstance(tanggal_pilihan, list) else tanggal_pilihan
+
 # ==========================================
 # 🚀 1️⃣ KOTAK PENAHAN BANNER UTAMA (ANTI-ERROR)
 # ==========================================
@@ -376,9 +384,6 @@ if df_metar_raw is not None and df_taf_raw is not None:
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
     df_hasil = st.session_state['df_hasil']
     df_speci_report = st.session_state['df_speci_report']
-    
-    if isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 2: tgl_mulai, tgl_selesai = tanggal_pilihan
-    else: tgl_mulai = tgl_selesai = tanggal_pilihan[0] if isinstance(tanggal_pilihan, list) else tanggal_pilihan
         
     df_filtered = df_hasil[(df_hasil['Datetime_Obj'] >= tgl_mulai) & (df_hasil['Datetime_Obj'] <= tgl_selesai) & (df_hasil['Kode_Stasiun'] == stasiun_aktif)].copy()
     df_speci_filtered = df_speci_report[(df_speci_report['Datetime_Obj'] >= tgl_mulai) & (df_speci_report['Datetime_Obj'] <= tgl_selesai)].copy()
