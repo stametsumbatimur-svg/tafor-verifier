@@ -316,39 +316,36 @@ with banner_container:
     """, height=0, width=0)
 
 # 🚀 3️⃣ TOMBOL EKSEKUSI UTAMA
+# Poin 1: Syarat aktif tombol sekarang HANYA butuh file METAR dan TAF saja (SPECI opsional)
 if df_metar_raw is not None and df_taf_raw is not None:
     
-    mode_tanpa_speci = st.checkbox("⚠️ Abaikan data SPECI", value=False)
+    # Opsi jika file diunggah tapi tetap ingin diabaikan
+    mode_tanpa_speci = st.checkbox("⚠️ Abaikan data SPECI (Hitung murni METAR jam-jaman)", value=False)
     
     if st.button("🚀 PROSES DATA 🚀", use_container_width=True, type="primary"):
         try:
             with st.spinner(f"Sedang menganalisa data stasiun {stasiun_aktif}..."):
                 
-                # Umpan data kosong jika SPECI tidak diunggah atau diabaikan
+                # Injeksi DataFrame kosong jika SPECI tidak diupload / diabaikan
                 if df_speci_raw is None or mode_tanpa_speci:
                     df_speci_umpan = pd.DataFrame(columns=df_metar_raw.columns)
                 else:
                     df_speci_umpan = df_speci_raw
                 
                 df_hasil, df_speci_report, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
-                
-                # Konversi tanggal METAR
                 df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
                 
-                # --- VALIDASI ANTI-ERROR UNTUK SPECI ---
-                # Jika kolom tersedia dan data tidak kosong, lakukan konversi
+                # Validasi anti-error jika SPECI kosong
                 if 'Waktu SPECI (UTC)' in df_speci_report.columns and not df_speci_report.empty:
                     df_speci_report['Datetime_Obj'] = pd.to_datetime(df_speci_report['Waktu SPECI (UTC)']).dt.date
                 else:
-                    # Jika kosong, buat kolom buatan agar fungsi ekspor Excel tidak crash
                     df_speci_report['Waktu SPECI (UTC)'] = pd.Series(dtype='object')
                     df_speci_report['Datetime_Obj'] = pd.Series(dtype='object')
                 
                 st.session_state['df_hasil'] = df_hasil
                 st.session_state['df_speci_report'] = df_speci_report
                 st.session_state['diklik_proses'] = True
-        except Exception as e: 
-            st.error(f"Gagal memproses data: {e}")
+        except Exception as e: st.error(f"Gagal memproses data: {e}")
 
 # INTERFACE DASHBOARD UTAMA
 if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
@@ -388,14 +385,35 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
 
         simpan_rekap_db(stasiun_aktif, tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
 
-        # WIDGET METRIC PREMIUM
-        m1, m2 = st.columns(2)
-        m1.metric(f"📊 Akurasi Matriks {stasiun_aktif}", f"{akurasi_global_matriks}%")
-        m2.metric(f"🎯 Akurasi Verifikasi {stasiun_aktif}", f"{akurasi_global_form}%")
-
-        # AREA DOWNLOAD BUTTONS 
-        str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
+        # ==========================================
+        # Poin 2: WIDGET TAMPILAN PER PARAMETER
+        # ==========================================
+        st.markdown("### 📊 Komparasi Akurasi per Unsur Cuaca")
         
+        # Membuat header tabel bayangan
+        c_head1, c_head2, c_head3 = st.columns([2, 1.5, 1.5])
+        c_head1.write("**Nama Unsur (Parameter)**")
+        c_head2.write("**⏱️ Akurasi Klasik 31**")
+        c_head3.write("**🎯 Akurasi SOP 2025**")
+        st.markdown("---")
+        
+        # Looping 6 parameter berjejer sejajar
+        for i in range(6):
+            c1, c2, c3 = st.columns([2, 1.5, 1.5])
+            c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+            c2.write(f"**{rows_m[i]['Prosentase Ketelitian']}**")
+            c3.write(f"**{rows_f[i]['Prosentase Ketelitian']}**")
+            
+        st.markdown("---")
+        
+        # Kesimpulan Total Keseluruhan
+        c_tot1, c_tot2, c_tot3 = st.columns([2, 1.5, 1.5])
+        c_tot1.subheader("🏆 TOTAL KESELURUHAN")
+        c_tot2.metric("Nilai IKU Klasik", f"{akurasi_global_matriks}%")
+        c_tot3.metric("Nilai Audit SOP", f"{akurasi_global_form}%")
+
+        # AREA DOWNLOAD BUTTONS
+        str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')        
         c_dl1, c_dl2 = st.columns(2)
         with c_dl1: 
             st.download_button(label="📄 1️⃣ Unduh Matriks", data=generate_lapbul_excel(df_filtered, df_speci_filtered).getvalue(), file_name=f"MATRIKS_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
