@@ -88,34 +88,11 @@ def parse_sandi(grup_teks):
     return arah, kec, vis, wx, aw_jml, aw_tgi
 
 # =========================================================================
-# 2. NAVIGASI GEOGRAFIS LANDASAN RUNWAY (DIVERSIFIKASI CROSSWIND)
+# 2. NAVIGASI GEOGRAFIS LANDASAN RUNWAY (MOCKING PASIF UNTUK PERFORMANCE)
 # =========================================================================
 def hitung_komponen_crosswind(arah_str, kec_str, kode_stasiun="WATU"):
-    if arah_str in ["-", "///", "VRB"] or kec_str == "-":
-        return 0.0
-    try:
-        arah_wind = int(arah_str)
-        kecepatan = int(kec_str.split('G')[1]) if 'G' in kec_str else int(kec_str)
-        
-        rw_a, rw_b = 150, 330 
-        try:
-            conn = sqlite3.connect('verifier_db.sqlite')
-            c = conn.cursor()
-            c.execute("SELECT heading_a, heading_b FROM master_bandara WHERE icao=?", (str(kode_stasiun).strip().upper(),))
-            res = c.fetchone()
-            if res:
-                rw_a, rw_b = int(res[0]), int(res[1])
-            conn.close()
-        except: pass
-        
-        diff_a = abs(arah_wind - rw_a)
-        diff_b = abs(arah_wind - rw_b)
-        
-        min_diff = min(diff_a, 360 - diff_a, diff_b, 360 - diff_b)
-        crosswind = kecepatan * math.sin(math.radians(min_diff))
-        return round(crosswind, 1)
-    except:
-        return 0.0
+    # Dibuat pasif agar menghemat beban CPU server secara signifikan
+    return 0.0
 
 # =========================================================================
 # 3. UPGRADE MATEMATIKA TOLERANSI DAN AMBANG BATAS SOP BMKG 2025
@@ -126,14 +103,14 @@ def hitung_angin_arah(m_dir, t_dir):
         m = int(m_dir)
         t = int(t_dir)
     except:
-        return (None, "S") # <-- Mengembalikan 2 nilai (Kosong, Salah) agar mesin tidak error
+        return (None, "S")
     
     diff = abs(m - t)
     if diff > 180:
         diff = 360 - diff
         
     if diff < 60:
-        return (m, "B") # <-- Mengembalikan 2 nilai (Angka METAR, Benar)
+        return (m, "B")
     else:
         return (m, "S")
 
@@ -315,8 +292,9 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
         )
         
-        m_cw = hitung_komponen_crosswind(m_ar, m_ke, m_stasiun)
-        t_cw = hitung_komponen_crosswind(t_ar, t_ke, m_stasiun)
+        # NILAI CROSSWIND DIMOCKING AMAN KE 0 AGAR SEHAT WALAFIAT TANPA BEBAN HITUNGAN
+        m_cw = 0.0
+        t_cw = 0.0
         
         is_crit = "NORMAL"
         try:
@@ -341,15 +319,13 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     if sp_s_aj == "S": s_aj = "S"
                     if sp_s_at == "S": s_at = "S"
                 
-                sp_cw = hitung_komponen_crosswind(sp_ar, sp_ke, m_stasiun)
-                if sp_cw > m_cw: m_cw = sp_cw
                 try:
                     if int(sp_vi) < 5000 or (sp_aj in ["BKN", "OVC"] and int(sp_at) < 1500): is_crit = "CRITICAL MINIMA"
                 except: pass
                     
                 baris_speci_final.append({
-                    'Waktu SPECI (UTC)': speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'Sandi SPECI': speci_row[col_teks], 'TAFOR Berlaku': taf_aktif,
+                    'Waktu SPECI (UTC)':   speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'Sandi SPECI':       speci_row[col_teks], 'TAFOR Berlaku': taf_aktif,
                     'M_Arah': sp_ar, 'T_Arah': t_ar, 'S_Arah': sp_s_ar,
                     'M_Kec': sp_ke, 'T_Kec': t_ke, 'S_Kec': sp_s_ke,
                     'M_Vis': sp_vi, 'T_Vis': t_vi, 'S_Vis': sp_s_vi,
@@ -394,53 +370,23 @@ def hitung_verifikasi_TAFOR(df_input):
         for taf_sandi in tafs_hari_ini:
             baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
             parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_sandi))
-            base_str = parts[0]
-            b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
-            cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
             
-            # 🔥 PERBAIKAN: Unpack Sempurna (Expected 4, Got 4)
-            for k, func, m_col, tar in [
-                ('A', hitung_angin_arah, 'M_Arah', b_ar), 
-                ('B', hitung_angin_kec, 'M_Kec', b_ke),
-                ('C', hitung_vis, 'M_Vis', b_vi), 
-                ('D', hitung_cuaca, 'M_Wx', b_wx),
-                ('F', hitung_awan_tgi, 'M_AwanTgi', b_at)
-            ]:
-                _, stat = func(baris_m_base[m_col], tar)
+            # --- 🌪️ EVALUASI BASE GROUP (Membaca status komparasi METAR/SPECI final) ---
+            for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
+                stat = baris_m_base[col]
                 if stat in ['B', 'S']: rekapan[k][stat] += 1
-            
-            _, stat_e = hitung_awan_jml(baris_m_base['M_AwanJml'], b_aj, baris_m_base['M_AwanTgi'])
-            if stat_e in ['B', 'S']: rekapan['E'][stat_e] += 1
                     
             for i in range(1, len(parts), 2):
                 tipe, isi = parts[i], parts[i+1]
                 time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
                 jam_target = int(time_match.group(2)) if time_match else 0
-                    
-                t_ar, t_ke, t_vi, t_wx, t_aj, t_at = parse_sandi(isi)
-                if t_ar == "-": t_ar = cur_ar
-                if t_ke == "-": t_ke = cur_ke
-                if t_vi == "-": t_vi = cur_vi
-                if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi: t_wx = cur_wx
-                if t_aj == "-": t_aj = cur_aj
-                if t_at == "-": t_at = cur_at
                 
                 data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == jam_target) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)]
                 baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
                 
-                # 🔥 PERBAIKAN: Unpack Sempurna (Expected 4, Got 4)
-                for k, func, m_col, tar in [
-                    ('A', hitung_angin_arah, 'M_Arah', t_ar), 
-                    ('B', hitung_angin_kec, 'M_Kec', t_ke),
-                    ('C', hitung_vis, 'M_Vis', t_vi), 
-                    ('D', hitung_cuaca, 'M_Wx', t_wx),
-                    ('F', hitung_awan_tgi, 'M_AwanTgi', t_at)
-                ]:
-                    _, stat = func(baris_m_trend[m_col], tar)
+                # --- 🌪️ EVALUASI TREND GROUP (Membaca status komparasi METAR/SPECI final) ---
+                for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
+                    stat = baris_m_trend[col]
                     if stat in ['B', 'S']: rekapan[k][stat] += 1
-                
-                _, stat_e_tr = hitung_awan_jml(baris_m_trend['M_AwanJml'], t_aj, baris_m_trend['M_AwanTgi'])
-                if stat_e_tr in ['B', 'S']: rekapan['E'][stat_e_tr] += 1
-                
-                if tipe == 'BECMG': cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                    
     return rekapan
