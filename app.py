@@ -208,13 +208,27 @@ st.markdown("#### 📥 Unggah Berkas Sandi Extract GTS")
 c_up1, c_up2, c_up3 = st.columns(3)
 with c_up1:
     file_m = st.file_uploader("1. Unggah METAR.csv", type=["csv"], key="metar")
-    if file_m: df_metar_raw = pd.read_csv(file_m)
+    if file_m: 
+        df_m = pd.read_csv(file_m)
+        # Urutkan berdasarkan ID GTS agar data kiriman terbaru berada di paling bawah
+        if 'id' in df_m.columns: df_m = df_m.sort_values('id')
+        # Buang jam pengamatan yang kembar, hanya sisakan baris terakhir (versi terbaru/COR)
+        df_metar_raw = df_m.drop_duplicates(subset=['data_timestamp'], keep='last')
+
 with c_up2:
     file_t = st.file_uploader("2. Unggah TAF.csv", type=["csv"], key="taf")
-    if file_t: df_taf_raw = pd.read_csv(file_t)
+    if file_t: 
+        df_t = pd.read_csv(file_t)
+        if 'id' in df_t.columns: df_t = df_t.sort_values('id')
+        df_taf_raw = df_t.drop_duplicates(subset=['data_timestamp'], keep='last')
+
 with c_up3:
     file_sp = st.file_uploader("3. Unggah SPECI.csv", type=["csv"], key="speci")
-    if file_sp: df_speci_raw = pd.read_csv(file_sp)
+    if file_sp: 
+        df_sp = pd.read_csv(file_sp)
+        if 'id' in df_sp.columns: df_sp = df_sp.sort_values('id')
+        # Khusus SPECI, buang duplikat berdasarkan menit kejadian yang sama
+        df_speci_raw = df_sp.drop_duplicates(subset=['data_timestamp'], keep='last')
 
 stasiun_aktif = "Menunggu Berkas..."
 if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
