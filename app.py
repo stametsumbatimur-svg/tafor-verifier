@@ -228,11 +228,10 @@ if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
     stasiun_terdeteksi = df_metar_raw['cccc'].dropna().unique().tolist()
     if stasiun_terdeteksi:
         stasiun_aktif = str(stasiun_terdeteksi[0]).strip().upper()
-        auto_register_stasiun_baru(stasiun_aktif)
+      
 
 st.sidebar.markdown("---")
 st.sidebar.header("📍 Stasiun Terdeteksi")
-st.sidebar.info(f"Kode ICAO Aktif: **{stasiun_aktif}**")
 
 # Mengisi Banner Biru Mewah (Logo + Jam Digital) ke dalam Container
 with banner_container:
