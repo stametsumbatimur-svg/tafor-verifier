@@ -450,7 +450,7 @@ def generate_klasik_31_sheet(df_filtered):
     # ==========================================
     # MEMBUAT SHEET REKAP 1 BULAN
     # ==========================================
-    ws_rekap = wb.create_sheet(title="REKAP 1 BULAN")
+    ws_rekap = wb.create_sheet(title="REKAP 1 BULAN", index=0)
     ws_rekap.column_dimensions['A'].width = 35
     ws_rekap.column_dimensions['B'].width = 20
     
