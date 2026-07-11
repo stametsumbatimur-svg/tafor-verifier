@@ -91,7 +91,7 @@ def parse_sandi(grup_teks):
 # 2. NAVIGASI GEOGRAFIS LANDASAN RUNWAY (MOCKING PASIF UNTUK PERFORMANCE)
 # =========================================================================
 def hitung_komponen_crosswind(arah_str, kec_str, kode_stasiun="WATU"):
-    # Dibuat pasif agar menghemat beban CPU server secara signifikan
+    # Dibuat pasif 0.0 agar menghemat beban RAM server secara signifikan
     return 0.0
 
 # =========================================================================
@@ -239,6 +239,15 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
     baris_analisis_final = []
     baris_speci_final = []
     
+    # 🟢 [PRA-PENGURUS RAM]: Kelompokkan data SPECI ke dalam Kamar Python berdasarkan Tanggal
+    speci_dict = {}
+    for _, row in df_speci.iterrows():
+        if pd.notna(row['dt_obj']):
+            tgl_d = row['dt_obj'].date()
+            if tgl_d not in speci_dict:
+                speci_dict[tgl_d] = []
+            speci_dict[tgl_d].append(row)
+    
     for _, metar_row in df_metar.iterrows():
         tgl_jam_aktual = metar_row['dt_obj']
         teks_metar = metar_row[col_teks]
@@ -250,7 +259,14 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         if not taf_terpilih_rows.empty: taf_aktif = taf_terpilih_rows.iloc[-1][col_teks]
         if taf_aktif == "-": continue
             
-        speci_terkait = df_speci[(df_speci['dt_obj'] >= tgl_jam_aktual) & (df_speci['dt_obj'] <= tgl_jam_aktual + timedelta(minutes=59))]
+        # 🟢 [PROSES KILAT]: Ambil kandidat SPECI hari ini & besok dari Kamar tanpa memicu fragmentasi RAM
+        tgl_curr = tgl_jam_aktual.date()
+        kandidat_speci = speci_dict.get(tgl_curr, []) + speci_dict.get(tgl_curr + timedelta(days=1), [])
+        
+        speci_terkait = [
+            sp for sp in kandidat_speci 
+            if tgl_jam_aktual <= sp['dt_obj'] <= tgl_jam_aktual + timedelta(minutes=59)
+        ]
         
         parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_aktif))
         base_str = parts[0]
@@ -292,7 +308,6 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
         )
         
-        # NILAI CROSSWIND DIMOCKING AMAN KE 0 AGAR SEHAT WALAFIAT TANPA BEBAN HITUNGAN
         m_cw = 0.0
         t_cw = 0.0
         
@@ -302,8 +317,9 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                 is_crit = "CRITICAL MINIMA"
         except: pass
 
-        if not speci_terkait.empty:
-            for _, speci_row in speci_terkait.iterrows():
+        # 🟢 LOOPING PADA LIST SPECI TERKAIT YANG SUDAH DIOPTIMALKAN (ANTI HANG SERTA MEMORI AMAN)
+        if speci_terkait:
+            for speci_row in speci_terkait:
                 sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at = ekstrak_param_metar_speci(speci_row[col_teks])
                 sp_obs_data = {'M_Arah': sp_ar, 'M_Kec': sp_ke, 'M_Vis': sp_vi, 'M_Wx': sp_wx, 'M_AwanJml': sp_aj, 'M_AwanTgi': sp_at}
                 status_speci, sp_s_ar, sp_s_ke, sp_s_vi, sp_s_wx, sp_s_aj, sp_s_at = evaluasi_sandi_tunggal(
@@ -324,7 +340,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                 except: pass
                     
                 baris_speci_final.append({
-                    'Waktu SPECI (UTC)':   speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'Waktu SPECI (UTC)': speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
                     'Sandi SPECI':       speci_row[col_teks], 'TAFOR Berlaku': taf_aktif,
                     'M_Arah': sp_ar, 'T_Arah': t_ar, 'S_Arah': sp_s_ar,
                     'M_Kec': sp_ke, 'T_Kec': t_ke, 'S_Kec': sp_s_ke,
@@ -353,40 +369,46 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
 def hitung_verifikasi_TAFOR(df_input):
     df_work = df_input.copy()
+    # Deteksi komparasi bulanan agar aman dipisahkan per bulan/tahun, bukan berdasarkan tanggal kalender doang
+    df_work['Bulan_Tahun'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.strftime('%Y-%m')
     df_work['Tanggal'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.day
     df_work['Jam'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.hour
     rekapan = {k: {'B': 0, 'S': 0} for k in ['A', 'B', 'C', 'D', 'E', 'F']}
     
-    for tgl in range(1, 32):
-        data_tgl = df_work[df_work['Tanggal'] == tgl]
-        if data_tgl.empty: continue
-        data_tgl_sorted = data_tgl.sort_values('Jam')
-        tafs_hari_ini = []
-        for _, row in data_tgl_sorted.iterrows():
-            sandi = row['Sandi TAF Prakiraan']
-            if sandi != "-" and sandi not in tafs_hari_ini: tafs_hari_ini.append(sandi)
-        if not tafs_hari_ini: continue
-            
-        for taf_sandi in tafs_hari_ini:
-            baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
-            parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_sandi))
-            
-            # --- 🌪️ EVALUASI BASE GROUP (Membaca status komparasi METAR/SPECI final) ---
-            for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
-                stat = baris_m_base[col]
-                if stat in ['B', 'S']: rekapan[k][stat] += 1
-                    
-            for i in range(1, len(parts), 2):
-                tipe, isi = parts[i], parts[i+1]
-                time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
-                jam_target = int(time_match.group(2)) if time_match else 0
+    # Kelompokkan loop berdasarkan bulan-tahun yang ada agar tidak tabrakan antar bulan
+    for bln_thn in df_work['Bulan_Tahun'].unique():
+        df_bulan = df_work[df_work['Bulan_Tahun'] == bln_thn]
+        
+        for tgl in range(1, 32):
+            data_tgl = df_bulan[df_bulan['Tanggal'] == tgl]
+            if data_tgl.empty: continue
+            data_tgl_sorted = data_tgl.sort_values('Jam')
+            tafs_hari_ini = []
+            for _, row in data_tgl_sorted.iterrows():
+                sandi = row['Sandi TAF Prakiraan']
+                if sandi != "-" and sandi not in tafs_hari_ini: tafs_hari_ini.append(sandi)
+            if not tafs_hari_ini: continue
                 
-                data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == jam_target) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)]
-                baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
+            for taf_sandi in tafs_hari_ini:
+                baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
+                parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_sandi))
                 
-                # --- 🌪️ EVALUASI TREND GROUP (Membaca status komparasi METAR/SPECI final) ---
+                # --- 🌪️ EVALUASI BASE GROUP ---
                 for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
-                    stat = baris_m_trend[col]
+                    stat = baris_m_base[col]
                     if stat in ['B', 'S']: rekapan[k][stat] += 1
+                        
+                for i in range(1, len(parts), 2):
+                    tipe, isi = parts[i], parts[i+1]
+                    time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
+                    jam_target = int(time_match.group(2)) if time_match else 0
                     
+                    data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == jam_target) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)]
+                    baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
+                    
+                    # --- 🌪️ EVALUASI TREND GROUP ---
+                    for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
+                        stat = baris_m_trend[col]
+                        if stat in ['B', 'S']: rekapan[k][stat] += 1
+                        
     return rekapan
