@@ -426,28 +426,41 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             st.download_button(label="📝 4️⃣ Unduh Logbook", data=generate_logbook_excel(df_filtered).getvalue(), file_name=f"LOGBOOK_TAF_SIVETA_{stasiun_aktif}_{str_m}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         st.markdown("---")
         
-        # TAB DETAIL VISUALISASI DATA (TIDAK ADA KARAKTER FORECASTER)
-        tab_m, tab_f, tab_sp, tab_min = st.tabs(["📄 Matriks Jam", "📄 Verifikasi TAF", "📄 Log SPECI", "📄 Kritis & Crosswind"])
+        # ==========================================
+        # 📊 DASHBOARD PREVIEW KOMPARASI (KLASIK VS SOP 2025)
+        # ==========================================
+        st.markdown("---")
+        st.markdown("### ⚖️ PREVIEW HASIL VERIFIKASI: KLASIK 31 VS SOP 2025")
+        st.info("💡 **Petunjuk:** Tabel di bawah membandingkan langsung hasil perhitungan format Klasik (Berbasis Waktu) dengan SOP 2025 (Berbasis Keputusan TAF) untuk setiap parameter cuaca.")
         
-        with tab_m: 
-            st.dataframe(pd.DataFrame(rows_m), use_container_width=True, hide_index=True)
-            st.write("---")
-            st.write("📈 **Grafik Performa Akurasi Harian (Rentang Terpilih)**")
-            df_grafik = df_filtered.copy()
-            df_grafik['Tanggal_Chart'] = pd.to_datetime(df_grafik['Waktu Aktual (UTC)']).dt.date
-            df_harian = df_grafik.groupby('Tanggal_Chart').apply(lambda x: (len(x[x['Hasil Akhir'] == 'ACCURATE']) / len(x)) * 100).reset_index(name='Akurasi (%)')
-            st.line_chart(df_harian.set_index('Tanggal_Chart'), use_container_width=True)
+        # Membuat header tabel dengan 3 kolom
+        c_head1, c_head2, c_head3 = st.columns([2, 1.5, 1.5])
+        c_head1.write("📝 **Nama Parameter Cuaca**")
+        c_head2.write("⏱️ **Akurasi Klasik 31 Sheet**")
+        c_head3.write("🎯 **Akurasi SOP 2025 (Form 029)**")
+        st.markdown("---")
+        
+        # Looping untuk mengadu 6 parameter (A sampai F) secara berjejer
+        for i in range(6):
+            c1, c2, c3 = st.columns([2, 1.5, 1.5])
+            c1.write(f"**{rows_m[i]['Nama Parameter']}**")
             
-            df_tren_historis = ambil_tren_db(stasiun_aktif)
-            if not df_tren_historis.empty:
-                st.write("---")
-                st.write(f"📈 **Tren Historis Akurasi Verifikasi {stasiun_aktif} (Multi-Bulan)**")
-                st.line_chart(df_tren_historis.set_index('bulan_tahun'), use_container_width=True)
-                
-        with tab_f: 
-            st.dataframe(pd.DataFrame(rows_f), use_container_width=True, hide_index=True)
+            # Kolom Klasik
+            skor_klasik = rows_m[i]['Prosentase Ketelitian']
+            c2.code(f"{skor_klasik}  ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
+            
+            # Kolom SOP 2025
+            skor_sop = rows_f[i]['Prosentase Ketelitian']
+            c3.code(f"{skor_sop}  ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
+            
+        st.markdown("---")
+        
+        # TAB TAMBAHAN UNTUK LOG SPECI DAN GRAFIK CROSSWIND
+        st.markdown("### 📈 Detail Log Ekstra")
+        tab_sp, tab_min = st.tabs(["🌩️ Log Data SPECI", "🌬️ Kritis & Crosswind"])
+        
         with tab_sp: 
-            st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj']), use_container_width=True, hide_index=True)
+            st.dataframe(df_speci_filtered.drop(columns=['Datetime_Obj'], errors='ignore'), use_container_width=True, hide_index=True)
             
         with tab_min:
             max_m_cw = df_filtered['M_Crosswind_Knot'].max()
