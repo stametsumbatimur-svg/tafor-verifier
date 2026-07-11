@@ -432,20 +432,21 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             tot_data_f_nosp = tot_b_f_nosp + tot_s_f_nosp
             ak_sop_nosp = round((tot_b_f_nosp / tot_data_f_nosp * 100), 1) if tot_data_f_nosp > 0 else 0
 
-            # Tampilkan 4 Kotak Metrik Komparasi
+            # Hitung selisih total untuk memunculkan panah indikator otomatis
+            diff_k_total = round(akurasi_global_matriks - ak_klasik_nosp, 1)
+            diff_s_total = round(akurasi_global_form - ak_sop_nosp, 1)
+
+            # Tampilkan 4 Kotak Metrik Komparasi (Susunan Baru)
             st.info("💡 **Dampak SPECI:** Anda bisa melihat perbedaan nilai evaluasi ketika stasiun memperhitungkan cuaca ekstrem mendadak (SPECI) dibandingkan dengan mengabaikannya.")
             c_tot1, c_tot2, c_tot3, c_tot4 = st.columns(4)
-            c_tot1.metric("🌪️ Klasik (+SPECI)", f"{akurasi_global_matriks}%")
-            c_tot2.metric("🌪️ SOP 2025 (+SPECI)", f"{akurasi_global_form}%")
-            c_tot3.metric("☀️ Klasik (Tanpa SPECI)", f"{ak_klasik_nosp}%")
-            c_tot4.metric("☀️ SOP 2025 (Tanpa SPECI)", f"{ak_sop_nosp}%")
             
-        else:
-            # Jika SPECI tidak diupload, tampilkan 2 kotak standar
-            c_tot1, c_tot2, c_tot3 = st.columns([2, 1.5, 1.5])
-            c_tot1.write("**Data Murni (Tanpa SPECI)**")
-            c_tot2.metric("Nilai IKU Klasik", f"{akurasi_global_matriks}%")
-            c_tot3.metric("Nilai Audit SOP", f"{akurasi_global_form}%")
+            # --- Barisan Klasik ---
+            c_tot1.metric("🌪️ Klasik (+SPECI)", f"{akurasi_global_matriks}%", delta=f"{diff_k_total}%")
+            c_tot2.metric("☀️ Klasik (-SPECI)", f"{ak_klasik_nosp}%")
+            
+            # --- Barisan SOP 2025 ---
+            c_tot3.metric("🌪️ SOP 2025 (+SPECI)", f"{akurasi_global_form}%", delta=f"{diff_s_total}%")
+            c_tot4.metric("☀️ SOP 2025 (-SPECI)", f"{ak_sop_nosp}%")
             
         st.markdown("---")
 
