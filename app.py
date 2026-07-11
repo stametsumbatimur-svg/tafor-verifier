@@ -212,8 +212,6 @@ if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
       
 
 st.sidebar.markdown("---")
-st.sidebar.header("📍 Stasiun Terdeteksi")
-
 # Mengisi Banner Biru Mewah (Logo + Jam Digital) ke dalam Container
 with banner_container:
     st.markdown(f"""
