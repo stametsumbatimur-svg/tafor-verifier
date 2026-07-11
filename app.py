@@ -155,60 +155,41 @@ df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
 with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan & Penjelasan Laporan (Klik untuk Buka)"):
     st.markdown("""
     ### Selamat Datang di SIVETA (Sistem Informasi Verifikasi TAFOR)
-    Aplikasi ini dirancang untuk memproses ribuan baris sandi cuaca GTS menjadi laporan verifikasi TAFOR yang akurat dan bebas dari *human error*, hanya dalam hitungan detik.
-    
+    Aplikasi ini dirancang untuk memproses ribuan baris sandi cuaca GTS menjadi laporan verifikasi TAFOR yang akurat, objektif, dan otomatis.
+
     ---
 
     #### 🛠️ CARA PENGGUNAAN (4 LANGKAH MUDAH)
     **1. Persiapan Data (GTS)**
-    Unduh riwayat sandi cuaca stasiun Anda dari sistem GTS dalam format `.csv`. Pastikan Anda mengunduh 3 file terpisah: **METAR, TAF, dan SPECI**.
-    Melalui portal "https://bmkgsatu.bmkg.go.id/extractgts" atau menu "Output Data > Extract" pada web bmkgsatu, data yang digunakan memiliki status "SENT".
+    Unduh riwayat sandi cuaca stasiun Anda dari sistem GTS (menu Extract) dalam format `.csv`. Data yang valid adalah data dengan status "SENT".
     
     **2. Unggah Data**
-    Sistem sangat sensitif terhadap format sandi tetapi tidak ada aturan baku penamaan file, Masukkan file ke slot yang tepat:
-    * **Slot 1:** Khusus untuk file `METAR.csv`
-    * **Slot 2:** Khusus untuk file `TAF.csv`
-    * **Slot 3:** Khusus untuk file `SPECI.csv`
-    
+    Masukkan file ke slot yang tepat:
+    * **Slot 1 (Wajib):** File `METAR.csv`
+    * **Slot 2 (Wajib):** File `TAF.csv`
+    * **Slot 3 (Opsional):** File `SPECI.csv` *(Jika ada cuaca buruk mendadak, unggah file ini untuk melihat dampaknya pada nilai akurasi).*
+
     **3. Sesuaikan Rentang Waktu**
-    Gunakan menu kalender di *sidebar* kiri. **Penting:** Pastikan rentang tanggal yang dipilih di kalender benar-benar ada di dalam file CSV yang Anda unggah.
-    
+    Gunakan menu kalender di *sidebar* kiri. Pastikan rentang tanggal yang dipilih benar-benar ada di dalam file CSV yang Anda unggah.
+
     **4. Proses Data**
-    Klik tombol biru **"🚀 PROSES DATA 🚀"**. Sistem akan otomatis membersihkan karakter *error* transmisi (GTS), menyingkronkan waktu, dan menghitung akurasi.
+    Klik tombol biru **"🚀 PROSES DATA 🚀"**. *(Catatan: Jika Anda memiliki SPECI tetapi ingin mematikan efeknya, centang opsi 'Abaikan data SPECI' di atas tombol proses).*
 
     ---
 
-    #### 🖥️ MEMAHAMI TAMPILAN LAYAR (TAB MENU)
-    Setelah data diproses, Anda akan melihat 2 Tab utama di layar:
-    * 📊 **TAB 1 (Matriks Tiap Jam):** Menampilkan evaluasi cuaca secara *Time-Series* (per 30 menit / per jam). Cocok untuk menganalisa secara detail pada jam berapa prakiraan mulai meleset tebakannya.
-    * 📋 **TAB 2 (Verifikasi TAF):** Menampilkan evaluasi berdasarkan **Grup TAF** (Base, TEMPO, BECMG).
+    #### 🖥️ MEMAHAMI TAMPILAN DASHBOARD KOMPARASI
+    SIVETA kini dilengkapi dengan **Dashboard Komparasi (Dual Mode)**. Jika Anda mengunggah file SPECI, SIVETA akan membelah hasil menjadi dua skenario:
+    * 🌪️ **(+SPECI):** Nilai akurasi yang dihitung dengan memasukkan unsur cuaca ekstrem/kejadian mendadak dari SPECI.
+    * ☀️ **(-SPECI):** Nilai akurasi "murni" yang dihitung hanya menggunakan data METAR jam-jaman (seperti hitungan manual lama).
+    * 📉 **Kolom Selisih:** Menampilkan indikator (🟢 / 🔴 / ⚪) seberapa besar dampak SPECI menaikkan atau menurunkan nilai Anda.
 
     ---
 
-    #### 📥 MEMAHAMI 4 TOMBOL UNDUH (EXCEL)
-    SIVETA menjembatani masa transisi format laporan di stasiun Anda dengan menyediakan opsi unduhan yang lengkap:
-    
-    📄 **1. Matriks Jam (Excel):**
-    Data mentah yang berisi rincian sandi TAF disandingkan dengan METAR per jamnya. Sangat berguna untuk bahan audit atau penelitian mendalam.
-
-    📄 **2. Verifikasi TAF (Excel):**
-    *Laporan Utama.* Mengevaluasi murni berbasis *Decision-Making* (Hanya menilai Grup TAF yang dirilis). **Nilainya lebih ketat, objektif, dan adil.**
-
-    📄 **3. Format Klasik (Excel):**
-    *Laporan Transisi.* Membentuk 31 *sheet* harian (format A-F). Mengevaluasi secara *Time-Series* (setiap setengah jam). 
-    
-    📝 **4. Logbook Perubahan:**
-    Mencatat jejak rekam kapan sebuah TAF di-Amandemen (AMD) atau dibatalkan.
-    
-    
-    #### ⚙️ PENGATURAN RUNWAY & CROSSWIND (ANGIN SILANG)
-    SIVETA dilengkapi dengan algoritma penerbangan untuk menghitung komponen **Crosswind (Angin Potong/Silang)** secara otomatis. 
-    Karena setiap bandara memiliki orientasi landasan pacu (*heading runway*) yang berbeda, Anda wajib memastikan data stasiun Anda telah dikonfigurasi:
-    * Jika stasiun Anda memproses bandara baru yang belum terdaftar, hasil perhitungan angin silang bisa tidak akurat.
-    * **Cara Konfigurasi:** Gulir ke bagian **paling bawah** aplikasi ini. Buka panel menu **"Manajemen"**, lalu masukkan kode ICAO stasiun dan arah derajat *Runway* bandara Anda (Misal: Runway 12/30, maka masukkan angka 120 dan 300). SIVETA akan mengunci pengaturan ini selamanya di dalam database!
-    * Jika bandara Anda memiliki 2 landasan (misal Runway 09/27 dan Runway 10/28), masukkan semua angkanya dengan dipisahkan tanda koma, contoh: `90, 270, 100, 280`. SIVETA akan langsung mengunci dan memproses multi-runway tersebut dengan sempurna!
+    #### 📥 MEMAHAMI TOMBOL UNDUH LAPORAN (DINAMIS)
+    Sistem cetak Excel SIVETA beroperasi secara cerdas menyesuaikan data yang Anda unggah:
+    * **Jika TIDAK ADA SPECI:** Sistem akan mencetak 2 dokumen standar (Klasik 31 Sheet dan Form 029 SOP 2025).
+    * **Jika ADA SPECI:** Sistem akan membelah diri menjadi 2 jalur dan menyediakan **4 tombol unduh** sekaligus! Anda bisa mengunduh laporan versi "Murni (-SPECI)" maupun laporan versi ketat yang sudah diintervensi oleh data cuaca ekstrem "(+SPECI)".
     """)
-
 # --------------------------------------------
 
 st.markdown("#### 📥 Unggah Berkas Sandi Extract GTS")
