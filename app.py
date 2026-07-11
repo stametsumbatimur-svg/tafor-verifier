@@ -92,43 +92,55 @@ def init_db():
     conn.commit()
     conn.close()
 
-def simpan_rekap_db(stasiun, bulan_tahun, jam_score, tafor_score):
+def simpan_rekap_db(stasiun, bulan_tahun, jam_score, tafor_score, rows_m, rows_f):
     try:
         conn = sqlite3.connect('verifier_db.sqlite')
         c = conn.cursor()
         
-        # Jaga-jaga: Paksa buat tabel darurat jika tiba-tiba hilang di Cloud
-        c.execute('''CREATE TABLE IF NOT EXISTS rekap_performa 
-                     (stasiun TEXT, bulan_tahun TEXT, akurasi_tiap_jam REAL, akurasi_verifikasi_tafor REAL,
+        # Upgrade ke Tabel V2 (Menyimpan seluruh parameter)
+        c.execute('''CREATE TABLE IF NOT EXISTS rekap_performa_v2
+                     (stasiun TEXT, bulan_tahun TEXT, 
+                      total_k REAL, total_s REAL,
+                      k_a REAL, k_b REAL, k_c REAL, k_d REAL, k_e REAL, k_f REAL,
+                      s_a REAL, s_b REAL, s_c REAL, s_d REAL, s_e REAL, s_f REAL,
                       PRIMARY KEY (stasiun, bulan_tahun))''')
                       
-        c.execute("SELECT COUNT(*) FROM rekap_performa WHERE stasiun=? AND bulan_tahun=?", (stasiun, bulan_tahun))
+        # Fungsi pembantu untuk mengekstrak angka dari teks persen (Misal: "85.5%" -> 85.5)
+        def get_pct(row_list, idx):
+            val = str(row_list[idx]['Prosentase Ketelitian']).replace('%', '').strip()
+            return float(val) if val else 0.0
+            
+        c.execute("SELECT COUNT(*) FROM rekap_performa_v2 WHERE stasiun=? AND bulan_tahun=?", (stasiun, bulan_tahun))
         data_ada = c.fetchone()[0]
         
+        params = (
+            jam_score, tafor_score,
+            get_pct(rows_m, 0), get_pct(rows_m, 1), get_pct(rows_m, 2), get_pct(rows_m, 3), get_pct(rows_m, 4), get_pct(rows_m, 5),
+            get_pct(rows_f, 0), get_pct(rows_f, 1), get_pct(rows_f, 2), get_pct(rows_f, 3), get_pct(rows_f, 4), get_pct(rows_f, 5),
+            stasiun, bulan_tahun
+        )
+        
         if data_ada > 0:
-            c.execute('''UPDATE rekap_performa 
-                         SET akurasi_tiap_jam=?, akurasi_verifikasi_tafor=? 
-                         WHERE stasiun=? AND bulan_tahun=?''', 
-                      (jam_score, tafor_score, stasiun, bulan_tahun))
+            c.execute('''UPDATE rekap_performa_v2
+                         SET total_k=?, total_s=?, k_a=?, k_b=?, k_c=?, k_d=?, k_e=?, k_f=?,
+                             s_a=?, s_b=?, s_c=?, s_d=?, s_e=?, s_f=?
+                         WHERE stasiun=? AND bulan_tahun=?''', params)
         else:
-            c.execute('''INSERT INTO rekap_performa (stasiun, bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor)
-                         VALUES (?, ?, ?, ?)''', 
-                      (stasiun, bulan_tahun, jam_score, tafor_score))
-                      
+            c.execute('''INSERT INTO rekap_performa_v2 
+                         (total_k, total_s, k_a, k_b, k_c, k_d, k_e, k_f, s_a, s_b, s_c, s_d, s_e, s_f, stasiun, bulan_tahun)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', params)
         conn.commit()
         conn.close()
     except Exception as e:
-        # Jika database cloud sedang error, biarkan saja (jangan hancurkan aplikasinya)
         pass
 
 def ambil_tren_db(stasiun):
     try:
         conn = sqlite3.connect('verifier_db.sqlite')
-        df = pd.read_sql_query("SELECT bulan_tahun, akurasi_tiap_jam, akurasi_verifikasi_tafor FROM rekap_performa WHERE stasiun=? ORDER BY bulan_tahun ASC", conn, params=(stasiun,))
+        df = pd.read_sql_query("SELECT * FROM rekap_performa_v2 WHERE stasiun=? ORDER BY bulan_tahun ASC", conn, params=(stasiun,))
         conn.close()
         return df
     except Exception as e:
-        # Jika database kosong/error, kembalikan tabel kosong tanpa membuat aplikasi crash
         return pd.DataFrame()
 
 init_db()
@@ -339,7 +351,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             rows_f.append({"Nama Parameter": p_headers[k], "Jumlah Benar (B)": int(b_f), "Jumlah Salah (S)": int(s_f), "Total Sampel Data (Grup TAF)": int(tot_f), "Prosentase Ketelitian": f"{round(pct_f, 2)}%"})
         akurasi_global_form = round((total_b_f / total_d_f * 100 if total_d_f > 0 else 0), 1)
 
-        simpan_rekap_db(stasiun_aktif, tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form)
+        simpan_rekap_db(stasiun_aktif, tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form, rows_m, rows_f)
 
         # ==========================================
         # 📊 KOMPARASI AKURASI PER UNSUR CUACA (DUAL MODE)
@@ -450,6 +462,35 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             
         st.markdown("---")
 
+        # ==========================================
+        # 📈 GRAFIK TREN HISTORIS (BULANAN) PER PARAMETER
+        # ==========================================
+        df_tren = ambil_tren_db(stasiun_aktif)
+        if not df_tren.empty and len(df_tren) > 0:
+            st.markdown("### 📈 Tren Historis Akurasi (Bulanan)")
+            st.info("💡 Grafik di bawah membandingkan performa stasiun dari bulan ke bulan. Klik tab untuk membedah riwayat nilai setiap parameter.")
+            
+            # Buat tab rapi untuk masing-masing parameter
+            tab_tot, tab_a, tab_b, tab_c, tab_d, tab_e, tab_f = st.tabs([
+                "🏆 Total", "Arah Angin", "Kec Angin", "Visibility", "Cuaca", "Awan (Jml)", "Awan (Tgi)"
+            ])
+            
+            # Mesin penggambar grafik (Klasik vs SOP)
+            def plot_trend(df_plot, col_klasik, col_sop):
+                chart_data = df_plot.set_index("bulan_tahun")[[col_klasik, col_sop]]
+                chart_data.columns = ["Klasik 31", "SOP 2025"]
+                st.line_chart(chart_data, use_container_width=True)
+            
+            # Sebarkan grafik ke masing-masing kamar (Tab)
+            with tab_tot: plot_trend(df_tren, "total_k", "total_s")
+            with tab_a: plot_trend(df_tren, "k_a", "s_a")
+            with tab_b: plot_trend(df_tren, "k_b", "s_b")
+            with tab_c: plot_trend(df_tren, "k_c", "s_c")
+            with tab_d: plot_trend(df_tren, "k_d", "s_d")
+            with tab_e: plot_trend(df_tren, "k_e", "s_e")
+            with tab_f: plot_trend(df_tren, "k_f", "s_f")
+            
+        st.markdown("---")
         # ==========================================
         # AREA DOWNLOAD BUTTONS (CERDAS & DINAMIS)
         # ==========================================
