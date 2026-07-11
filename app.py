@@ -491,37 +491,60 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             with tab_f: plot_trend(df_tren, "k_f", "s_f")
             
         st.markdown("---")
-        # ==========================================
-        # AREA DOWNLOAD BUTTONS (CERDAS & DINAMIS)
+       # ==========================================
+        # AREA DOWNLOAD BUTTONS (EFISIEN / ON-DEMAND)
         # ==========================================
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         
         st.markdown("### 📥 Unduh Laporan Excel")
-        if st.session_state.get('ada_speci', False):
-            st.success("✨ **Berkas SPECI terdeteksi!** SIVETA secara otomatis membelah diri dan menghasilkan 2 versi laporan untuk Anda.")
-            c_dl1, c_dl2 = st.columns(2)
-            
-            # --- VERSI DIPENGARUHI SPECI ---
-            with c_dl1:
-                st.write("**🌪️ VERSI LENGKAP (DIPENGARUHI SPECI)**")
-                st.download_button("📄 Klasik 31 (+SPECI)", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
-                st.download_button("📄 Verifikasi SOP (+SPECI)", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"SOP_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
-            
-            # --- VERSI TANPA SPECI ---
-            with c_dl2:
-                st.write("**☀️ VERSI MURNI (TANPA SPECI)**")
-                df_fil_nosp = st.session_state['df_hasil_no_sp']
-                df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
-                empty_sp = pd.DataFrame(columns=df_speci_filtered.columns)
+        st.info("💡 Untuk mempercepat kinerja aplikasi, file Excel tidak dibuat secara otomatis. Klik tombol di bawah ini jika Anda ingin menyiapkannya.")
+        
+        ada_speci = st.session_state.get('ada_speci', False)
+        
+        # 1. TOMBOL PEMICU PERAKITAN EXCEL
+        if st.button("⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True):
+            with st.spinner("Mesin sedang merakit data ke format Excel... Mohon tunggu sebentar..."):
+                if ada_speci:
+                    # Siapkan 4 file untuk Dual Mode (Ada SPECI)
+                    df_fil_nosp = st.session_state['df_hasil_no_sp']
+                    df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
+                    empty_sp = pd.DataFrame(columns=df_speci_filtered.columns)
+                    
+                    st.session_state['dl_k_sp'] = generate_klasik_31_sheet(df_filtered).getvalue()
+                    st.session_state['dl_s_sp'] = generate_form_2026(df_filtered, df_speci_filtered).getvalue()
+                    st.session_state['dl_k_nosp'] = generate_klasik_31_sheet(df_fil_nosp).getvalue()
+                    st.session_state['dl_s_nosp'] = generate_form_2026(df_fil_nosp, empty_sp).getvalue()
+                else:
+                    # Siapkan 2 file untuk Mode Murni (Tanpa SPECI)
+                    st.session_state['dl_k'] = generate_klasik_31_sheet(df_filtered).getvalue()
+                    st.session_state['dl_s'] = generate_form_2026(df_filtered, df_speci_filtered).getvalue()
                 
-                st.download_button("📄 Klasik 31 (Tanpa SPECI)", data=generate_klasik_31_sheet(df_fil_nosp).getvalue(), file_name=f"KLASIK_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
-                st.download_button("📄 Verifikasi SOP (Tanpa SPECI)", data=generate_form_2026(df_fil_nosp, empty_sp).getvalue(), file_name=f"SOP_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
-                
-        else:
-            st.info("ℹ️ Tidak ada berkas SPECI yang diunggah. Menghasilkan 1 versi laporan murni.")
-            c_dl1, c_dl2 = st.columns(2)
-            with c_dl1:
-                st.download_button("📄 Unduh Klasik 31 Sheet", data=generate_klasik_31_sheet(df_filtered).getvalue(), file_name=f"KLASIK_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
-            with c_dl2:
-                st.download_button("📄 Unduh Verifikasi SOP 2025", data=generate_form_2026(df_filtered, df_speci_filtered).getvalue(), file_name=f"SOP_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                # Kunci status bahwa file sudah matang
+                st.session_state['excel_ready'] = True
+
+        # 2. TAMPILKAN TOMBOL UNDUH ASLI (JIKA FILE SUDAH MATANG DI MEMORI)
+        if st.session_state.get('excel_ready', False):
+            st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
             
+            if ada_speci:
+                st.write("✨ **Berkas SPECI terdeteksi!** SIVETA menghasilkan 2 versi laporan untuk Anda.")
+                c_dl1, c_dl2 = st.columns(2)
+                
+                with c_dl1:
+                    st.write("**🌪️ VERSI LENGKAP (+SPECI)**")
+                    st.download_button("📄 Klasik 31 (+SPECI)", data=st.session_state['dl_k_sp'], file_name=f"KLASIK_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    st.download_button("📄 Verifikasi SOP (+SPECI)", data=st.session_state['dl_s_sp'], file_name=f"SOP_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                
+                with c_dl2:
+                    st.write("**☀️ VERSI MURNI (-SPECI)**")
+                    st.download_button("📄 Klasik 31 (Tanpa SPECI)", data=st.session_state['dl_k_nosp'], file_name=f"KLASIK_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    st.download_button("📄 Verifikasi SOP (Tanpa SPECI)", data=st.session_state['dl_s_nosp'], file_name=f"SOP_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+            
+            else:
+                c_dl1, c_dl2 = st.columns(2)
+                with c_dl1:
+                    st.download_button("📄 Unduh Klasik 31 Sheet", data=st.session_state['dl_k'], file_name=f"KLASIK_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                with c_dl2:
+                    st.download_button("📄 Unduh Verifikasi SOP 2025", data=st.session_state['dl_s'], file_name=f"SOP_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    
+        st.markdown("---")
