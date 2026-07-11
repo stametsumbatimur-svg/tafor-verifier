@@ -92,15 +92,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-def auto_register_stasiun_baru(icao_code):
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM master_bandara WHERE icao=?", (str(icao_code).upper(),))
-    if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO master_bandara VALUES (?, ?, 0, 180)", (str(icao_code).upper(), str(icao_code).upper()))
-        conn.commit()
-    conn.close()
-
 def simpan_rekap_db(stasiun, bulan_tahun, jam_score, tafor_score):
     try:
         conn = sqlite3.connect('verifier_db.sqlite')
