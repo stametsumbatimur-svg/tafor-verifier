@@ -397,56 +397,60 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         
         if ada_speci:
             # --- JIKA ADA SPECI: BUAT TABEL 7 KOLOM ---
-            df_fil_nosp = st.session_state['df_hasil_no_sp']
-            df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
-            
-            # Hitung rincian parameter untuk versi Tanpa SPECI
-            rows_m_nosp = []
-            for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
-                b, s = (df_fil_nosp[col_name] == "B").sum(), (df_fil_nosp[col_name] == "S").sum()
-                tot = b + s
-                pct = (b / tot * 100) if tot > 0 else 0
-                rows_m_nosp.append({"B": int(b), "T": int(tot), "Pct": f"{round(pct, 2)}%"})
+            if 'df_hasil_no_sp' in st.session_state:
+                df_no_sp_raw = st.session_state['df_hasil_no_sp']
+                df_fil_nosp = df_no_sp_raw[(df_no_sp_raw['Datetime_Obj'] >= tgl_mulai) & (df_no_sp_raw['Datetime_Obj'] <= tgl_selesai) & (df_no_sp_raw['Kode_Stasiun'] == stasiun_aktif)].copy()
                 
-            rek_nosp = hitung_verifikasi_TAFOR(df_fil_nosp)
-            rows_f_nosp = []
-            for k in ['A', 'B', 'C', 'D', 'E', 'F']:
-                b_f, s_f = rek_nosp[k]['B'], rek_nosp[k]['S']
-                tot_f = b_f + s_f
-                pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
-                rows_f_nosp.append({"B": int(b_f), "T": int(tot_f), "Pct": f"{round(pct_f, 2)}%"})
-            
-            c_head1, c_head2, c_head3, c_diff1, c_head4, c_head5, c_diff2 = st.columns([1.5, 1.1, 1.1, 0.9, 1.1, 1.1, 0.9])
-            c_head1.write("📝 **Parameter**")
-            c_head2.write("🌪️ **Klasik (+SPECI)**")
-            c_head3.write("☀️ **Klasik (-SPECI)**")
-            c_diff1.write("📉 **Selisih**")
-            c_head4.write("🌪️ **SOP (+SPECI)**")
-            c_head5.write("☀️ **SOP (-SPECI)**")
-            c_diff2.write("📉 **Selisih**")
-            st.markdown("---")
-            
-            for i in range(6):
-                c1, c2, c3, cd1, c4, c5, cd2 = st.columns([1.5, 1.1, 1.1, 0.9, 1.1, 1.1, 0.9])
-                c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                # Hitung rincian parameter untuk versi Tanpa SPECI
+                rows_m_nosp = []
+                for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
+                    b = (df_fil_nosp[col_name] == "B").sum()
+                    s = (df_fil_nosp[col_name] == "S").sum()
+                    tot = b + s
+                    pct = (b / tot * 100) if tot > 0 else 0
+                    rows_m_nosp.append({"B": int(b), "T": int(tot), "Pct": f"{round(pct, 2)}%"})
+                    
+                rek_nosp = hitung_verifikasi_TAFOR(df_fil_nosp)
+                rows_f_nosp = []
+                for k in ['A', 'B', 'C', 'D', 'E', 'F']:
+                    b_f, s_f = rek_nosp[k]['B'], rek_nosp[k]['S']
+                    tot_f = b_f + s_f
+                    pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
+                    rows_f_nosp.append({"B": int(b_f), "T": int(tot_f), "Pct": f"{round(pct_f, 2)}%"})
                 
-                val_k_sp = float(rows_m[i]['Prosentase Ketelitian'].replace('%', ''))
-                val_k_nosp = float(rows_m_nosp[i]['Pct'].replace('%', ''))
-                diff_k = round(val_k_sp - val_k_nosp, 2)
-                simbol_k = "🟢" if diff_k > 0 else ("🔴" if diff_k < 0 else "⚪")
+                c_head1, c_head2, c_head3, c_diff1, c_head4, c_head5, c_diff2 = st.columns([1.5, 1.1, 1.1, 0.9, 1.1, 1.1, 0.9])
+                c_head1.write("📝 **Parameter**")
+                c_head2.write("🌪️ **Klasik (+SPECI)**")
+                c_head3.write("☀️ **Klasik (-SPECI)**")
+                c_diff1.write("📉 **Selisih**")
+                c_head4.write("🌪️ **SOP (+SPECI)**")
+                c_head5.write("☀️ **SOP (-SPECI)**")
+                c_diff2.write("📉 **Selisih**")
+                st.markdown("---")
                 
-                c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
-                c3.code(f"{rows_m_nosp[i]['Pct']} ({rows_m_nosp[i]['B']}/{rows_m_nosp[i]['T']})")
-                cd1.markdown(f"{simbol_k} **{diff_k}%**")
-                
-                val_s_sp = float(rows_f[i]['Prosentase Ketelitian'].replace('%', ''))
-                val_s_nosp = float(rows_f_nosp[i]['Pct'].replace('%', ''))
-                diff_s = round(val_s_sp - val_s_nosp, 2)
-                simbol_s = "🟢" if diff_s > 0 else ("🔴" if diff_s < 0 else "⚪")
-                
-                c4.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
-                c5.code(f"{rows_f_nosp[i]['Pct']} ({rows_f_nosp[i]['B']}/{rows_f_nosp[i]['T']})")
-                cd2.markdown(f"{simbol_s} **{diff_s}%**")
+                for i in range(6):
+                    c1, c2, c3, cd1, c4, c5, cd2 = st.columns([1.5, 1.1, 1.1, 0.9, 1.1, 1.1, 0.9])
+                    c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                    
+                    val_k_sp = float(rows_m[i]['Prosentase Ketelitian'].replace('%', ''))
+                    val_k_nosp = float(rows_m_nosp[i]['Pct'].replace('%', ''))
+                    diff_k = round(val_k_sp - val_k_nosp, 2)
+                    simbol_k = "🟢" if diff_k > 0 else ("🔴" if diff_k < 0 else "⚪")
+                    
+                    c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
+                    c3.code(f"{rows_m_nosp[i]['Pct']} ({rows_m_nosp[i]['B']}/{rows_m_nosp[i]['T']})")
+                    cd1.markdown(f"{simbol_k} **{diff_k}%**")
+                    
+                    val_s_sp = float(rows_f[i]['Prosentase Ketelitian'].replace('%', ''))
+                    val_s_nosp = float(rows_f_nosp[i]['Pct'].replace('%', ''))
+                    diff_s = round(val_s_sp - val_s_nosp, 2)
+                    simbol_s = "🟢" if diff_s > 0 else ("🔴" if diff_s < 0 else "⚪")
+                    
+                    c4.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
+                    c5.code(f"{rows_f_nosp[i]['Pct']} ({rows_f_nosp[i]['B']}/{rows_f_nosp[i]['T']})")
+                    cd2.markdown(f"{simbol_s} **{diff_s}%**")
+            else:
+                st.warning("Data skenario tanpa SPECI tidak ditemukan. Silakan tekan tombol 'PROSES DATA' kembali.")
                 
         else:
             # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN TABEL 3 KOLOM NORMAL ---
