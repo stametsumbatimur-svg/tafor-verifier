@@ -7,10 +7,10 @@ from openpyxl.styles import Font
 from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
 
 def generate_lapbul_excel(df_hasil, df_speci=None):
-    # Perbaikan Kunci: Konversi langsung kolom waktu mentah agar aksesor .dt dijamin aman bekerja
-    dt_col = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
-    df_hasil['Tanggal'] = dt_col.dt.day
-    df_hasil['Jam'] = dt_col.dt.hour
+    # 🟢 BYPASS BULLETPROOF: Gunakan DatetimeIndex murni (Bebas dari error .dt accessor)
+    tgl_jam = pd.DatetimeIndex(df_hasil['Waktu Aktual (UTC)'])
+    df_hasil['Tanggal'] = tgl_jam.day
+    df_hasil['Jam'] = tgl_jam.hour
     
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -84,10 +84,10 @@ def generate_lapbul_excel(df_hasil, df_speci=None):
     return buffer
 
 def generate_form_2026(df_hasil, df_speci=None):
-    # Perbaikan Kunci: Konversi langsung kolom waktu mentah agar aksesor .dt dijamin aman bekerja
-    dt_col = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
-    df_hasil['Tanggal'] = dt_col.dt.day
-    df_hasil['Jam'] = dt_col.dt.hour
+    # 🟢 BYPASS BULLETPROOF: Gunakan DatetimeIndex murni (Bebas dari error .dt accessor)
+    tgl_jam = pd.DatetimeIndex(df_hasil['Waktu Aktual (UTC)'])
+    df_hasil['Tanggal'] = tgl_jam.day
+    df_hasil['Jam'] = tgl_jam.hour
     
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -245,7 +245,7 @@ def generate_logbook_excel(df_hasil):
         tz_label = "WIT"
         hours_offset = 9
         
-    # Perbaikan Kunci: Konversi langsung kolom waktu mentah logbook
+    # 🟢 BYPASS BULLETPROOF LOGBOOK
     dt_col = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
     df_log['Dt_Lokal'] = dt_col + pd.Timedelta(hours=hours_offset)
     df_log['Tanggal_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%Y-%m-%d')
