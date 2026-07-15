@@ -389,29 +389,17 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         simpan_rekap_db(stasiun_aktif, tgl_mulai.strftime('%Y-%m'), akurasi_global_matriks, akurasi_global_form, rows_m, rows_f)
 
         # ==========================================
-        # 📊 KOMPARASI AKURASI PER UNSUR CUACA (DUAL MODE)
+        # 📊 KOMPARASI AKURASI PER UNSUR CUACA (DUAL MODE / SINGLE MODE)
         # ==========================================
         st.markdown("### 📊 Komparasi Akurasi per Unsur Cuaca")
         
         ada_speci = st.session_state.get('ada_speci', False)
         
         if ada_speci:
-            # --- JIKA ADA SPECI: BUAT TABEL 5 KOLOM ---
+            # --- JIKA ADA SPECI: BUAT TABEL 7 KOLOM ---
             df_fil_nosp = st.session_state['df_hasil_no_sp']
             df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
-        else:
-            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN TABEL NORMAL ---
-            c_head1, c_head2, c_head3 = st.columns([2, 2, 2])
-            c_head1.write("📝 **Parameter**")
-            c_head2.write("🌪️ **Akurasi Klasik 31**")
-            c_head3.write("☀️ **Akurasi SOP 2025**")
-            st.markdown("---")
             
-            for i in range(6):
-                c1, c2, c3 = st.columns([2, 2, 2])
-                c1.write(f"**{rows_m[i]['Nama Parameter']}**")
-                c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
-                c3.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")    
             # Hitung rincian parameter untuk versi Tanpa SPECI
             rows_m_nosp = []
             for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
@@ -428,7 +416,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                 pct_f = (b_f / tot_f * 100) if tot_f > 0 else 0
                 rows_f_nosp.append({"B": int(b_f), "T": int(tot_f), "Pct": f"{round(pct_f, 2)}%"})
             
-            # Header Tabel 7 Kolom (Dengan Kolom Selisih)
             c_head1, c_head2, c_head3, c_diff1, c_head4, c_head5, c_diff2 = st.columns([1.5, 1.1, 1.1, 0.9, 1.1, 1.1, 0.9])
             c_head1.write("📝 **Parameter**")
             c_head2.write("🌪️ **Klasik (+SPECI)**")
@@ -439,32 +426,41 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             c_diff2.write("📉 **Selisih**")
             st.markdown("---")
             
-            # Looping 6 Parameter
             for i in range(6):
                 c1, c2, c3, cd1, c4, c5, cd2 = st.columns([1.5, 1.1, 1.1, 0.9, 1.1, 1.1, 0.9])
                 c1.write(f"**{rows_m[i]['Nama Parameter']}**")
                 
-                # --- KALKULASI SELISIH KLASIK ---
                 val_k_sp = float(rows_m[i]['Prosentase Ketelitian'].replace('%', ''))
                 val_k_nosp = float(rows_m_nosp[i]['Pct'].replace('%', ''))
                 diff_k = round(val_k_sp - val_k_nosp, 2)
                 simbol_k = "🟢" if diff_k > 0 else ("🔴" if diff_k < 0 else "⚪")
                 
-                # Cetak Barisan Klasik
                 c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
                 c3.code(f"{rows_m_nosp[i]['Pct']} ({rows_m_nosp[i]['B']}/{rows_m_nosp[i]['T']})")
                 cd1.markdown(f"{simbol_k} **{diff_k}%**")
                 
-                # --- KALKULASI SELISIH SOP 2025 ---
                 val_s_sp = float(rows_f[i]['Prosentase Ketelitian'].replace('%', ''))
                 val_s_nosp = float(rows_f_nosp[i]['Pct'].replace('%', ''))
                 diff_s = round(val_s_sp - val_s_nosp, 2)
                 simbol_s = "🟢" if diff_s > 0 else ("🔴" if diff_s < 0 else "⚪")
                 
-                # Cetak Barisan SOP 2025
                 c4.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
                 c5.code(f"{rows_f_nosp[i]['Pct']} ({rows_f_nosp[i]['B']}/{rows_f_nosp[i]['T']})")
                 cd2.markdown(f"{simbol_s} **{diff_s}%**")
+                
+        else:
+            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN TABEL 3 KOLOM NORMAL ---
+            c_head1, c_head2, c_head3 = st.columns([2, 2, 2])
+            c_head1.write("📝 **Parameter**")
+            c_head2.write("🌪️ **Akurasi Klasik 31**")
+            c_head3.write("☀️ **Akurasi SOP 2025**")
+            st.markdown("---")
+            
+            for i in range(6):
+                c1, c2, c3 = st.columns([2, 2, 2])
+                c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
+                c3.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
                 
         st.markdown("---")
         
@@ -473,46 +469,40 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         # ==========================================
         st.subheader("🏆 TOTAL AKURASI KESELURUHAN")
         
-        if st.session_state.get('ada_speci', False):
+        if ada_speci:
             # --- MESIN HITUNG CEPAT (VERSI TANPA SPECI) ---
             df_fil_nosp = st.session_state['df_hasil_no_sp']
             df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
             
-            # Kalkulasi Klasik 31 Tanpa SPECI
             tot_b_m_nosp = sum((df_fil_nosp[c] == "B").sum() for c in ["S_Arah","S_Kec","S_Vis","S_Wx","S_AwanJml","S_AwanTgi"])
             tot_s_m_nosp = sum((df_fil_nosp[c] == "S").sum() for c in ["S_Arah","S_Kec","S_Vis","S_Wx","S_AwanJml","S_AwanTgi"])
             tot_data_m_nosp = tot_b_m_nosp + tot_s_m_nosp
             ak_klasik_nosp = round((tot_b_m_nosp / tot_data_m_nosp * 100), 1) if tot_data_m_nosp > 0 else 0
             
-            # Kalkulasi SOP 2025 Tanpa SPECI
             rek_nosp = hitung_verifikasi_TAFOR(df_fil_nosp)
             tot_b_f_nosp = sum(rek_nosp[k]['B'] for k in ['A','B','C','D','E','F'])
             tot_s_f_nosp = sum(rek_nosp[k]['S'] for k in ['A','B','C','D','E','F'])
             tot_data_f_nosp = tot_b_f_nosp + tot_s_f_nosp
             ak_sop_nosp = round((tot_b_f_nosp / tot_data_f_nosp * 100), 1) if tot_data_f_nosp > 0 else 0
 
-            # Hitung selisih total untuk memunculkan panah indikator otomatis
             diff_k_total = round(akurasi_global_matriks - ak_klasik_nosp, 1)
             diff_s_total = round(akurasi_global_form - ak_sop_nosp, 1)
 
-            # Tampilkan 4 Kotak Metrik Komparasi (Susunan Baru)
             st.info("💡 **Dampak SPECI:** Anda bisa melihat perbedaan nilai evaluasi ketika stasiun memperhitungkan cuaca ekstrem mendadak (SPECI) dibandingkan dengan mengabaikannya.")
             c_tot1, c_tot2, c_tot3, c_tot4 = st.columns(4)
-            
-            # --- Barisan Klasik ---
             c_tot1.metric("🌪️ Klasik (+SPECI)", f"{akurasi_global_matriks}%", delta=f"{diff_k_total}%")
             c_tot2.metric("☀️ Klasik (-SPECI)", f"{ak_klasik_nosp}%")
-            
-            # --- Barisan SOP 2025 ---
             c_tot3.metric("🌪️ SOP 2025 (+SPECI)", f"{akurasi_global_form}%", delta=f"{diff_s_total}%")
             c_tot4.metric("☀️ SOP 2025 (-SPECI)", f"{ak_sop_nosp}%")
+            
         else:
             # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN 2 KOTAK METRIK NORMAL ---
             st.info("💡 **Mode Reguler:** Menampilkan akurasi murni berdasarkan data jam-jaman (METAR) tanpa interupsi laporan SPECI.")
             c_tot1, c_tot2 = st.columns(2)
             
             c_tot1.metric("🌪️ Total Akurasi (Klasik 31)", f"{akurasi_global_matriks}%")
-            c_tot2.metric("☀️ Total Akurasi (SOP 2025)", f"{akurasi_global_form}%")    
+            c_tot2.metric("☀️ Total Akurasi (SOP 2025)", f"{akurasi_global_form}%")
+            
         st.markdown("---")
 
         # ==========================================
