@@ -522,36 +522,8 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             
         st.markdown("---")
 
+        
         # ==========================================
-        # 📈 GRAFIK TREN HISTORIS (BULANAN) PER PARAMETER
-        # ==========================================
-        df_tren = ambil_tren_db(stasiun_aktif)
-        if not df_tren.empty and len(df_tren) > 0:
-            st.markdown("### 📈 Tren Historis Akurasi (Bulanan)")
-            st.info("💡 Grafik di bawah membandingkan performa stasiun dari bulan ke bulan. Klik tab untuk membedah riwayat nilai setiap parameter.")
-            
-            # Buat tab rapi untuk masing-masing parameter
-            tab_tot, tab_a, tab_b, tab_c, tab_d, tab_e, tab_f = st.tabs([
-                "🏆 Total", "Arah Angin", "Kec Angin", "Visibility", "Cuaca", "Awan (Jml)", "Awan (Tgi)"
-            ])
-            
-            # Mesin penggambar grafik (Klasik vs SOP)
-            def plot_trend(df_plot, col_klasik, col_sop):
-                chart_data = df_plot.set_index("bulan_tahun")[[col_klasik, col_sop]]
-                chart_data.columns = ["Klasik 31", "SOP 2025"]
-                st.line_chart(chart_data, use_container_width=True)
-            
-            # Sebarkan grafik ke masing-masing kamar (Tab)
-            with tab_tot: plot_trend(df_tren, "total_k", "total_s")
-            with tab_a: plot_trend(df_tren, "k_a", "s_a")
-            with tab_b: plot_trend(df_tren, "k_b", "s_b")
-            with tab_c: plot_trend(df_tren, "k_c", "s_c")
-            with tab_d: plot_trend(df_tren, "k_d", "s_d")
-            with tab_e: plot_trend(df_tren, "k_e", "s_e")
-            with tab_f: plot_trend(df_tren, "k_f", "s_f")
-            
-        st.markdown("---")
-       # ==========================================
         # AREA DOWNLOAD BUTTONS (EFISIEN / ON-DEMAND)
         # ==========================================
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
