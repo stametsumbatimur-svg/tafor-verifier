@@ -399,7 +399,19 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             # --- JIKA ADA SPECI: BUAT TABEL 5 KOLOM ---
             df_fil_nosp = st.session_state['df_hasil_no_sp']
             df_fil_nosp = df_fil_nosp[(df_fil_nosp['Datetime_Obj'] >= tgl_mulai) & (df_fil_nosp['Datetime_Obj'] <= tgl_selesai) & (df_fil_nosp['Kode_Stasiun'] == stasiun_aktif)].copy()
+        else:
+            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN TABEL NORMAL ---
+            c_head1, c_head2, c_head3 = st.columns([2, 2, 2])
+            c_head1.write("📝 **Parameter**")
+            c_head2.write("🌪️ **Akurasi Klasik 31**")
+            c_head3.write("☀️ **Akurasi SOP 2025**")
+            st.markdown("---")
             
+            for i in range(6):
+                c1, c2, c3 = st.columns([2, 2, 2])
+                c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
+                c3.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")    
             # Hitung rincian parameter untuk versi Tanpa SPECI
             rows_m_nosp = []
             for k, col_name in {'A':"S_Arah",'B':"S_Kec",'C':"S_Vis",'D':"S_Wx",'E':"S_AwanJml",'F':"S_AwanTgi"}.items():
@@ -494,7 +506,13 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             # --- Barisan SOP 2025 ---
             c_tot3.metric("🌪️ SOP 2025 (+SPECI)", f"{akurasi_global_form}%", delta=f"{diff_s_total}%")
             c_tot4.metric("☀️ SOP 2025 (-SPECI)", f"{ak_sop_nosp}%")
+        else:
+            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN 2 KOTAK METRIK NORMAL ---
+            st.info("💡 **Mode Reguler:** Menampilkan akurasi murni berdasarkan data jam-jaman (METAR) tanpa interupsi laporan SPECI.")
+            c_tot1, c_tot2 = st.columns(2)
             
+            c_tot1.metric("🌪️ Total Akurasi (Klasik 31)", f"{akurasi_global_matriks}%")
+            c_tot2.metric("☀️ Total Akurasi (SOP 2025)", f"{akurasi_global_form}%")    
         st.markdown("---")
 
         # ==========================================
