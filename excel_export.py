@@ -289,7 +289,8 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     _, s_aj = hitung_awan_jml(m_row['M_AwanJml'], taj, m_row['M_AwanTgi'])
     _, s_at = hitung_awan_tgi(m_row['M_AwanTgi'], tat)
     
-    if is_prob and base_data is not None:
+    # 🟢 KUNCI PERBAIKAN: Hilangkan syarat 'is_prob' agar TEMPO & BECMG juga mendapat hak evaluasi cadangan seperti di Web!
+    if base_data is not None:
         _, b_ar = hitung_angin_arah(m_row['M_Arah'], base_data[0])
         _, b_ke = hitung_angin_kec(m_row['M_Kec'], base_data[1])
         _, b_vi = hitung_vis(m_row['M_Vis'], base_data[2])
