@@ -281,16 +281,29 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     ws.write(r, 1, lbl, fmt_f)
     ws.write_row(r, 2, [tar, tke, tvi, twx, taj, tat], fmt_f)
     
-    # 🔥 PERBAIKAN: Baca langsung nilai JADI dari DataFrame (yang sudah termasuk efek SPECI)
-    # Jangan dihitung ulang agar nilainya 100% sama dengan Dashboard Web!
-    s_ar = m_row.get('S_Arah', 'S')
-    s_ke = m_row.get('S_Kec', 'S')
-    s_vi = m_row.get('S_Vis', 'S')
-    s_wx = m_row.get('S_Wx', 'S')
-    s_aj = m_row.get('S_AwanJml', 'S')
-    s_at = m_row.get('S_AwanTgi', 'S')
+    # 🔥 MENGGUNAKAN LOGIKA MURNI (Sesuai SOP 029)
+    _, s_ar = hitung_angin_arah(m_row['M_Arah'], tar)
+    _, s_ke = hitung_angin_kec(m_row['M_Kec'], tke)
+    _, s_vi = hitung_vis(m_row['M_Vis'], tvi)
+    _, s_wx = hitung_cuaca(m_row['M_Wx'], twx)
+    _, s_aj = hitung_awan_jml(m_row['M_AwanJml'], taj, m_row['M_AwanTgi'])
+    _, s_at = hitung_awan_tgi(m_row['M_AwanTgi'], tat)
+    
+    if is_prob and base_data is not None:
+        _, b_ar = hitung_angin_arah(m_row['M_Arah'], base_data[0])
+        _, b_ke = hitung_angin_kec(m_row['M_Kec'], base_data[1])
+        _, b_vi = hitung_vis(m_row['M_Vis'], base_data[2])
+        _, b_wx = hitung_cuaca(m_row['M_Wx'], base_data[3])
+        _, b_aj = hitung_awan_jml(m_row['M_AwanJml'], base_data[4], m_row['M_AwanTgi'])
+        _, b_at = hitung_awan_tgi(m_row['M_AwanTgi'], base_data[5])
+        
+        if s_ar == "S" and b_ar == "B": s_ar = "B"
+        if s_ke == "S" and b_ke == "B": s_ke = "B"
+        if s_vi == "S" and b_vi == "B": s_vi = "B"
+        if s_wx == "S" and b_wx == "B": s_wx = "B"
+        if s_aj == "S" and b_aj == "B": s_aj = "B"
+        if s_at == "S" and b_at == "B": s_at = "B"
 
-    # Tulis ke sel Excel
     for idx, (val, stat) in enumerate([(m_row.get('M_Arah', '-'), s_ar), 
                                        (m_row.get('M_Kec', '-'), s_ke), 
                                        (m_row.get('M_Vis', '-'), s_vi), 
@@ -300,7 +313,6 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
         ws.write(r, 8 + idx*2, val, fmt_f)
         ws.write(r, 9 + idx*2, stat, fmt_b if stat == "B" else fmt_s)
         
-        # Masukkan ke total rekapan form Excel
         if stat in ['B', 'S']: 
             rekapan[['A','B','C','D','E','F'][idx]][stat] += 1
 
