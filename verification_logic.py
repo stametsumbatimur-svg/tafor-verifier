@@ -33,14 +33,14 @@ def ekstrak_param_metar_speci(sandi_teks):
     wx = "-"
     if "CAVOK" in sandi_cleaned: wx = "-"
     else:
-        wx_match = re.search(r'\b(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)\b', sandi_cleaned)
+        wx_match = re.search(r'(?<![A-Z])[-+]?(?:MI|BC|PR|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS|TS)\b', sandi_cleaned)
         if wx_match: wx = wx_match.group(0)
             
     awan_jml, awan_tgi = "-", "-"
     if "CAVOK" in sandi_cleaned or "NSC" in sandi_cleaned or "NCD" in sandi_cleaned:
         awan_jml, awan_tgi = "NSC", "0"
     else:
-        cloud_matches = re.findall(r'\b(FEW|SCT|BKN|OVC)(\d{3,4})\b', sandi_cleaned)
+        cloud_matches = re.findall(r'\b(FEW|SCT|BKN|OVC)(\d{3,4})(?:CB|TCU)?\b', sandi_cleaned)
         if cloud_matches:
             terendah = min(cloud_matches, key=lambda x: int(x[1]))
             awan_jml = terendah[0]
@@ -73,7 +73,7 @@ def parse_sandi(grup_teks):
     if "CAVOK" in sandi_cleaned: wx = "-"
     elif "NSW" in sandi_cleaned: wx = "-"
     else:
-        wx_match = re.search(r'\b(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)\b', sandi_cleaned)
+        wx_match = re.search(r'(?<![A-Z])[-+]?(?:MI|BC|PR|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS|TS)\b', sandi_cleaned)
         if wx_match: wx = wx_match.group(0)
             
     aw_jml, aw_tgi = "-", "-"
@@ -156,7 +156,7 @@ def hitung_vis(m_vis, t_vis):
 
 def is_endapan(wx_str):
     if wx_str == "-" or pd.isna(wx_str): return False
-    for p in ["DZ", "RA", "SN", "SG", "PL", "GR", "GS", "TSRA", "SHRA"]:
+    for p in ["TS", "DZ", "RA", "SN", "SG", "PL", "GR", "GS", "TSRA", "SHRA"]:
         if p in str(wx_str).upper(): return True
     return False
 
