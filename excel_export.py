@@ -7,8 +7,8 @@ from openpyxl.styles import Font
 from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
 
 def generate_lapbul_excel(df_hasil, df_speci=None):
-    # Optimasi RAM: Gunakan Datetime_Obj jika sudah ada dari app.py, jika belum baru diconvert
-    dt_col = df_hasil['Datetime_Obj'] if 'Datetime_Obj' in df_hasil.columns else pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
+    # Perbaikan Kunci: Konversi langsung kolom waktu mentah agar aksesor .dt dijamin aman bekerja
+    dt_col = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
     df_hasil['Tanggal'] = dt_col.dt.day
     df_hasil['Jam'] = dt_col.dt.hour
     
@@ -84,7 +84,8 @@ def generate_lapbul_excel(df_hasil, df_speci=None):
     return buffer
 
 def generate_form_2026(df_hasil, df_speci=None):
-    dt_col = df_hasil['Datetime_Obj'] if 'Datetime_Obj' in df_hasil.columns else pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
+    # Perbaikan Kunci: Konversi langsung kolom waktu mentah agar aksesor .dt dijamin aman bekerja
+    dt_col = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
     df_hasil['Tanggal'] = dt_col.dt.day
     df_hasil['Jam'] = dt_col.dt.hour
     
@@ -228,8 +229,6 @@ def generate_form_2026(df_hasil, df_speci=None):
 
 def generate_logbook_excel(df_hasil):
     df_log = df_hasil.copy()
-    
-    # 🔥 CORE INJEKSI: Saring beruntun sekuensial
     df_log = df_log[df_log['Sandi TAF Prakiraan'] != df_log['Sandi TAF Prakiraan'].shift()]
     
     stn = "WATU"
@@ -246,8 +245,8 @@ def generate_logbook_excel(df_hasil):
         tz_label = "WIT"
         hours_offset = 9
         
-    # Optimasi RAM: Gunakan Datetime_Obj yang sudah dikonversi di app.py
-    dt_col = df_log['Datetime_Obj'] if 'Datetime_Obj' in df_log.columns else pd.to_datetime(df_log['Waktu Aktual (UTC)'])
+    # Perbaikan Kunci: Konversi langsung kolom waktu mentah logbook
+    dt_col = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
     df_log['Dt_Lokal'] = dt_col + pd.Timedelta(hours=hours_offset)
     df_log['Tanggal_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%Y-%m-%d')
     df_log['Jam_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%H:%M:%S')
@@ -281,7 +280,6 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     ws.write(r, 1, lbl, fmt_f)
     ws.write_row(r, 2, [tar, tke, tvi, twx, taj, tat], fmt_f)
     
-    # 🔥 MENGGUNAKAN LOGIKA MURNI (Sesuai SOP 029)
     _, s_ar = hitung_angin_arah(m_row['M_Arah'], tar)
     _, s_ke = hitung_angin_kec(m_row['M_Kec'], tke)
     _, s_vi = hitung_vis(m_row['M_Vis'], tvi)
@@ -289,7 +287,6 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     _, s_aj = hitung_awan_jml(m_row['M_AwanJml'], taj, m_row['M_AwanTgi'])
     _, s_at = hitung_awan_tgi(m_row['M_AwanTgi'], tat)
     
-    # 🟢 KUNCI PERBAIKAN: Hilangkan syarat 'is_prob' agar TEMPO & BECMG juga mendapat hak evaluasi cadangan seperti di Web!
     if base_data is not None:
         _, b_ar = hitung_angin_arah(m_row['M_Arah'], base_data[0])
         _, b_ke = hitung_angin_kec(m_row['M_Kec'], base_data[1])
@@ -348,7 +345,7 @@ def _bikin_sheet_speci(workbook, df_speci):
 def generate_klasik_31_sheet(df_filtered):
     output = BytesIO()
     wb = openpyxl.Workbook()
-    wb.remove(wb.active) # Hapus sheet default
+    wb.remove(wb.active)
     
     if df_filtered.empty:
         wb.create_sheet("Kosong")
@@ -360,56 +357,35 @@ def generate_klasik_31_sheet(df_filtered):
     nama_bulan = contoh_waktu.strftime("%B").upper()
     tahun = contoh_waktu.strftime("%Y")
     
-    # --- VARIABEL PENAMPUNG REKAPITULASI ---
     tot_sampel = 0
-    tot_a = 0
-    tot_b = 0
-    tot_c = 0
-    tot_d = 0
-    tot_e = 0
-    tot_f = 0
-    # ---------------------------------------
+    tot_a, tot_b, tot_c, tot_d, tot_e, tot_f = 0, 0, 0, 0, 0, 0
 
-    # Loop maksimal 31 Hari
     for hari in range(1, 32):
         tgl_str = f"{tahun}-{contoh_waktu.strftime('%m')}-{str(hari).zfill(2)}"
-        
-        # Detektor Kalender (Berhenti jika tanggal tidak ada, misal 31 Juni)
         try:
             start_time = datetime.strptime(f"{tgl_str} 00:00", "%Y-%m-%d %H:%M")
         except ValueError:
             break 
             
         ws = wb.create_sheet(title=str(hari))
-        
-        # Header Klasik WIRR
         ws.merge_cells("A1:AD1")
-        
         ws["C3"] = f"BULAN : {nama_bulan}"
         ws["E3"] = f"TAHUN : {tahun}"
         ws["M3"] = "( SEMUA WAKTU DALAM UTC )"
         
-        # Header Tabel Baris 5 dan 6
         headers_atas = ["", "Tanggal", "Jangka waktu", "Prakiraan :", "", "", "", "", "", "", "", "", "KENYATAAN (METAR DAN SPECI):"]
         headers_bawah = ["", "", "Change Group", "Change Group Time (UTC)", "A", "B1", "B2", "C", "D", "E", "F", "DATA METAR", "A", "H", "B1", "H", "B2", "H", "C", "H", "D", "H", "E", "H", "F", "H"]
-        
         ws.append(headers_atas)
         ws.append(headers_bawah)
         
-        # Ambil data filter untuk hari ini
         df_hari_ini = df_filtered[df_filtered['Waktu Aktual (UTC)'].str.startswith(tgl_str)]
         
-        # Susun 48 Baris (00:00 sampai 23:30)
         for i in range(48):
             jam_sekarang = (start_time + pd.Timedelta(minutes=30*i)).strftime("%H:%M:%S")
-            
-            # Cari data di df_hari_ini yang cocok dengan jam ini
             df_jam = df_hari_ini[df_hari_ini['Waktu Aktual (UTC)'].str.contains(jam_sekarang)]
             
             if not df_jam.empty:
                 row_data = df_jam.iloc[0]
-                
-                # Konversi hasil B/S menjadi 1/0
                 h_a = 1 if row_data.get('S_Arah', 'S') == 'B' else 0
                 h_b = 1 if row_data.get('S_Kec', 'S') == 'B' else 0
                 h_c = 1 if row_data.get('S_Vis', 'S') == 'B' else 0
@@ -417,15 +393,8 @@ def generate_klasik_31_sheet(df_filtered):
                 h_e = 1 if row_data.get('S_AwanJml', 'S') == 'B' else 0
                 h_f = 1 if row_data.get('S_AwanTgi', 'S') == 'B' else 0
 
-                # --- TAMBAHKAN KE TOTAL REKAPAN ---
                 tot_sampel += 1
-                tot_a += h_a
-                tot_b += h_b
-                tot_c += h_c
-                tot_d += h_d
-                tot_e += h_e
-                tot_f += h_f
-                # ----------------------------------
+                tot_a += h_a; tot_b += h_b; tot_c += h_c; tot_d += h_d; tot_e += h_e; tot_f += h_f
 
                 baris = [
                     "", hari if i == 0 else "", jam_sekarang, 
@@ -434,42 +403,27 @@ def generate_klasik_31_sheet(df_filtered):
                     row_data.get('Sandi METAR Aktual', '-'),
                     row_data.get('M_Arah', '-'), h_a,
                     row_data.get('M_Kec', '-'), h_b,
-                    0, 1, # B2 (Gusty) diabaikan/selalu 1 karena digabung ke B1
+                    0, 1, 
                     row_data.get('M_Vis', '-'), h_c,
                     row_data.get('M_Wx', '-'), h_d,
                     row_data.get('M_AwanJml', '-'), h_e,
                     row_data.get('M_AwanTgi', '-'), h_f
                 ]
             else:
-                # Baris Kosong (Tidak ada METAR pada jam tsb)
                 baris = ["", hari if i == 0 else "", jam_sekarang] + [""]*23
                 
-            # Mesin Pembersih Karakter Gaib GTS
-            baris_bersih = []
-            for item in baris:
-                if isinstance(item, str):
-                    item = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', item)
-                baris_bersih.append(item)
-                
+            baris_bersih = [re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', item) if isinstance(item, str) else item for item in baris]
             ws.append(baris_bersih)
 
-    # ==========================================
-    # MEMBUAT SHEET REKAP 1 BULAN
-    # ==========================================
     ws_rekap = wb.create_sheet(title="REKAP 1 BULAN", index=0)
     ws_rekap.column_dimensions['A'].width = 35
     ws_rekap.column_dimensions['B'].width = 20
-    
     ws_rekap["A1"] = f"VERIFIKASI TAF BULAN {nama_bulan} {tahun}"
     ws_rekap["A1"].font = Font(bold=True)
-    ws_rekap.append([""]) # Baris kosong
-    
-    # Header Tabel Rekap
+    ws_rekap.append([""])
     ws_rekap.append(["UNSUR METEOROLOGI", "PROSENTASE (%)"])
-    ws_rekap["A3"].font = Font(bold=True)
-    ws_rekap["B3"].font = Font(bold=True)
+    ws_rekap["A3"].font = Font(bold=True); ws_rekap["B3"].font = Font(bold=True)
     
-    # Fungsi Hitung Persentase Anti-Error
     def hitung_persen(benar, total):
         return round((benar / total) * 100, 2) if total > 0 else 0
 
@@ -479,10 +433,8 @@ def generate_klasik_31_sheet(df_filtered):
     p_d = hitung_persen(tot_d, tot_sampel)
     p_e = hitung_persen(tot_e, tot_sampel)
     p_f = hitung_persen(tot_f, tot_sampel)
-    
     rata_rata = round((p_a + p_b + p_c + p_d + p_e + p_f) / 6, 2)
     
-    # Masukkan data ke sheet
     ws_rekap.append(["A. Arah Angin", p_a])
     ws_rekap.append(["B. Kecepatan Angin", p_b])
     ws_rekap.append(["C. Jarak Pandang (Visibility)", p_c])
@@ -492,10 +444,8 @@ def generate_klasik_31_sheet(df_filtered):
     ws_rekap.append(["", ""])
     ws_rekap.append(["RATA-RATA TOTAL", rata_rata])
     
-    # Cetak tebal (Bold) pada baris rata-rata
     ws_rekap.cell(row=11, column=1).font = Font(bold=True)
     ws_rekap.cell(row=11, column=2).font = Font(bold=True)
-    # ==========================================
 
     wb.save(output)
     output.seek(0)
