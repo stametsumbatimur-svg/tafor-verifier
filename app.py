@@ -7,6 +7,9 @@ import os
 import sqlite3
 from datetime import datetime
 from verification_logic import proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, hitung_verifikasi_TAFOR
+import excel_export
+import importlib
+importlib.reload(excel_export)
 from excel_export import generate_lapbul_excel, generate_form_2026, generate_logbook_excel, generate_klasik_31_sheet
 
 st.set_page_config(page_title="SIVETA - BMKG", layout="wide")
