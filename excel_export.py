@@ -1,19 +1,18 @@
-import pandas as pd
-import io
 import re
-from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
 import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side
+from openpyxl.styles import Font
+from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
 
 def generate_lapbul_excel(df_hasil, df_speci=None):
-    df_hasil['Datetime'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
-    df_hasil['Tanggal'] = df_hasil['Datetime'].dt.day
-    df_hasil['Jam'] = df_hasil['Datetime'].dt.hour
+    # Optimasi RAM: Gunakan Datetime_Obj jika sudah ada dari app.py, jika belum baru diconvert
+    dt_col = df_hasil['Datetime_Obj'] if 'Datetime_Obj' in df_hasil.columns else pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
+    df_hasil['Tanggal'] = dt_col.dt.day
+    df_hasil['Jam'] = dt_col.dt.hour
     
-    buffer = io.BytesIO()
+    buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         workbook = writer.book
         fmt_h1 = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#D9D9D9'})
@@ -85,11 +84,11 @@ def generate_lapbul_excel(df_hasil, df_speci=None):
     return buffer
 
 def generate_form_2026(df_hasil, df_speci=None):
-    df_hasil['Datetime'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
-    df_hasil['Tanggal'] = df_hasil['Datetime'].dt.day
-    df_hasil['Jam'] = df_hasil['Datetime'].dt.hour
+    dt_col = df_hasil['Datetime_Obj'] if 'Datetime_Obj' in df_hasil.columns else pd.to_datetime(df_hasil['Waktu Aktual (UTC)'])
+    df_hasil['Tanggal'] = dt_col.dt.day
+    df_hasil['Jam'] = dt_col.dt.hour
     
-    buffer = io.BytesIO()
+    buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         workbook = writer.book
         ws = workbook.add_worksheet('FORM VERIFIKASI')
@@ -110,7 +109,6 @@ def generate_form_2026(df_hasil, df_speci=None):
         fmt_pct_rekap = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#C6EFCE', 'num_format': '0.00"%"'})
 
         ws.write("A1", "VERIFIKASI AERODROM FORECAST", fmt_title)
-        ws.write("A2", "Instruksi Met./No.029/Verifikasi Prakiraan/I/88", fmt_title)
         ws.merge_range("A4:A5", "TGL", fmt_h)
         ws.merge_range("B4:B5", "WAKTU", fmt_h)
         ws.merge_range("C4:H4", "P R A K I R A A N (TAFOR)", fmt_h)
@@ -212,7 +210,7 @@ def generate_form_2026(df_hasil, df_speci=None):
         row_idx += 3
         fmt_leg_title = workbook.add_format({'bold': True, 'underline': True, 'font_size': 10})
         fmt_leg_text = workbook.add_format({'font_size': 9, 'italic': True})
-        ws.write(row_idx, 0, "KETERANGAN KODE PARAMETER (INTRUKSI MET NO.029):", fmt_leg_title)
+        ws.write(row_idx, 0, "KETERANGAN KODE PARAMETER:", fmt_leg_title)
         
         legenda_items = [
             "A = Arah Angin (Wind Direction)", "B = Kecepatan Angin (Wind Speed)",
@@ -229,11 +227,9 @@ def generate_form_2026(df_hasil, df_speci=None):
     return buffer
 
 def generate_logbook_excel(df_hasil):
-    """Membuat file excel murni rapi berisi Riwayat Perubahan/Amandemen TAFOR Baru di GTS Tanpa Duplikasi"""
     df_log = df_hasil.copy()
-    df_log['Dt_UTC'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
     
-    # 🔥 CORE INJEKSI: Saring beruntun sekuensial (Hanya meloloskan baris data saat teks TAFOR berubah/ada dokumen masuk baru)
+    # 🔥 CORE INJEKSI: Saring beruntun sekuensial
     df_log = df_log[df_log['Sandi TAF Prakiraan'] != df_log['Sandi TAF Prakiraan'].shift()]
     
     stn = "WATU"
@@ -250,11 +246,13 @@ def generate_logbook_excel(df_hasil):
         tz_label = "WIT"
         hours_offset = 9
         
-    df_log['Dt_Lokal'] = df_log['Dt_UTC'] + pd.Timedelta(hours=hours_offset)
+    # Optimasi RAM: Gunakan Datetime_Obj yang sudah dikonversi di app.py
+    dt_col = df_log['Datetime_Obj'] if 'Datetime_Obj' in df_log.columns else pd.to_datetime(df_log['Waktu Aktual (UTC)'])
+    df_log['Dt_Lokal'] = dt_col + pd.Timedelta(hours=hours_offset)
     df_log['Tanggal_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%Y-%m-%d')
     df_log['Jam_Lokal'] = df_log['Dt_Lokal'].dt.strftime('%H:%M:%S')
     
-    buffer = io.BytesIO()
+    buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         workbook = writer.book
         ws = workbook.add_worksheet('LOGBOOK RAW GTS')
@@ -377,7 +375,6 @@ def generate_klasik_31_sheet(df_filtered):
         
         # Header Klasik WIRR
         ws.merge_cells("A1:AD1")
-        #ws["A1"] = "**Catatan untuk verifikator: form ini disediakan sebagai format pelaporan. jika terdapat error dalam penghitungan, formula boleh dikoreksi..."
         
         ws["C3"] = f"BULAN : {nama_bulan}"
         ws["E3"] = f"TAHUN : {tahun}"
