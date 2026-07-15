@@ -7,7 +7,6 @@ from openpyxl.styles import Font
 from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
 
 def generate_lapbul_excel(df_hasil, df_speci=None):
-    # 🟢 BYPASS BULLETPROOF: Gunakan DatetimeIndex murni (Bebas dari error .dt accessor)
     tgl_jam = pd.DatetimeIndex(df_hasil['Waktu Aktual (UTC)'])
     df_hasil['Tanggal'] = tgl_jam.day
     df_hasil['Jam'] = tgl_jam.hour
@@ -356,10 +355,8 @@ def generate_klasik_31_sheet(df_filtered):
     contoh_waktu = pd.to_datetime(df_filtered.iloc[0]['Waktu Aktual (UTC)'])
     nama_bulan = contoh_waktu.strftime("%B").upper()
     tahun = contoh_waktu.strftime("%Y")
-    
-    tot_sampel = 0
-    tot_a, tot_b, tot_c, tot_d, tot_e, tot_f = 0, 0, 0, 0, 0, 0
 
+    # Loop maksimal 31 Hari untuk Cetak Form Harian
     for hari in range(1, 32):
         tgl_str = f"{tahun}-{contoh_waktu.strftime('%m')}-{str(hari).zfill(2)}"
         try:
@@ -380,6 +377,7 @@ def generate_klasik_31_sheet(df_filtered):
         
         df_hari_ini = df_filtered[df_filtered['Waktu Aktual (UTC)'].str.startswith(tgl_str)]
         
+        # Isi form 48 baris (grid kaku)
         for i in range(48):
             jam_sekarang = (start_time + pd.Timedelta(minutes=30*i)).strftime("%H:%M:%S")
             df_jam = df_hari_ini[df_hari_ini['Waktu Aktual (UTC)'].str.contains(jam_sekarang)]
@@ -392,9 +390,6 @@ def generate_klasik_31_sheet(df_filtered):
                 h_d = 1 if row_data.get('S_Wx', 'S') == 'B' else 0
                 h_e = 1 if row_data.get('S_AwanJml', 'S') == 'B' else 0
                 h_f = 1 if row_data.get('S_AwanTgi', 'S') == 'B' else 0
-
-                tot_sampel += 1
-                tot_a += h_a; tot_b += h_b; tot_c += h_c; tot_d += h_d; tot_e += h_e; tot_f += h_f
 
                 baris = [
                     "", hari if i == 0 else "", jam_sekarang, 
@@ -415,6 +410,9 @@ def generate_klasik_31_sheet(df_filtered):
             baris_bersih = [re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', item) if isinstance(item, str) else item for item in baris]
             ws.append(baris_bersih)
 
+    # ==============================================================
+    # 🟢 SINKRONISASI TOTAL AKURASI REKAP DENGAN WEB DASHBOARD
+    # ==============================================================
     ws_rekap = wb.create_sheet(title="REKAP 1 BULAN", index=0)
     ws_rekap.column_dimensions['A'].width = 35
     ws_rekap.column_dimensions['B'].width = 20
@@ -424,16 +422,25 @@ def generate_klasik_31_sheet(df_filtered):
     ws_rekap.append(["UNSUR METEOROLOGI", "PROSENTASE (%)"])
     ws_rekap["A3"].font = Font(bold=True); ws_rekap["B3"].font = Font(bold=True)
     
-    def hitung_persen(benar, total):
-        return round((benar / total) * 100, 2) if total > 0 else 0
+    # Menghitung Nilai B dan S dari Populasi Data Global (Persis Cara Kerja Web)
+    def hitung_persen_unsur(kolom):
+        b = (df_filtered[kolom] == "B").sum()
+        s = (df_filtered[kolom] == "S").sum()
+        tot = b + s
+        pct = round((b / tot * 100), 2) if tot > 0 else 0
+        return pct, b, tot
 
-    p_a = hitung_persen(tot_a, tot_sampel)
-    p_b = hitung_persen(tot_b, tot_sampel)
-    p_c = hitung_persen(tot_c, tot_sampel)
-    p_d = hitung_persen(tot_d, tot_sampel)
-    p_e = hitung_persen(tot_e, tot_sampel)
-    p_f = hitung_persen(tot_f, tot_sampel)
-    rata_rata = round((p_a + p_b + p_c + p_d + p_e + p_f) / 6, 2)
+    p_a, b_a, tot_a = hitung_persen_unsur('S_Arah')
+    p_b, b_b, tot_b = hitung_persen_unsur('S_Kec')
+    p_c, b_c, tot_c = hitung_persen_unsur('S_Vis')
+    p_d, b_d, tot_d = hitung_persen_unsur('S_Wx')
+    p_e, b_e, tot_e = hitung_persen_unsur('S_AwanJml')
+    p_f, b_f, tot_f = hitung_persen_unsur('S_AwanTgi')
+    
+    # Rata-rata Total GLOBAL (Sama dengan Akurasi Matriks di Web)
+    total_b_global = b_a + b_b + b_c + b_d + b_e + b_f
+    total_data_global = tot_a + tot_b + tot_c + tot_d + tot_e + tot_f
+    rata_rata = round((total_b_global / total_data_global * 100), 1) if total_data_global > 0 else 0
     
     ws_rekap.append(["A. Arah Angin", p_a])
     ws_rekap.append(["B. Kecepatan Angin", p_b])
@@ -448,5 +455,7 @@ def generate_klasik_31_sheet(df_filtered):
     ws_rekap.cell(row=11, column=2).font = Font(bold=True)
 
     wb.save(output)
+    output.seek(0)
+    return output
     output.seek(0)
     return output
