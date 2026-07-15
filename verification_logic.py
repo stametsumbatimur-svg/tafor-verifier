@@ -99,20 +99,36 @@ def hitung_komponen_crosswind(arah_str, kec_str, kode_stasiun="WATU"):
 # =========================================================================
 
 def hitung_angin_arah(m_dir, t_dir):
+    m_str = str(m_dir).strip().upper()
+    t_str = str(t_dir).strip().upper()
+    
+    # 🟢 1. KONDISI SAMA PERSIS (VRB vs VRB, atau 000 vs 000)
+    if m_str == t_str:
+        return (m_str, "B")
+        
+    # 🟢 2. TOLERANSI ANGIN KALEM & VARIABLE (VRB dianggap benar jika aktualnya 000, begitu pula sebaliknya)
+    if (m_str == "VRB" and t_str == "000") or (t_str == "VRB" and m_str == "000"):
+        return (m_str, "B")
+        
+    # 🔴 3. JIKA SALAH SATU VRB/HILANG, TAPI PASANGANNYA ANGKA TEGAS (Misal VRB vs 120)
+    if m_str in ["VRB", "///"] or t_str in ["VRB", "///"]:
+        return (m_str, "S")
+        
+    # 📐 4. PERHITUNGAN MATEMATIKA NORMAL (SELISIH DERAJAT)
     try:
-        m = int(m_dir)
-        t = int(t_dir)
+        m = int(m_str)
+        t = int(t_str)
     except:
-        return (None, "S")
+        return (m_str, "S")
     
     diff = abs(m - t)
     if diff > 180:
         diff = 360 - diff
         
-    if diff < 60:
-        return (m, "B")
+    if diff <= 60:  # Toleransi meleset maksimal 60 derajat
+        return (m_str, "B")
     else:
-        return (m, "S")
+        return (m_str, "S")
 
 def hitung_angin_kec(m_kec, t_kec):
     if m_kec == "-" or t_kec == "-": return "-", "NIL"
