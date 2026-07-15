@@ -377,7 +377,7 @@ def generate_klasik_31_sheet(df_filtered):
         
         # Header Klasik WIRR
         ws.merge_cells("A1:AD1")
-        ws["A1"] = "**Catatan untuk verifikator: form ini disediakan sebagai format pelaporan. jika terdapat error dalam penghitungan, formula boleh dikoreksi..."
+        #ws["A1"] = "**Catatan untuk verifikator: form ini disediakan sebagai format pelaporan. jika terdapat error dalam penghitungan, formula boleh dikoreksi..."
         
         ws["C3"] = f"BULAN : {nama_bulan}"
         ws["E3"] = f"TAHUN : {tahun}"
