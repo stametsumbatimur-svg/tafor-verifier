@@ -369,13 +369,11 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
 def hitung_verifikasi_TAFOR(df_input):
     df_work = df_input.copy()
-    # Deteksi komparasi bulanan agar aman dipisahkan per bulan/tahun, bukan berdasarkan tanggal kalender doang
     df_work['Bulan_Tahun'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.strftime('%Y-%m')
     df_work['Tanggal'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.day
     df_work['Jam'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.hour
     rekapan = {k: {'B': 0, 'S': 0} for k in ['A', 'B', 'C', 'D', 'E', 'F']}
     
-    # Kelompokkan loop berdasarkan bulan-tahun yang ada agar tidak tabrakan antar bulan
     for bln_thn in df_work['Bulan_Tahun'].unique():
         df_bulan = df_work[df_work['Bulan_Tahun'] == bln_thn]
         
@@ -393,11 +391,17 @@ def hitung_verifikasi_TAFOR(df_input):
                 baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
                 parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_sandi))
                 
-                # --- 🌪️ EVALUASI BASE GROUP ---
-                for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
-                    stat = baris_m_base[col]
+                # --- 🌪️ EVALUASI BASE GROUP DENGAN MURNI (ANTI JALAN PINTAS) ---
+                b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
+                cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+                
+                m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi']}
+                _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
+                
+                for k, stat in zip(['A','B','C','D','E','F'], [s_ar, s_ke, s_vi, s_wx, s_aj, s_at]):
                     if stat in ['B', 'S']: rekapan[k][stat] += 1
                         
+                # --- 🌪️ EVALUASI TREND GROUP DENGAN MURNI ---
                 for i in range(1, len(parts), 2):
                     tipe, isi = parts[i], parts[i+1]
                     time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
@@ -406,9 +410,26 @@ def hitung_verifikasi_TAFOR(df_input):
                     data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == jam_target) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)]
                     baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
                     
-                    # --- 🌪️ EVALUASI TREND GROUP ---
-                    for k, col in [('A','S_Arah'), ('B','S_Kec'), ('C','S_Vis'), ('D','S_Wx'), ('E','S_AwanJml'), ('F','S_AwanTgi')]:
-                        stat = baris_m_trend[col]
+                    t_ar, t_ke, t_vi, t_wx, t_aj, t_at = parse_sandi(isi)
+                    if t_ar == "-": t_ar = cur_ar
+                    if t_ke == "-": t_ke = cur_ke
+                    if t_vi == "-": t_vi = cur_vi
+                    if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi: t_wx = cur_wx
+                    if t_aj == "-": t_aj = cur_aj
+                    if t_at == "-": t_at = cur_at
+                    
+                    m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi']}
+                    
+                    _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = evaluasi_sandi_tunggal(
+                        m_obs_trend, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, 
+                        base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at), 
+                        is_grup_prob=('PROB' in tipe), is_grup_tempo=('TEMPO' in tipe), is_grup_becmg_trans=('BECMG' in tipe)
+                    )
+                    
+                    for k, stat in zip(['A','B','C','D','E','F'], [s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t]):
                         if stat in ['B', 'S']: rekapan[k][stat] += 1
+                        
+                    if tipe == 'BECMG':
+                        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
                         
     return rekapan
