@@ -453,18 +453,27 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                 st.warning("Data skenario tanpa SPECI tidak ditemukan. Silakan tekan tombol 'PROSES DATA' kembali.")
                 
         else:
-            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN TABEL 3 KOLOM NORMAL ---
-            c_head1, c_head2, c_head3 = st.columns([2, 2, 2])
+            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN TABEL 4 KOLOM (KLASIK vs SOP) ---
+            c_head1, c_head2, c_head3, c_head4 = st.columns([2, 2, 2, 1.5])
             c_head1.write("📝 **Parameter**")
             c_head2.write("🌪️ **Akurasi Klasik 31**")
             c_head3.write("☀️ **Akurasi SOP 2025**")
+            c_head4.write("📉 **Selisih**")
             st.markdown("---")
             
             for i in range(6):
-                c1, c2, c3 = st.columns([2, 2, 2])
+                c1, c2, c3, c4 = st.columns([2, 2, 2, 1.5])
                 c1.write(f"**{rows_m[i]['Nama Parameter']}**")
+                
+                # Hitung selisih antara Klasik dan SOP
+                val_k = float(rows_m[i]['Prosentase Ketelitian'].replace('%', ''))
+                val_s = float(rows_f[i]['Prosentase Ketelitian'].replace('%', ''))
+                diff = round(val_k - val_s, 2)
+                simbol = "🟢" if diff > 0 else ("🔴" if diff < 0 else "⚪")
+                
                 c2.code(f"{rows_m[i]['Prosentase Ketelitian']} ({rows_m[i]['Jumlah Benar (B)']}/{rows_m[i]['Total Sampel Data (Tiap Jam)']})")
                 c3.code(f"{rows_f[i]['Prosentase Ketelitian']} ({rows_f[i]['Jumlah Benar (B)']}/{rows_f[i]['Total Sampel Data (Grup TAF)']})")
+                c4.markdown(f"{simbol} **{diff}%**")
                 
         st.markdown("---")
         
@@ -500,12 +509,16 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             c_tot4.metric("☀️ SOP 2025 (-SPECI)", f"{ak_sop_nosp}%")
             
         else:
-            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN 2 KOTAK METRIK NORMAL ---
+            # 🟢 --- JIKA TIDAK ADA SPECI: TAMPILKAN 3 KOTAK METRIK NORMAL ---
             st.info("💡 **Mode Reguler:** Menampilkan akurasi murni berdasarkan data jam-jaman (METAR) tanpa interupsi laporan SPECI.")
-            c_tot1, c_tot2 = st.columns(2)
+            c_tot1, c_tot2, c_tot3 = st.columns(3)
+            
+            # Hitung selisih total Klasik vs SOP
+            diff_total = round(akurasi_global_matriks - akurasi_global_form, 1)
             
             c_tot1.metric("🌪️ Total Akurasi (Klasik 31)", f"{akurasi_global_matriks}%")
             c_tot2.metric("☀️ Total Akurasi (SOP 2025)", f"{akurasi_global_form}%")
+            c_tot3.metric("📉 Selisih (Klasik vs SOP)", f"{diff_total}%")
             
         st.markdown("---")
 
