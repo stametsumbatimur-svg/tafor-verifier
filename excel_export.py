@@ -279,7 +279,8 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     ws.write(r, 1, lbl, fmt_f)
     ws.write_row(r, 2, [tar, tke, tvi, twx, taj, tat], fmt_f)
     
-    _, s_ar = hitung_angin_arah(m_row['M_Arah'], tar)
+    # ⚙️ PERBAIKAN: Menambahkan parameter kecepatan (M_Kec dan tke) untuk evaluasi Arah Angin SOP 2025
+    _, s_ar = hitung_angin_arah(m_row['M_Arah'], tar, m_row['M_Kec'], tke)
     _, s_ke = hitung_angin_kec(m_row['M_Kec'], tke)
     _, s_vi = hitung_vis(m_row['M_Vis'], tvi)
     _, s_wx = hitung_cuaca(m_row['M_Wx'], twx)
@@ -287,7 +288,8 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
     _, s_at = hitung_awan_tgi(m_row['M_AwanTgi'], tat)
     
     if base_data is not None:
-        _, b_ar = hitung_angin_arah(m_row['M_Arah'], base_data[0])
+        # ⚙️ PERBAIKAN: Menambahkan parameter kecepatan base_data[1] untuk evaluasi Arah Angin Base Group
+        _, b_ar = hitung_angin_arah(m_row['M_Arah'], base_data[0], m_row['M_Kec'], base_data[1])
         _, b_ke = hitung_angin_kec(m_row['M_Kec'], base_data[1])
         _, b_vi = hitung_vis(m_row['M_Vis'], base_data[2])
         _, b_wx = hitung_cuaca(m_row['M_Wx'], base_data[3])
@@ -312,7 +314,6 @@ def _tulis_baris_form(ws, r, lbl, tar, tke, tvi, twx, taj, tat, m_row, rekapan, 
         
         if stat in ['B', 'S']: 
             rekapan[['A','B','C','D','E','F'][idx]][stat] += 1
-
 def _bikin_sheet_speci(workbook, df_speci):
     ws = workbook.add_worksheet('AUDIT TRAIL SPECI')
     fmt_h = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'bold': True, 'border': 1, 'bg_color': '#D9D9D9', 'font_size': 10})
