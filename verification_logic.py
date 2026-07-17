@@ -226,6 +226,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
     baris_analisis_final = []
     baris_speci_final = []
     
+    # 🟢 [PRA-PENGURUS RAM]: Kelompokkan data SPECI ke dalam Kamar Python berdasarkan Tanggal
     speci_dict = {}
     for _, row in df_speci.iterrows():
         if pd.notna(row['dt_obj']):
@@ -241,10 +242,41 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         m_ar, m_ke, m_vi, m_wx, m_aj, m_at = ekstrak_param_metar_speci(teks_metar)
         
         taf_aktif = "-"
-        taf_terpilih_rows = df_taf[df_taf['dt_obj'] <= tgl_jam_aktual]
-        if not taf_terpilih_rows.empty: taf_aktif = taf_terpilih_rows.iloc[-1][col_teks]
+        
+        # ⚙️ LOGIKA BARU: Filter TAF Berdasarkan "Valid Start Time" & Status AMD/COR
+        taf_kandidat = df_taf[df_taf['dt_obj'] <= tgl_jam_aktual]
+        if not taf_kandidat.empty:
+            valid_tafs = []
+            for _, tr in taf_kandidat.iterrows():
+                t_teks = str(tr[col_teks])
+                t_issue = tr['dt_obj']
+                
+                # Ekstrak waktu mulai berlaku (ddhh) setelah jam pembuatan Z
+                v_match = re.search(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}', t_teks)
+                if v_match:
+                    v_tgl, v_jam = int(v_match.group(1)), int(v_match.group(2))
+                    # Rakit ulang menjadi datetime (menggunakan bulan METAR aktual)
+                    try:
+                        v_dt = tgl_jam_aktual.replace(day=v_tgl, hour=v_jam, minute=0, second=0)
+                    except ValueError:
+                        v_dt = t_issue # Fallback anti-crash jika beda bulan
+                        
+                    # Syarat Mutlak: Waktu Mulai Berlaku HARUS sudah terlewati/sama dengan METAR
+                    if v_dt <= tgl_jam_aktual:
+                        # Poin prioritas ekstra jika itu adalah AMD atau COR
+                        poin_prioritas = 1 if re.search(r'\b(AMD|COR)\b', t_teks) else 0
+                        valid_tafs.append((v_dt, t_issue, poin_prioritas, t_teks))
+                else:
+                    valid_tafs.append((t_issue, t_issue, 0, t_teks))
+                    
+            if valid_tafs:
+                # Urutkan berdasarkan: 1. Waktu Berlaku Terdekat, 2. Issue Time Terdekat, 3. Ada AMD/COR
+                valid_tafs.sort(key=lambda x: (x[0], x[1], x[2]))
+                taf_aktif = valid_tafs[-1][3] # Comot yang posisinya paling menang (paling ujung)
+                
         if taf_aktif == "-": continue
             
+        # 🟢 [PROSES KILAT]: Ambil kandidat SPECI hari ini & besok dari Kamar
         tgl_curr = tgl_jam_aktual.date()
         kandidat_speci = speci_dict.get(tgl_curr, []) + speci_dict.get(tgl_curr + timedelta(days=1), [])
         
