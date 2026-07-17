@@ -203,13 +203,14 @@ def verifikasi_tinggi_awan(fcst_height_ft, obs_height_ft):
 
 
 # ==============================================================================
-# 2. PEMBEDAH SANDI UNIVERSAL (ANTI-ERROR UNPACKING)
+# 2. PEMBEDAH SANDI UNIVERSAL (ADAPTASI 6 ELEMEN UNTUK EXCEL_EXPORT)
 # ==============================================================================
 
 def parse_sandi(sandi):
     if not isinstance(sandi, str): sandi = str(sandi)
     sandi = sandi.upper()
     
+    # Ekstraksi Angin
     w_info = ekstrak_angin(sandi)
     wind_group = re.search(r'\b(\d{3}|VRB|000)(\d{2,3})(?:G(\d{2,3}))?KT\b', sandi)
     w_str = wind_group.group(0) if wind_group else ""
@@ -218,12 +219,15 @@ def parse_sandi(sandi):
     gust = w_info.dct['Gust'] or ""
     ket = "TS" if w_info.dct['Ada_TS'] else ("CB" if w_info.dct['Ada_CB'] else "")
     
+    # Ekstraksi Visibilitas
     vis_match = re.search(r'\b(\d{4})\b', sandi)
     vis_val = vis_match.group(1) if vis_match else ("9999" if "CAVOK" in sandi else "")
     
+    # Ekstraksi Cuaca
     wx_match = re.search(r'\b(-|\+)?(RA|DZ|TSRA|VCTS|BR|HZ|FG)\b', sandi)
     wx_val = wx_match.group(0) if wx_match else "NIL"
     
+    # Ekstraksi Awan
     cloud_match = re.search(r'\b(FEW|SCT|BKN|OVC)\d{3}(?:CB|TCU)?\b|\b(SKC|NSC|CAVOK)\b', sandi)
     cloud_val = cloud_match.group(0) if cloud_match else ""
     
@@ -241,20 +245,16 @@ def parse_sandi(sandi):
         'Visibilitas': vis_val, 'Cuaca': wx_val, 'Jumlah_Awan': amt if amt else None, 'Tinggi_Awan': hgt
     }
     
-    tokens = sandi.split()
-    if len(tokens) > 1:
-        el0 = SmartElement(w_str if w_str else arah, arah, full_dict)
-        el1 = SmartElement(vis_val if vis_val else kec, kec, full_dict)
-        el2 = SmartElement(wx_val, gust, full_dict)
-        el3 = SmartElement(cloud_val if cloud_val else ket, ket, full_dict)
-    else:
-        el0 = SmartElement(arah, w_str, full_dict)
-        el1 = SmartElement(kec, vis_val, full_dict)
-        el2 = SmartElement(gust, wx_val, full_dict)
-        el3 = SmartElement(ket, cloud_val, full_dict)
+    # Bungkus menjadi 6 elemen persis sesuai permintaan excel_export.py (Arah, Kec, Vis, Wx, AwanJml, AwanTgi)
+    el_arah = SmartElement(arah, w_str, full_dict)
+    el_kec  = SmartElement(kec, w_str, full_dict)
+    el_vis  = SmartElement(vis_val, vis_val, full_dict)
+    el_wx   = SmartElement(wx_val, wx_val, full_dict)
+    el_aj   = SmartElement(amt, cloud_val, full_dict)
+    el_at   = SmartElement(hgt if hgt is not None else "", cloud_val, full_dict)
         
-    return SmartWindObject([el0, el1, el2, el3], full_dict)
-
+    # SmartWindObject akan memfasilitasi unpacking 6 variabel dengan aman
+    return SmartWindObject([el_arah, el_kec, el_vis, el_wx, el_aj, el_at], full_dict)
 
 # ==============================================================================
 # 3. INTERFACE JEMBATAN UNTUK DATA FRAME DASHBOARD
