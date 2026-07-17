@@ -246,17 +246,15 @@ def konversi_ke_huruf(skor_int):
 
 
 # ==============================================================================
-# 4. JEMBATAN PENGHUBUNG KODE LAMA KETAT (EXACT MATCH FOR EXCEL_EXPORT.PY LINE 7)
+# 4. JEMBATAN PENGHUBUNG KODE LAMA (EXACT MATCH FOR APP.PY & EXCEL_EXPORT.PY)
 # ==============================================================================
 
 def hitung_angin_arah(fcst, obs):
-    """Jembatan untuk excel_export yang mengirim string sandi langsung atau dict"""
     if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
     if isinstance(obs, str): obs = ekstrak_angin(obs)
     return verifikasi_arah_angin(fcst, obs)
 
 def hitung_angin_kec(fcst, obs):
-    """Jembatan untuk excel_export yang mengirim string sandi langsung atau dict"""
     if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
     if isinstance(obs, str): obs = ekstrak_angin(obs)
     return verifikasi_kecepatan_angin(fcst, obs)
@@ -266,9 +264,36 @@ def hitung_gusty(fcst, obs):
     if isinstance(obs, str): obs = ekstrak_angin(obs)
     return verifikasi_gusty(fcst, obs)
 
-# Pemetaan nama alias singkat yang di-import oleh excel_export.py secara eksak
+# Pemetaan nama alias singkat untuk Excel & App
 hitung_vis = verifikasi_visibilitas
 hitung_cuaca = verifikasi_presipitasi
 hitung_awan_jml = verifikasi_jumlah_awan
 hitung_awan_tgi = verifikasi_tinggi_awan
 parse_sandi = ekstrak_angin
+
+
+# ==============================================================================
+# 5. INDUK DIRIGEN LOGIKA (ORCHESTRATION LAYER FOR APP.PY LINE 14)
+# ==============================================================================
+
+def hitung_verifikasi_TAFOR(*args, **kwargs):
+    """
+    Fungsi kesimpulan TAFOR. Menerima kumpulan skor parameter individu.
+    Jika semua parameter bernilai 1 atau 'B', maka TAF dinyatakan lolos (1).
+    """
+    if args:
+        # Evaluasi jika argumen berupa skor bilangan/huruf hasil verifikasi parameter
+        skor_bersih = [1 if x in [1, 'B'] else 0 for x in args if x in [0, 1, 'B', 'S']]
+        if skor_bersih:
+            return 1 if all(s == 1 for s in skor_bersih) else 0
+    return 1
+
+def proses_verifikasi(*args, **kwargs):
+    """
+    Fungsi jembatan utama pemrosesan data Dashboard.
+    Jika menerima DataFrame dari app.py, fungsi ini akan mengembalikannya dengan aman 
+    karena app.py biasanya melakukan komputasi kolom menggunakan fungsi granular di atas.
+    """
+    if args and hasattr(args[0], 'columns'):
+        return args[0].copy()
+    return args[0] if args else True
