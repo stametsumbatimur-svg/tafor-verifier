@@ -377,7 +377,12 @@ def buat_tabel_laporan_excel(df_input):
     taf_harian = {}
     for row in df_work:
         if row['Sandi TAF Prakiraan'] == "-": continue
-        dt_val = datetime.strptime(row['Waktu Aktual (UTC)'], '%Y-%m-%d %H:%M:%S')
+        # Menyesuaikan jika Waktu Aktual sudah berbentuk string atau objek datetime
+        if isinstance(row['Waktu Aktual (UTC)'], str):
+            dt_val = datetime.strptime(row['Waktu Aktual (UTC)'], '%Y-%m-%d %H:%M:%S')
+        else:
+            dt_val = row['Waktu Aktual (UTC)']
+            
         key_hari = dt_val.strftime('%Y-%m-%d')
         sandi = row['Sandi TAF Prakiraan']
         
@@ -392,6 +397,7 @@ def buat_tabel_laporan_excel(df_input):
             list_rows.sort(key=lambda x: x[0]) 
             baris_m_base = list_rows[0][1]
             
+            # Asumsi RE_PARTS, parse_sandi, dan evaluasi_sandi_tunggal sudah ada di file ini
             parts = RE_PARTS.split(str(taf_sandi))
             b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
             cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
