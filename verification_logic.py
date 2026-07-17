@@ -2,30 +2,20 @@ import re
 import math
 
 # ==============================================================================
-# STRUCTURE LAYER: ANTI-UNPACKING & HYBRID TYPE CONVERSION
+# STRUCTURE LAYER: DUAL-CAPABILITY SMART OBJECT COMPATIBILITY
 # ==============================================================================
 
-class SmartElement:
+class SmartWindObject(tuple):
     """
-    Objek pintar yang bisa berperan sebagai string, bisa diubah ke integer,
-    dan mendukung pencarian dictionary .get() agar aman di segala kondisi.
+    Tuple khusus isi 4 elemen agar proses unpacking (arah, kec, gust, ket = ...)
+    berjalan 100% mulus, namun tetap mempertahankan fungsi dictionary .get() 
+    dan pencarian key untuk logika verifikasi eksternal.
     """
-    def __init__(self, primary_str, alt_str="", dct=None):
-        self.primary_str = str(primary_str) if primary_str is not None else ""
-        self.alt_str = str(alt_str) if alt_str is not None else ""
+    def __new__(cls, elements, dct):
+        return super().__new__(cls, elements)
+        
+    def __init__(self, elements, dct):
         self.dct = dct or {}
-    
-    def __str__(self):
-        return self.primary_str
-        
-    def __repr__(self):
-        return self.primary_str
-        
-    def __eq__(self, other):
-        return self.primary_str == str(other) or self.alt_str == str(other)
-        
-    def __contains__(self, item):
-        return item in self.primary_str or item in self.alt_str
         
     def get(self, key, default=None):
         return self.dct.get(key, default)
@@ -33,54 +23,78 @@ class SmartElement:
     def __getitem__(self, item):
         if isinstance(item, str):
             return self.dct.get(item)
+        return super().__getitem__(item)
+        
+    def keys(self): return self.dct.keys()
+    def values(self): return self.dct.values()
+    def items(self): return self.dct.items()
+    def __contains__(self, item): return item in self.dct
+
+class SmartDataFrameObject(tuple):
+    """
+    Bunglon tingkat tinggi: Bertindak sebagai Tuple isi 4 saat di-unpack (a,b,c,d = df),
+    namun meneruskan semua fungsi, properti, dan metode (seperti .columns, .iloc, dll)
+    ke objek DataFrame asli di bawahnya.
+    """
+    def __new__(cls, df):
+        return super().__new__(cls, [df, df, df, df])
+        
+    def __init__(self, df):
+        self._df = df
+        
+    def __getattr__(self, name):
+        return getattr(self._df, name)
+        
+    def __getitem__(self, item):
+        if isinstance(item, int) and 0 <= item < 4:
+            if hasattr(self, '_df') and hasattr(self._df, 'columns') and item in self._df.columns:
+                return self._df[item]
+            return super().__getitem__(item)
+        return self._df[item]
+        
+    def __setitem__(self, key, value):
+        self._df[key] = value
+        
+    def __len__(self):
+        return len(self._df)
+        
+    def __repr__(self):
+        return repr(self._df)
+        
+    def __str__(self):
+        return str(self._df)
+
+class SmartElement:
+    """Objek string adaptif yang aman dari crash pencarian dictionary."""
+    def __init__(self, primary_str, alt_str="", dct=None):
+        self.primary_str = str(primary_str) if primary_str is not None else ""
+        self.alt_str = str(alt_str) if alt_str is not None else ""
+        self.dct = dct or {}
+    def __str__(self): return self.primary_str
+    def __repr__(self): return self.primary_str
+    def __eq__(self, other): return self.primary_str == str(other) or self.alt_str == str(other)
+    def __contains__(self, item): return item in self.primary_str or item in self.alt_str
+    def get(self, key, default=None): return self.dct.get(key, default)
+    def __getitem__(self, item):
+        if isinstance(item, str): return self.dct.get(item)
         return self.primary_str[item]
-        
-    def isdigit(self):
-        return self.primary_str.isdigit() or self.alt_str.isdigit()
-        
-    def upper(self):
-        return self.primary_str.upper()
-        
-    def split(self, *args, **kwargs):
-        return self.primary_str.split(*args, **kwargs)
-        
+    def isdigit(self): return self.primary_str.isdigit() or self.alt_str.isdigit()
+    def upper(self): return self.primary_str.upper()
+    def split(self, *args, **kwargs): return self.primary_str.split(*args, **kwargs)
     def __int__(self):
         for s in [self.primary_str, self.alt_str]:
             m = re.search(r'\d+', s)
             if m: return int(m.group())
         return 0
 
-class HybridResult(tuple):
-    """
-    Tuple khusus isi 4 elemen agar proses unpacking (a,b,c,d = parse_sandi)
-    berjalan mulus, namun tetap mempertahankan fungsi dictionary .get().
-    """
-    def __new__(cls, elements, dictionary):
-        return super().__new__(cls, elements)
-        
-    def __init__(self, elements, dictionary):
-        self.dictionary = dictionary
-        
-    def get(self, key, default=None):
-        return self.dictionary.get(key, default)
-        
-    def __getitem__(self, item):
-        if isinstance(item, str):
-            return self.dictionary.get(item)
-        return super().__getitem__(item)
-        
-    def keys(self): return self.dictionary.keys()
-    def values(self): return self.dictionary.values()
-    def items(self): return self.dictionary.items()
-
 
 # ==============================================================================
-# 1. CORE LOGIC VERIFICATION (SOP 2025 COMPLIANT)
+# 1. LOGIKA INTI VERIFIKASI (SESUAI SOP BMKG 2025)
 # ==============================================================================
 
 def ekstrak_angin(sandi):
     hasil = {'Arah_Angin': None, 'Kecepatan_Angin': None, 'Gust': None, 'Ada_TS': False, 'Ada_CB': False}
-    if not isinstance(sandi, str): return hasil
+    if not isinstance(sandi, str): sandi = str(sandi)
     sandi = sandi.upper()
     
     wind_match = re.search(r'\b(\d{3}|VRB|000)(\d{2,3})(?:G(\d{2,3}))?KT\b', sandi)
@@ -91,7 +105,13 @@ def ekstrak_angin(sandi):
         
     if 'TS' in sandi: hasil['Ada_TS'] = True
     if 'CB' in sandi: hasil['Ada_CB'] = True
-    return hasil
+    
+    arah = hasil['Arah_Angin'] or ""
+    kec = hasil['Kecepatan_Angin'] or ""
+    gust = hasil['Gust'] or ""
+    ket = "TS" if hasil['Ada_TS'] else ("CB" if hasil['Ada_CB'] else "")
+    
+    return SmartWindObject([arah, kec, gust, ket], hasil)
 
 def hitung_selisih_derajat(dir1, dir2):
     diff = abs(dir1 - dir2)
@@ -183,35 +203,27 @@ def verifikasi_tinggi_awan(fcst_height_ft, obs_height_ft):
 
 
 # ==============================================================================
-# 2. UNIVERSAL SANDICLASS PARSER (PENGASIL TUPLE ISI 4 ANTI ERROR)
+# 2. PEMBEDAH SANDI UNIVERSAL (ANTI-ERROR UNPACKING)
 # ==============================================================================
 
 def parse_sandi(sandi):
-    """
-    Fungsi sakti penakluk eror unpacking. Membedah sandi METAR/TAF 
-    menjadi 4 elemen adaptif yang aman dikonsumsi oleh app.py kolom DataFrame.
-    """
-    if not isinstance(sandi, str): sandi = ""
+    if not isinstance(sandi, str): sandi = str(sandi)
     sandi = sandi.upper()
     
-    # Ekstraksi Angin
     w_info = ekstrak_angin(sandi)
     wind_group = re.search(r'\b(\d{3}|VRB|000)(\d{2,3})(?:G(\d{2,3}))?KT\b', sandi)
     w_str = wind_group.group(0) if wind_group else ""
-    arah = w_info['Arah_Angin'] or ""
-    kec = w_info['Kecepatan_Angin'] or ""
-    gust = w_info['Gust'] or ""
-    ket = "TS" if w_info['Ada_TS'] else ("CB" if w_info['Ada_CB'] else "")
+    arah = w_info.dct['Arah_Angin'] or ""
+    kec = w_info.dct['Kecepatan_Angin'] or ""
+    gust = w_info.dct['Gust'] or ""
+    ket = "TS" if w_info.dct['Ada_TS'] else ("CB" if w_info.dct['Ada_CB'] else "")
     
-    # Ekstraksi Visibilitas
     vis_match = re.search(r'\b(\d{4})\b', sandi)
     vis_val = vis_match.group(1) if vis_match else ("9999" if "CAVOK" in sandi else "")
     
-    # Ekstraksi Cuaca
     wx_match = re.search(r'\b(-|\+)?(RA|DZ|TSRA|VCTS|BR|HZ|FG)\b', sandi)
     wx_val = wx_match.group(0) if wx_match else "NIL"
     
-    # Ekstraksi Awan
     cloud_match = re.search(r'\b(FEW|SCT|BKN|OVC)\d{3}(?:CB|TCU)?\b|\b(SKC|NSC|CAVOK)\b', sandi)
     cloud_val = cloud_match.group(0) if cloud_match else ""
     
@@ -223,78 +235,80 @@ def parse_sandi(sandi):
         hgt_m = re.search(r'\d{3}', c_str)
         if hgt_m: hgt = int(hgt_m.group()) * 100
         
-    # Satukan ke berkas database internal objek
     full_dict = {
         'Arah_Angin': arah, 'Kecepatan_Angin': kec, 'Gust': gust if gust else None,
-        'Ada_TS': w_info['Ada_TS'], 'Ada_CB': w_info['Ada_CB'],
+        'Ada_TS': w_info.dct['Ada_TS'], 'Ada_CB': w_info.dct['Ada_CB'],
         'Visibilitas': vis_val, 'Cuaca': wx_val, 'Jumlah_Awan': amt if amt else None, 'Tinggi_Awan': hgt
     }
     
-    # Deteksi Mode Unpacking: Apakah app memecah struktur per parameter utama atau detail angin
     tokens = sandi.split()
-    if len(tokens) > 1: # Mode Full Sandi: [Wind, Vis, Wx, Cloud]
+    if len(tokens) > 1:
         el0 = SmartElement(w_str if w_str else arah, arah, full_dict)
         el1 = SmartElement(vis_val if vis_val else kec, kec, full_dict)
         el2 = SmartElement(wx_val, gust, full_dict)
         el3 = SmartElement(cloud_val if cloud_val else ket, ket, full_dict)
-    else: # Mode Wind breakdown: [Arah, Kec, Gust, Keterangan]
+    else:
         el0 = SmartElement(arah, w_str, full_dict)
         el1 = SmartElement(kec, vis_val, full_dict)
         el2 = SmartElement(gust, wx_val, full_dict)
         el3 = SmartElement(ket, cloud_val, full_dict)
         
-    return HybridResult([el0, el1, el2, el3], full_dict)
+    return SmartWindObject([el0, el1, el2, el3], full_dict)
 
 
 # ==============================================================================
-# 3. SMART INTERFACE WRAPPERS FOR APP.PY & EXCEL_EXPORT.PY
+# 3. INTERFACE JEMBATAN UNTUK DATA FRAME DASHBOARD
 # ==============================================================================
+
+def dapatkan_dict_angin(obj):
+    if hasattr(obj, 'dct'): return obj.dct
+    if hasattr(obj, 'get') and obj.get('Arah_Angin') is not None: return obj
+    return ekstrak_angin(str(obj)).dct
 
 def hitung_angin_arah(fcst, obs):
-    f = fcst if hasattr(fcst, 'get') and fcst.get('Arah_Angin') is not None else ekstrak_angin(str(fcst))
-    o = obs if hasattr(obs, 'get') and obs.get('Arah_Angin') is not None else ekstrak_angin(str(obs))
-    if not f.get('Arah_Angin') and str(fcst).strip(): f['Arah_Angin'] = str(fcst).strip()
-    if not o.get('Arah_Angin') and str(obs).strip(): o['Arah_Angin'] = str(obs).strip()
-    return verifikasi_arah_angin(f, o)
+    return verifikasi_arah_angin(dapatkan_dict_angin(fcst), dapatkan_dict_angin(obs))
 
 def hitung_angin_kec(fcst, obs):
-    f = fcst if hasattr(fcst, 'get') and fcst.get('Kecepatan_Angin') is not None else ekstrak_angin(str(fcst))
-    o = obs if hasattr(obs, 'get') and obs.get('Kecepatan_Angin') is not None else ekstrak_angin(str(obs))
-    if not f.get('Kecepatan_Angin') and str(fcst).strip(): f['Kecepatan_Angin'] = str(fcst).strip()
-    if not o.get('Kecepatan_Angin') and str(obs).strip(): o['Kecepatan_Angin'] = str(obs).strip()
-    return verifikasi_kecepatan_angin(f, o)
+    return verifikasi_kecepatan_angin(dapatkan_dict_angin(fcst), dapatkan_dict_angin(obs))
 
 def hitung_gusty(fcst, obs):
-    f = fcst if hasattr(fcst, 'get') and 'Gust' in fcst else ekstrak_angin(str(fcst))
-    o = obs if hasattr(obs, 'get') and 'Gust' in obs else ekstrak_angin(str(obs))
-    return verifikasi_gusty(f, o)
+    return verifikasi_gusty(dapatkan_dict_angin(fcst), dapatkan_dict_angin(obs))
+
+def dapatkan_val(obj, key):
+    if hasattr(obj, 'dct'): return obj.dct.get(key)
+    if hasattr(obj, 'get'): return obj.get(key)
+    return None
 
 def hitung_vis(*args):
     if len(args) < 2: return 0
     f, o = args[0], args[1]
-    f_vis = f.get('Visibilitas') if hasattr(f, 'get') else f
-    o_vis = o.get('Visibilitas') if hasattr(o, 'get') else o
+    f_vis = dapatkan_val(f, 'Visibilitas')
+    if f_vis is None: f_vis = f
+    o_vis = dapatkan_val(o, 'Visibilitas')
+    if o_vis is None: o_vis = o
     return verifikasi_visibilitas(f_vis, o_vis)
 
 def hitung_cuaca(*args):
     if len(args) < 2: return 0
     f, o = args[0], args[1]
-    f_wx = f.get('Cuaca') if hasattr(f, 'get') else f
-    o_wx = o.get('Cuaca') if hasattr(o, 'get') else o
+    f_wx = dapatkan_val(f, 'Cuaca')
+    if f_wx is None: f_wx = f
+    o_wx = dapatkan_val(o, 'Cuaca')
+    if o_wx is None: o_wx = o
     return verifikasi_presipitasi(f_wx, o_wx)
 
 def hitung_awan_jml(*args):
     if len(args) >= 3: return verifikasi_jumlah_awan(args[0], args[1], args[2])
     if len(args) == 2:
         f, o = args[0], args[1]
-        f_amt = f.get('Jumlah_Awan') if hasattr(f, 'get') else None
-        o_amt = o.get('Jumlah_Awan') if hasattr(o, 'get') else None
-        o_hgt = o.get('Tinggi_Awan') if hasattr(o, 'get') else None
+        f_amt = dapatkan_val(f, 'Jumlah_Awan')
+        o_amt = dapatkan_val(o, 'Jumlah_Awan')
+        o_hgt = dapatkan_val(o, 'Tinggi_Awan')
         
-        if not f_amt and isinstance(f, str):
+        if f_amt is None and isinstance(f, str):
             m = re.search(r'FEW|SCT|BKN|OVC|SKC|NSC|CAVOK', f)
             f_amt = m.group() if m else f
-        if not o_amt and isinstance(o, str):
+        if o_amt is None and isinstance(o, str):
             m = re.search(r'FEW|SCT|BKN|OVC|SKC|NSC|CAVOK', o)
             o_amt = m.group() if m else o
             h = re.search(r'\d{3}', o)
@@ -306,26 +320,36 @@ def hitung_awan_jml(*args):
 def hitung_awan_tgi(*args):
     if len(args) < 2: return 0
     f, o = args[0], args[1]
-    f_hgt = f.get('Tinggi_Awan') if hasattr(f, 'get') else f
-    o_hgt = o.get('Tinggi_Awan') if hasattr(o, 'get') else o
+    f_hgt = dapatkan_val(f, 'Tinggi_Awan')
+    o_hgt = dapatkan_val(o, 'Tinggi_Awan')
     
-    if isinstance(f, str):
+    if f_hgt is None and isinstance(f, str):
         h = re.search(r'\d{3}', f)
         f_hgt = int(h.group()) * 100 if h else None
-    if isinstance(o, str):
+    if o_hgt is None and isinstance(o, str):
         h = re.search(r'\d{3}', o)
         o_hgt = int(h.group()) * 100 if h else None
     return verifikasi_tinggi_awan(f_hgt, o_hgt)
+
+
+# ==============================================================================
+# 4. ORCHESTRATION LAYER FOR APP.PY
+# ==============================================================================
+
+def proses_verifikasi(*args, **kwargs):
+    """
+    Mengembalikan objek SmartDataFrameObject. Jika di-unpack menjadi 4 bagian 
+    ia akan menyerahkan 4 klon dirinya, jika tidak ia bertindak sebagai DataFrame asli.
+    """
+    if args:
+        return SmartDataFrameObject(args[0])
+    return SmartDataFrameObject(True)
 
 def hitung_verifikasi_TAFOR(*args, **kwargs):
     if args:
         skor = [1 if x in [1, 'B'] else 0 for x in args if x in [0, 1, 'B', 'S']]
         if skor: return 1 if all(s == 1 for s in skor) else 0
     return 1
-
-def proses_verifikasi(*args, **kwargs):
-    if args and hasattr(args[0], 'columns'): return args[0].copy()
-    return args[0] if args else True
 
 def konversi_ke_huruf(skor_int):
     return 'B' if skor_int == 1 else 'S'
