@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 def ekstrak_param_metar_speci(sandi_teks):
     if pd.isna(sandi_teks) or sandi_teks == "-":
-        return "-", "-", "-", "-", "-", "-"
+        return "-", "-", "-", "-", "-", "-", False
     sandi = str(sandi_teks).strip()
     sandi_cleaned = re.sub(r'\b\d{4}/\d{4}\b', '', sandi)
     
@@ -46,7 +46,10 @@ def ekstrak_param_metar_speci(sandi_teks):
             awan_jml = terendah[0]
             awan_tgi = str(int(terendah[1]) * 100)
             
-    return arah_wind, kec_wind, vis, wx, awan_jml, awan_tgi
+    # SIVETA LOGIC: Deteksi TS atau CB pada observasi
+    has_ts_cb = 'TS' in sandi_cleaned or 'CB' in sandi_cleaned
+            
+    return arah_wind, kec_wind, vis, wx, awan_jml, awan_tgi, has_ts_cb
 
 def parse_sandi(grup_teks):
     if not grup_teks or grup_teks.strip() == "":
@@ -85,36 +88,48 @@ def parse_sandi(grup_teks):
             aw_jml = terendah[0]
             aw_tgi = str(int(terendah[1]) * 100)
             
-    # Hasilkan tepat 6 nilai untuk mencegah ValueError saat unpacking
     return arah, kec, vis, wx, aw_jml, aw_tgi
 
 # =========================================================================
-# 2. EVALUASI AKURASI PARAMETER (SOP BMKG 2025)
+# 2. EVALUASI AKURASI PARAMETER (LOGIKA SIVETA)
 # =========================================================================
 
-def hitung_angin_arah(m_dir, t_dir, m_kec="-", t_kec="-"):
+def hitung_angin_arah(m_dir, t_dir, m_kec="-", t_kec="-", m_ts_cb=False):
     m_str, t_str = str(m_dir).strip().upper(), str(t_dir).strip().upper()
     
-    m_spd = int(m_kec.split('G')[0]) if 'G' in str(m_kec) and str(m_kec) != "-" else (int(m_kec) if str(m_kec).isdigit() else 0)
-    t_spd = int(t_kec.split('G')[0]) if 'G' in str(t_kec) and str(t_kec) != "-" else (int(t_kec) if str(t_kec).isdigit() else 0)
+    m_spd = int(str(m_kec).split('G')[0]) if 'G' in str(m_kec) and str(m_kec) != "-" else (int(m_kec) if str(m_kec).isdigit() else 0)
+    t_spd = int(str(t_kec).split('G')[0]) if 'G' in str(t_kec) and str(t_kec) != "-" else (int(t_kec) if str(t_kec).isdigit() else 0)
 
+    # 1. Sama persis
     if m_str == t_str: return (m_str, "B")
+    
+    # 2. VRB di Forecast & VRB di Pengamatan
     if m_str in ["VRB", "///"] and t_str in ["VRB", "///"]: return (m_str, "B")
     
-    # Toleransi kecepatan < 10 Knot otomatis arahnya benar
+    # 3. SIVETA LOGIC: Forecast VRB, Pengamatan ada TS / CB
+    if t_str == "VRB" and m_ts_cb: return (m_str, "B")
+    
+    # 4. SIVETA LOGIC: Forecast VRB, Pengamatan Kec < 10 knot
+    if t_str == "VRB" and m_spd < 10: return (m_str, "B")
+    
+    # 5. Kecepatan angin pengamatan & forecast keduanya < 10 knot (arah bebas)
     if m_spd < 10 and t_spd < 10: return (m_str, "B")
-    if m_str == "VRB" and t_spd < 10: return (m_str, "B")
         
     try:
         m, t = int(m_str), int(t_str)
         diff = abs(m - t)
         diff = diff if diff <= 180 else 360 - diff
-        return (m_str, "B") if diff <= 60 else (m_str, "S")
+        
+        # 6. SIVETA LOGIC: Selisih <= 60 ATAU (Selisih > 60 tetapi Kec Aktual < 10)
+        if diff <= 60 or (diff > 60 and m_spd < 10):
+            return (m_str, "B")
+        else:
+            return (m_str, "S")
     except:
         return (m_str, "S")
 
 def hitung_angin_kec(m_kec, t_kec):
-    if m_kec == "-" or t_kec == "-": return "-", "NIL"
+    if m_kec == "-" or t_kec == "-" or m_kec == "NIL" or t_kec == "NIL": return "-", "NIL"
     try:
         m_base = int(m_kec.split('G')[0]) if 'G' in m_kec else int(m_kec)
         t_base = int(t_kec.split('G')[0]) if 'G' in t_kec else int(t_kec)
@@ -122,7 +137,7 @@ def hitung_angin_kec(m_kec, t_kec):
         t_gust = int(t_kec.split('G')[1]) if 'G' in t_kec else 0
         
         diff_base = abs(m_base - t_base)
-        stat_base = "B" if diff_base <= 10 else "S" # SOP 2025: Toleransi 10 Knot
+        stat_base = "B" if diff_base <= 10 else "S"
         
         has_m_gust, has_t_gust = m_gust > 0, t_gust > 0
         if has_m_gust != has_t_gust:
@@ -182,7 +197,10 @@ def hitung_awan_tgi(m_tgi, t_tgi):
 # =========================================================================
 
 def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle=None, is_grup_prob=False, is_grup_tempo=False, is_grup_becmg_trans=False):
-    _, s_ar = hitung_angin_arah(m_obs_data['M_Arah'], t_ar, m_obs_data['M_Kec'], t_ke)
+    # Parameter m_ts_cb dikirim ke hitung_angin_arah
+    has_ts_cb = m_obs_data.get('M_TS_CB', False)
+    
+    _, s_ar = hitung_angin_arah(m_obs_data['M_Arah'], t_ar, m_obs_data['M_Kec'], t_ke, has_ts_cb)
     _, s_ke = hitung_angin_kec(m_obs_data['M_Kec'], t_ke)
     _, s_vi = hitung_vis(m_obs_data['M_Vis'], t_vi)
     _, s_wx = hitung_cuaca(m_obs_data['M_Wx'], t_wx)
@@ -190,7 +208,7 @@ def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_
     _, s_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], t_at)
     
     if (is_grup_prob or is_grup_tempo or is_grup_becmg_trans) and base_bundle is not None:
-        _, b_ar = hitung_angin_arah(m_obs_data['M_Arah'], base_bundle[0], m_obs_data['M_Kec'], base_bundle[1])
+        _, b_ar = hitung_angin_arah(m_obs_data['M_Arah'], base_bundle[0], m_obs_data['M_Kec'], base_bundle[1], has_ts_cb)
         _, b_ke = hitung_angin_kec(m_obs_data['M_Kec'], base_bundle[1])
         _, b_vi = hitung_vis(m_obs_data['M_Vis'], base_bundle[2])
         _, b_wx = hitung_cuaca(m_obs_data['M_Wx'], base_bundle[3])
@@ -226,7 +244,6 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
     baris_analisis_final = []
     baris_speci_final = []
     
-    # 🟢 [PRA-PENGURUS RAM]: Kelompokkan data SPECI ke dalam Kamar Python berdasarkan Tanggal
     speci_dict = {}
     for _, row in df_speci.iterrows():
         if pd.notna(row['dt_obj']):
@@ -239,11 +256,12 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         tgl_jam_aktual = metar_row['dt_obj']
         teks_metar = metar_row[col_teks]
         m_stasiun = metar_row['cccc'] if 'cccc' in df_metar.columns else "WATU"
-        m_ar, m_ke, m_vi, m_wx, m_aj, m_at = ekstrak_param_metar_speci(teks_metar)
+        
+        # Ekstrak 7 Variabel (SIVETA)
+        m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(teks_metar)
         
         taf_aktif = "-"
         
-        # ⚙️ LOGIKA BARU: Filter TAF Berdasarkan "Valid Start Time" & Status AMD/COR
         taf_kandidat = df_taf[df_taf['dt_obj'] <= tgl_jam_aktual]
         if not taf_kandidat.empty:
             valid_tafs = []
@@ -251,32 +269,27 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                 t_teks = str(tr[col_teks])
                 t_issue = tr['dt_obj']
                 
-                # Ekstrak waktu mulai berlaku (ddhh) setelah jam pembuatan Z
                 v_match = re.search(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}', t_teks)
                 if v_match:
                     v_tgl, v_jam = int(v_match.group(1)), int(v_match.group(2))
-                    # Rakit ulang menjadi datetime (menggunakan bulan METAR aktual)
                     try:
                         v_dt = tgl_jam_aktual.replace(day=v_tgl, hour=v_jam, minute=0, second=0)
                     except ValueError:
-                        v_dt = t_issue # Fallback anti-crash jika beda bulan
+                        v_dt = t_issue
                         
-                    # Syarat Mutlak: Waktu Mulai Berlaku HARUS sudah terlewati/sama dengan METAR
-                    if v_dt <= tgl_jam_aktual:
-                        # Poin prioritas ekstra jika itu adalah AMD atau COR
+                    # SIVETA LOGIC (POIN 3): TAF Hanya valid pada radius 12 Jam Pertama
+                    if v_dt <= tgl_jam_aktual < v_dt + timedelta(hours=12):
                         poin_prioritas = 1 if re.search(r'\b(AMD|COR)\b', t_teks) else 0
                         valid_tafs.append((v_dt, t_issue, poin_prioritas, t_teks))
                 else:
                     valid_tafs.append((t_issue, t_issue, 0, t_teks))
                     
             if valid_tafs:
-                # Urutkan berdasarkan: 1. Waktu Berlaku Terdekat, 2. Issue Time Terdekat, 3. Ada AMD/COR
                 valid_tafs.sort(key=lambda x: (x[0], x[1], x[2]))
-                taf_aktif = valid_tafs[-1][3] # Comot yang posisinya paling menang (paling ujung)
+                taf_aktif = valid_tafs[-1][3] 
                 
         if taf_aktif == "-": continue
             
-        # 🟢 [PROSES KILAT]: Ambil kandidat SPECI hari ini & besok dari Kamar
         tgl_curr = tgl_jam_aktual.date()
         kandidat_speci = speci_dict.get(tgl_curr, []) + speci_dict.get(tgl_curr + timedelta(days=1), [])
         
@@ -318,7 +331,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                         is_grup_becmg_trans = True
                         cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
                         
-        m_obs_data = {'M_Arah': m_ar, 'M_Kec': m_ke, 'M_Vis': m_vi, 'M_Wx': m_wx, 'M_AwanJml': m_aj, 'M_AwanTgi': m_at}
+        m_obs_data = {'M_Arah': m_ar, 'M_Kec': m_ke, 'M_Vis': m_vi, 'M_Wx': m_wx, 'M_AwanJml': m_aj, 'M_AwanTgi': m_at, 'M_TS_CB': m_ts_cb}
         base_bundle = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
         
         status_jam_ini, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(
@@ -336,8 +349,8 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
         if speci_terkait:
             for speci_row in speci_terkait:
-                sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at = ekstrak_param_metar_speci(speci_row[col_teks])
-                sp_obs_data = {'M_Arah': sp_ar, 'M_Kec': sp_ke, 'M_Vis': sp_vi, 'M_Wx': sp_wx, 'M_AwanJml': sp_aj, 'M_AwanTgi': sp_at}
+                sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at, sp_ts_cb = ekstrak_param_metar_speci(speci_row[col_teks])
+                sp_obs_data = {'M_Arah': sp_ar, 'M_Kec': sp_ke, 'M_Vis': sp_vi, 'M_Wx': sp_wx, 'M_AwanJml': sp_aj, 'M_AwanTgi': sp_at, 'M_TS_CB': sp_ts_cb}
                 status_speci, sp_s_ar, sp_s_ke, sp_s_vi, sp_s_wx, sp_s_aj, sp_s_at = evaluasi_sandi_tunggal(
                     sp_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
                 )
@@ -410,7 +423,7 @@ def hitung_verifikasi_TAFOR(df_input):
                 b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
                 cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
                 
-                m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi']}
+                m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 'M_TS_CB': False}
                 _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
                 
                 for k, stat in zip(['A','B','C','D','E','F'], [s_ar, s_ke, s_vi, s_wx, s_aj, s_at]):
@@ -432,7 +445,7 @@ def hitung_verifikasi_TAFOR(df_input):
                     if t_aj == "-": t_aj = cur_aj
                     if t_at == "-": t_at = cur_at
                     
-                    m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi']}
+                    m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi'], 'M_TS_CB': False}
                     
                     _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = evaluasi_sandi_tunggal(
                         m_obs_trend, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, 
