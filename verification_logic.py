@@ -1,355 +1,417 @@
+import pandas as pd
+import numpy as np
 import re
 import math
+import sqlite3
+from datetime import datetime, timedelta
 
-# ==============================================================================
-# STRUCTURE LAYER: DUAL-CAPABILITY SMART OBJECT COMPATIBILITY
-# ==============================================================================
+# =========================================================================
+# 1. ROBUST TEXT PARSER — KEBAL TEXT ADMINISTRATIVE (AUTO, COR, AMD)
+# =========================================================================
 
-class SmartWindObject(tuple):
-    """
-    Tuple khusus isi 4 elemen agar proses unpacking (arah, kec, gust, ket = ...)
-    berjalan 100% mulus, namun tetap mempertahankan fungsi dictionary .get() 
-    dan pencarian key untuk logika verifikasi eksternal.
-    """
-    def __new__(cls, elements, dct):
-        return super().__new__(cls, elements)
-        
-    def __init__(self, elements, dct):
-        self.dct = dct or {}
-        
-    def get(self, key, default=None):
-        return self.dct.get(key, default)
-        
-    def __getitem__(self, item):
-        if isinstance(item, str):
-            return self.dct.get(item)
-        return super().__getitem__(item)
-        
-    def keys(self): return self.dct.keys()
-    def values(self): return self.dct.values()
-    def items(self): return self.dct.items()
-    def __contains__(self, item): return item in self.dct
-
-class SmartDataFrameObject(tuple):
-    """
-    Bunglon tingkat tinggi: Bertindak sebagai Tuple isi 4 saat di-unpack (a,b,c,d = df),
-    namun meneruskan semua fungsi, properti, dan metode (seperti .columns, .iloc, dll)
-    ke objek DataFrame asli di bawahnya.
-    """
-    def __new__(cls, df):
-        return super().__new__(cls, [df, df, df, df])
-        
-    def __init__(self, df):
-        self._df = df
-        
-    def __getattr__(self, name):
-        return getattr(self._df, name)
-        
-    def __getitem__(self, item):
-        if isinstance(item, int) and 0 <= item < 4:
-            if hasattr(self, '_df') and hasattr(self._df, 'columns') and item in self._df.columns:
-                return self._df[item]
-            return super().__getitem__(item)
-        return self._df[item]
-        
-    def __setitem__(self, key, value):
-        self._df[key] = value
-        
-    def __len__(self):
-        return len(self._df)
-        
-    def __repr__(self):
-        return repr(self._df)
-        
-    def __str__(self):
-        return str(self._df)
-
-class SmartElement:
-    """Objek string adaptif yang aman dari crash pencarian dictionary."""
-    def __init__(self, primary_str, alt_str="", dct=None):
-        self.primary_str = str(primary_str) if primary_str is not None else ""
-        self.alt_str = str(alt_str) if alt_str is not None else ""
-        self.dct = dct or {}
-    def __str__(self): return self.primary_str
-    def __repr__(self): return self.primary_str
-    def __eq__(self, other): return self.primary_str == str(other) or self.alt_str == str(other)
-    def __contains__(self, item): return item in self.primary_str or item in self.alt_str
-    def get(self, key, default=None): return self.dct.get(key, default)
-    def __getitem__(self, item):
-        if isinstance(item, str): return self.dct.get(item)
-        return self.primary_str[item]
-    def isdigit(self): return self.primary_str.isdigit() or self.alt_str.isdigit()
-    def upper(self): return self.primary_str.upper()
-    def split(self, *args, **kwargs): return self.primary_str.split(*args, **kwargs)
-    def __int__(self):
-        for s in [self.primary_str, self.alt_str]:
-            m = re.search(r'\d+', s)
-            if m: return int(m.group())
-        return 0
-
-
-# ==============================================================================
-# 1. LOGIKA INTI VERIFIKASI (SESUAI SOP BMKG 2025)
-# ==============================================================================
-
-def ekstrak_angin(sandi):
-    hasil = {'Arah_Angin': None, 'Kecepatan_Angin': None, 'Gust': None, 'Ada_TS': False, 'Ada_CB': False}
-    if not isinstance(sandi, str): sandi = str(sandi)
-    sandi = sandi.upper()
+def ekstrak_param_metar_speci(sandi_teks):
+    if pd.isna(sandi_teks) or sandi_teks == "-":
+        return "-", "-", "-", "-", "-", "-"
+    sandi = str(sandi_teks).strip()
+    sandi_cleaned = re.sub(r'\b\d{4}/\d{4}\b', '', sandi)
     
-    wind_match = re.search(r'\b(\d{3}|VRB|000)(\d{2,3})(?:G(\d{2,3}))?KT\b', sandi)
+    arah_wind, kec_wind = "-", "-"
+    wind_match = re.search(r'\b(\d{3}|\/\/\/|VRB|000)(\d{2,3})(G\d{2,3})?KT\b', sandi_cleaned)
     if wind_match:
-        hasil['Arah_Angin'] = wind_match.group(1)
-        hasil['Kecepatan_Angin'] = wind_match.group(2)
-        hasil['Gust'] = wind_match.group(3)
+        arah_wind = wind_match.group(1)
+        if wind_match.group(3):
+            kec_wind = f"{int(wind_match.group(2))}G{int(wind_match.group(3)[1:])}"
+        else:
+            kec_wind = str(int(wind_match.group(2)))
         
-    if 'TS' in sandi: hasil['Ada_TS'] = True
-    if 'CB' in sandi: hasil['Ada_CB'] = True
+    vis = "-"
+    if "CAVOK" in sandi_cleaned: vis = "9999"
+    else:
+        vis_match = re.search(r'\b\d{4}\b', sandi_cleaned)
+        if vis_match: vis = vis_match.group(0)
+            
+    wx = "-"
+    if "CAVOK" in sandi_cleaned: wx = "-"
+    else:
+        wx_match = re.search(r'(?<![A-Z])[-+]?(?:MI|BC|PR|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS|TS)\b', sandi_cleaned)
+        if wx_match: wx = wx_match.group(0)
+            
+    awan_jml, awan_tgi = "-", "-"
+    if "CAVOK" in sandi_cleaned or "NSC" in sandi_cleaned or "NCD" in sandi_cleaned:
+        awan_jml, awan_tgi = "NSC", "0"
+    else:
+        cloud_matches = re.findall(r'\b(FEW|SCT|BKN|OVC)(\d{3,4})(?:CB|TCU)?\b', sandi_cleaned)
+        if cloud_matches:
+            terendah = min(cloud_matches, key=lambda x: int(x[1]))
+            awan_jml = terendah[0]
+            awan_tgi = str(int(terendah[1]) * 100)
+            
+    return arah_wind, kec_wind, vis, wx, awan_jml, awan_tgi
+
+def parse_sandi(grup_teks):
+    if not grup_teks or grup_teks.strip() == "":
+        return "-", "-", "-", "-", "-", "-"
+    sandi = str(grup_teks).strip()
+    sandi_cleaned = re.sub(r'\b\d{4}/\d{4}\b', '', sandi)
     
-    arah = hasil['Arah_Angin'] or ""
-    kec = hasil['Kecepatan_Angin'] or ""
-    gust = hasil['Gust'] or ""
-    ket = "TS" if hasil['Ada_TS'] else ("CB" if hasil['Ada_CB'] else "")
+    arah, kec = "-", "-"
+    w_match = re.search(r'\b(\d{3}|VRB|000)(\d{2,3})(G\d{2,3})?KT\b', sandi_cleaned)
+    if w_match:
+        arah = w_match.group(1)
+        if w_match.group(3):
+            kec = f"{int(w_match.group(2))}G{int(w_match.group(3)[1:])}"
+        else:
+            kec = str(int(w_match.group(2)))
+        
+    vis = "-"
+    if "CAVOK" in sandi_cleaned: vis = "9999"
+    else:
+        v_match = re.search(r'\b\d{4}\b', sandi_cleaned)
+        if v_match: vis = v_match.group(0)
+            
+    wx = "-"
+    if "CAVOK" in sandi_cleaned: wx = "-"
+    elif "NSW" in sandi_cleaned: wx = "-"
+    else:
+        wx_match = re.search(r'(?<![A-Z])[-+]?(?:MI|BC|PR|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS|TS)\b', sandi_cleaned)
+        if wx_match: wx = wx_match.group(0)
+            
+    aw_jml, aw_tgi = "-", "-"
+    if "CAVOK" in sandi_cleaned: aw_jml, aw_tgi = "NSC", "0"
+    else:
+        c_matches = re.findall(r'\b(FEW|SCT|BKN|OVC)(\d{3,4})\b', sandi_cleaned)
+        if c_matches:
+            terendah = min(c_matches, key=lambda x: int(x[1]))
+            aw_jml = terendah[0]
+            aw_tgi = str(int(terendah[1]) * 100)
+            
+    # Hasilkan tepat 6 nilai untuk mencegah ValueError saat unpacking
+    return arah, kec, vis, wx, aw_jml, aw_tgi
+
+# =========================================================================
+# 2. EVALUASI AKURASI PARAMETER (SOP BMKG 2025)
+# =========================================================================
+
+def hitung_angin_arah(m_dir, t_dir, m_kec="-", t_kec="-"):
+    m_str, t_str = str(m_dir).strip().upper(), str(t_dir).strip().upper()
     
-    return SmartWindObject([arah, kec, gust, ket], hasil)
+    m_spd = int(m_kec.split('G')[0]) if 'G' in str(m_kec) and str(m_kec) != "-" else (int(m_kec) if str(m_kec).isdigit() else 0)
+    t_spd = int(t_kec.split('G')[0]) if 'G' in str(t_kec) and str(t_kec) != "-" else (int(t_kec) if str(t_kec).isdigit() else 0)
 
-def hitung_selisih_derajat(dir1, dir2):
-    diff = abs(dir1 - dir2)
-    return diff if diff <= 180 else 360 - diff
-
-def verifikasi_arah_angin(fcst, obs):
-    f_dir = fcst.get('Arah_Angin')
-    f_spd = fcst.get('Kecepatan_Angin')
-    o_dir = obs.get('Arah_Angin')
-    o_spd = obs.get('Kecepatan_Angin')
+    if m_str == t_str: return (m_str, "B")
+    if m_str in ["VRB", "///"] and t_str in ["VRB", "///"]: return (m_str, "B")
     
-    if not f_dir or not o_dir: return 0
-    f_spd_val = int(f_spd) if f_spd and str(f_spd).isdigit() else 0
-    o_spd_val = int(o_spd) if o_spd and str(o_spd).isdigit() else 0
+    # Toleransi kecepatan < 10 Knot otomatis arahnya benar
+    if m_spd < 10 and t_spd < 10: return (m_str, "B")
+    if m_str == "VRB" and t_spd < 10: return (m_str, "B")
+        
+    try:
+        m, t = int(m_str), int(t_str)
+        diff = abs(m - t)
+        diff = diff if diff <= 180 else 360 - diff
+        return (m_str, "B") if diff <= 60 else (m_str, "S")
+    except:
+        return (m_str, "S")
 
-    if f_dir == 'VRB' and o_dir == 'VRB': return 1
-    if f_dir == 'VRB' and (obs.get('Ada_TS') or obs.get('Ada_CB')): return 1
-    if f_spd_val < 10 and o_spd_val < 10: return 1
-    if f_dir == 'VRB' and o_spd_val < 10: return 1
+def hitung_angin_kec(m_kec, t_kec):
+    if m_kec == "-" or t_kec == "-": return "-", "NIL"
+    try:
+        m_base = int(m_kec.split('G')[0]) if 'G' in m_kec else int(m_kec)
+        t_base = int(t_kec.split('G')[0]) if 'G' in t_kec else int(t_kec)
+        m_gust = int(m_kec.split('G')[1]) if 'G' in m_kec else 0
+        t_gust = int(t_kec.split('G')[1]) if 'G' in t_kec else 0
+        
+        diff_base = abs(m_base - t_base)
+        stat_base = "B" if diff_base <= 10 else "S" # SOP 2025: Toleransi 10 Knot
+        
+        has_m_gust, has_t_gust = m_gust > 0, t_gust > 0
+        if has_m_gust != has_t_gust:
+            return f"B:{diff_base}|G:{abs(m_gust-t_gust)}", "S"
+            
+        return str(diff_base), stat_base
+    except: return "-", "S"
 
-    if str(f_dir).isdigit() and str(o_dir).isdigit():
-        selisih = hitung_selisih_derajat(int(f_dir), int(o_dir))
-        if selisih <= 60: return 1
-        if selisih > 60 and o_spd_val < 10: return 1
-    return 0
-
-def verifikasi_kecepatan_angin(fcst, obs):
-    f_spd = fcst.get('Kecepatan_Angin')
-    o_spd = obs.get('Kecepatan_Angin')
-    if not f_spd or not o_spd: return 0
-    
-    f_spd_val = int(f_spd) if str(f_spd).isdigit() else 0
-    o_spd_val = int(o_spd) if str(o_spd).isdigit() else 0
-    return 1 if abs(f_spd_val - o_spd_val) <= 10 else 0
-
-def verifikasi_gusty(fcst, obs):
-    f_has_gust = fcst.get('Gust') is not None
-    o_has_gust = obs.get('Gust') is not None
-    return 1 if f_has_gust == o_has_gust else 0
-
-def klasifikasi_visibilitas(vis_val):
-    if vis_val is None: return -1
-    try: vis_val = int(vis_val)
-    except: return -1
-    if vis_val <= 799: return 1
-    elif 800 <= vis_val <= 1499: return 2
-    elif 1500 <= vis_val <= 2999: return 3
-    elif 3000 <= vis_val <= 5000: return 4
+def get_vis_class(vis_value):
+    if vis_value < 800: return 1
+    elif 800 <= vis_value < 1500: return 2
+    elif 1500 <= vis_value < 3000: return 3
+    elif 3000 <= vis_value < 5000: return 4
     else: return 5
 
-def verifikasi_visibilitas(fcst_vis, obs_vis):
-    if fcst_vis is None or obs_vis is None: return 0
-    kls_f = klasifikasi_visibilitas(fcst_vis)
-    kls_o = klasifikasi_visibilitas(obs_vis)
-    return 1 if kls_f == kls_o and kls_f != -1 else 0
+def hitung_vis(m_vis, t_vis):
+    try:
+        m, t = int(m_vis), int(t_vis)
+        return (m, "B") if get_vis_class(m) == get_vis_class(t) else (m, "S")
+    except:
+        return (None, "S")
 
-def cek_presipitasi_sedang_lebat(wx_string):
-    if not wx_string: return False
-    wx_string = str(wx_string).upper()
-    return True if 'RA' in wx_string and '-RA' not in wx_string else False
+def cek_presipitasi_sedang_lebat(wx_str):
+    if pd.isna(wx_str) or wx_str == "-": return False
+    wx_str = str(wx_str).upper()
+    return True if 'RA' in wx_str and '-RA' not in wx_str else False
 
-def verifikasi_presipitasi(fcst_wx, obs_wx):
-    f_heavy = cek_presipitasi_sedang_lebat(fcst_wx)
-    o_heavy = cek_presipitasi_sedang_lebat(obs_wx)
-    return 1 if f_heavy == o_heavy else 0
+def hitung_cuaca(m_wx, t_wx):
+    m_heavy = cek_presipitasi_sedang_lebat(m_wx)
+    t_heavy = cek_presipitasi_sedang_lebat(t_wx)
+    return "MATCH", ("B" if m_heavy == t_heavy else "S")
 
 def klasifikasi_jumlah_awan(amt_string):
-    if not amt_string: return 1
-    amt_string = str(amt_string).upper()
-    return 2 if amt_string in ['BKN', 'OVC'] else 1
+    if not amt_string or amt_string == "-": return 1
+    return 2 if str(amt_string).upper() in ['BKN', 'OVC'] else 1
 
-def verifikasi_jumlah_awan(fcst_amt, obs_amt, obs_height_ft):
-    if obs_height_ft is not None and obs_height_ft > 5000: return 1
-    return 1 if klasifikasi_jumlah_awan(fcst_amt) == klasifikasi_jumlah_awan(obs_amt) else 0
-
-def verifikasi_tinggi_awan(fcst_height_ft, obs_height_ft):
-    if fcst_height_ft is None and obs_height_ft is None: return 1
-    if fcst_height_ft is None or obs_height_ft is None: return 0
+def hitung_awan_jml(m_jml, t_jml, m_tgi):
+    if m_jml == "-" or t_jml == "-": return "-", "NIL"
     try:
-        f_h = int(fcst_height_ft)
-        o_h = int(obs_height_ft)
-    except:
-        return 0
-    selisih = abs(f_h - o_h)
-    if f_h < 1000:
-        return 1 if selisih <= 100 else 0
-    else:
-        return 1 if selisih <= (0.3 * f_h) else 0
+        if m_tgi != "-" and int(m_tgi) > 5000: return ">5000ft", "B"
+        km = klasifikasi_jumlah_awan(m_jml)
+        kt = klasifikasi_jumlah_awan(t_jml)
+        return f"K:{km}vs{kt}", ("B" if km == kt else "S")
+    except: return "-", "S"
 
+def hitung_awan_tgi(m_tgi, t_tgi):
+    if m_tgi == "-" or t_tgi == "-": return "-", "NIL"
+    try:
+        mt, tt = int(m_tgi), int(t_tgi)
+        diff = abs(mt - tt)
+        stat = "B" if (diff <= 100 if mt < 1000 else diff <= (0.3 * mt)) else "S"
+        return str(diff), stat
+    except: return "-", "S"
 
-# ==============================================================================
-# 2. PEMBEDAH SANDI UNIVERSAL (ADAPTASI 6 ELEMEN UNTUK EXCEL_EXPORT)
-# ==============================================================================
+# =========================================================================
+# 3. KONTROLLER UTAMA VERIFIKASI (MENGGUNAKAN MESIN ORIGINAL LAMA)
+# =========================================================================
 
-def parse_sandi(sandi):
-    if not isinstance(sandi, str): sandi = str(sandi)
-    sandi = sandi.upper()
+def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle=None, is_grup_prob=False, is_grup_tempo=False, is_grup_becmg_trans=False):
+    _, s_ar = hitung_angin_arah(m_obs_data['M_Arah'], t_ar, m_obs_data['M_Kec'], t_ke)
+    _, s_ke = hitung_angin_kec(m_obs_data['M_Kec'], t_ke)
+    _, s_vi = hitung_vis(m_obs_data['M_Vis'], t_vi)
+    _, s_wx = hitung_cuaca(m_obs_data['M_Wx'], t_wx)
+    _, s_aj = hitung_awan_jml(m_obs_data['M_AwanJml'], t_aj, m_obs_data['M_AwanTgi'])
+    _, s_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], t_at)
     
-    # Ekstraksi Angin
-    w_info = ekstrak_angin(sandi)
-    wind_group = re.search(r'\b(\d{3}|VRB|000)(\d{2,3})(?:G(\d{2,3}))?KT\b', sandi)
-    w_str = wind_group.group(0) if wind_group else ""
-    arah = w_info.dct['Arah_Angin'] or ""
-    kec = w_info.dct['Kecepatan_Angin'] or ""
-    gust = w_info.dct['Gust'] or ""
-    ket = "TS" if w_info.dct['Ada_TS'] else ("CB" if w_info.dct['Ada_CB'] else "")
-    
-    # Ekstraksi Visibilitas
-    vis_match = re.search(r'\b(\d{4})\b', sandi)
-    vis_val = vis_match.group(1) if vis_match else ("9999" if "CAVOK" in sandi else "")
-    
-    # Ekstraksi Cuaca
-    wx_match = re.search(r'\b(-|\+)?(RA|DZ|TSRA|VCTS|BR|HZ|FG)\b', sandi)
-    wx_val = wx_match.group(0) if wx_match else "NIL"
-    
-    # Ekstraksi Awan
-    cloud_match = re.search(r'\b(FEW|SCT|BKN|OVC)\d{3}(?:CB|TCU)?\b|\b(SKC|NSC|CAVOK)\b', sandi)
-    cloud_val = cloud_match.group(0) if cloud_match else ""
-    
-    amt, hgt = "", None
-    if cloud_match:
-        c_str = cloud_match.group(0)
-        amt_m = re.search(r'FEW|SCT|BKN|OVC|SKC|NSC|CAVOK', c_str)
-        if amt_m: amt = amt_m.group()
-        hgt_m = re.search(r'\d{3}', c_str)
-        if hgt_m: hgt = int(hgt_m.group()) * 100
+    if (is_grup_prob or is_grup_tempo or is_grup_becmg_trans) and base_bundle is not None:
+        _, b_ar = hitung_angin_arah(m_obs_data['M_Arah'], base_bundle[0], m_obs_data['M_Kec'], base_bundle[1])
+        _, b_ke = hitung_angin_kec(m_obs_data['M_Kec'], base_bundle[1])
+        _, b_vi = hitung_vis(m_obs_data['M_Vis'], base_bundle[2])
+        _, b_wx = hitung_cuaca(m_obs_data['M_Wx'], base_bundle[3])
+        _, b_aj = hitung_awan_jml(m_obs_data['M_AwanJml'], base_bundle[4], m_obs_data['M_AwanTgi'])
+        _, b_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], base_bundle[5])
         
-    full_dict = {
-        'Arah_Angin': arah, 'Kecepatan_Angin': kec, 'Gust': gust if gust else None,
-        'Ada_TS': w_info.dct['Ada_TS'], 'Ada_CB': w_info.dct['Ada_CB'],
-        'Visibilitas': vis_val, 'Cuaca': wx_val, 'Jumlah_Awan': amt if amt else None, 'Tinggi_Awan': hgt
-    }
+        if s_ar == "S" and b_ar == "B": s_ar = "B"
+        if s_ke == "S" and b_ke == "B": s_ke = "B"
+        if s_vi == "S" and b_vi == "B": s_vi = "B"
+        if s_wx == "S" and b_wx == "B": s_wx = "B"
+        if s_aj == "S" and b_aj == "B": s_aj = "B"
+        if s_at == "S" and b_at == "B": s_at = "B"
+
+    stat_akhir = "S" if 'S' in [s_ar, s_ke, s_vi, s_wx, s_aj, s_at] else "B"
+    return stat_akhir, s_ar, s_ke, s_vi, s_wx, s_aj, s_at
+
+def proses_verifikasi(df_metar, df_taf, df_speci):
+    df_metar.columns = df_metar.columns.str.strip()
+    df_taf.columns = df_taf.columns.str.strip()
+    df_speci.columns = df_speci.columns.str.strip()
     
-    # Bungkus menjadi 6 elemen persis sesuai permintaan excel_export.py (Arah, Kec, Vis, Wx, AwanJml, AwanTgi)
-    el_arah = SmartElement(arah, w_str, full_dict)
-    el_kec  = SmartElement(kec, w_str, full_dict)
-    el_vis  = SmartElement(vis_val, vis_val, full_dict)
-    el_wx   = SmartElement(wx_val, wx_val, full_dict)
-    el_aj   = SmartElement(amt, cloud_val, full_dict)
-    el_at   = SmartElement(hgt if hgt is not None else "", cloud_val, full_dict)
+    col_waktu = next((c for c in df_metar.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])), df_metar.columns[0])
+    col_teks = next((c for c in df_metar.columns if 'type' not in c.lower() and 'status' not in c.lower() and any(k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi'])), df_metar.columns[1])
+
+    df_metar['dt_obj'] = pd.to_datetime(df_metar[col_waktu].astype(str).str.slice(0, 19), errors='coerce')
+    df_taf['dt_obj'] = pd.to_datetime(df_taf[col_waktu].astype(str).str.slice(0, 19), errors='coerce')
+    df_speci['dt_obj'] = pd.to_datetime(df_speci[col_waktu].astype(str).str.slice(0, 19), errors='coerce')
+    
+    df_metar = df_metar.dropna(subset=['dt_obj']).sort_values('dt_obj')
+    df_taf = df_taf.dropna(subset=['dt_obj']).sort_values('dt_obj')
+    df_speci = df_speci.dropna(subset=['dt_obj']).sort_values('dt_obj')
+    
+    baris_analisis_final = []
+    baris_speci_final = []
+    
+    speci_dict = {}
+    for _, row in df_speci.iterrows():
+        if pd.notna(row['dt_obj']):
+            tgl_d = row['dt_obj'].date()
+            if tgl_d not in speci_dict:
+                speci_dict[tgl_d] = []
+            speci_dict[tgl_d].append(row)
+    
+    for _, metar_row in df_metar.iterrows():
+        tgl_jam_aktual = metar_row['dt_obj']
+        teks_metar = metar_row[col_teks]
+        m_stasiun = metar_row['cccc'] if 'cccc' in df_metar.columns else "WATU"
+        m_ar, m_ke, m_vi, m_wx, m_aj, m_at = ekstrak_param_metar_speci(teks_metar)
         
-    # SmartWindObject akan memfasilitasi unpacking 6 variabel dengan aman
-    return SmartWindObject([el_arah, el_kec, el_vis, el_wx, el_aj, el_at], full_dict)
-
-# ==============================================================================
-# 3. INTERFACE JEMBATAN UNTUK DATA FRAME DASHBOARD
-# ==============================================================================
-
-def dapatkan_dict_angin(obj):
-    if hasattr(obj, 'dct'): return obj.dct
-    if hasattr(obj, 'get') and obj.get('Arah_Angin') is not None: return obj
-    return ekstrak_angin(str(obj)).dct
-
-def hitung_angin_arah(fcst, obs):
-    return verifikasi_arah_angin(dapatkan_dict_angin(fcst), dapatkan_dict_angin(obs))
-
-def hitung_angin_kec(fcst, obs):
-    return verifikasi_kecepatan_angin(dapatkan_dict_angin(fcst), dapatkan_dict_angin(obs))
-
-def hitung_gusty(fcst, obs):
-    return verifikasi_gusty(dapatkan_dict_angin(fcst), dapatkan_dict_angin(obs))
-
-def dapatkan_val(obj, key):
-    if hasattr(obj, 'dct'): return obj.dct.get(key)
-    if hasattr(obj, 'get'): return obj.get(key)
-    return None
-
-def hitung_vis(*args):
-    if len(args) < 2: return 0
-    f, o = args[0], args[1]
-    f_vis = dapatkan_val(f, 'Visibilitas')
-    if f_vis is None: f_vis = f
-    o_vis = dapatkan_val(o, 'Visibilitas')
-    if o_vis is None: o_vis = o
-    return verifikasi_visibilitas(f_vis, o_vis)
-
-def hitung_cuaca(*args):
-    if len(args) < 2: return 0
-    f, o = args[0], args[1]
-    f_wx = dapatkan_val(f, 'Cuaca')
-    if f_wx is None: f_wx = f
-    o_wx = dapatkan_val(o, 'Cuaca')
-    if o_wx is None: o_wx = o
-    return verifikasi_presipitasi(f_wx, o_wx)
-
-def hitung_awan_jml(*args):
-    if len(args) >= 3: return verifikasi_jumlah_awan(args[0], args[1], args[2])
-    if len(args) == 2:
-        f, o = args[0], args[1]
-        f_amt = dapatkan_val(f, 'Jumlah_Awan')
-        o_amt = dapatkan_val(o, 'Jumlah_Awan')
-        o_hgt = dapatkan_val(o, 'Tinggi_Awan')
-        
-        if f_amt is None and isinstance(f, str):
-            m = re.search(r'FEW|SCT|BKN|OVC|SKC|NSC|CAVOK', f)
-            f_amt = m.group() if m else f
-        if o_amt is None and isinstance(o, str):
-            m = re.search(r'FEW|SCT|BKN|OVC|SKC|NSC|CAVOK', o)
-            o_amt = m.group() if m else o
-            h = re.search(r'\d{3}', o)
-            o_hgt = int(h.group()) * 100 if h else None
+        taf_aktif = "-"
+        taf_terpilih_rows = df_taf[df_taf['dt_obj'] <= tgl_jam_aktual]
+        if not taf_terpilih_rows.empty: taf_aktif = taf_terpilih_rows.iloc[-1][col_teks]
+        if taf_aktif == "-": continue
             
-        return verifikasi_jumlah_awan(f_amt, o_amt, o_hgt)
-    return 0
+        tgl_curr = tgl_jam_aktual.date()
+        kandidat_speci = speci_dict.get(tgl_curr, []) + speci_dict.get(tgl_curr + timedelta(days=1), [])
+        
+        speci_terkait = [
+            sp for sp in kandidat_speci 
+            if tgl_jam_aktual <= sp['dt_obj'] <= tgl_jam_aktual + timedelta(minutes=59)
+        ]
+        
+        parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_aktif))
+        base_str = parts[0]
+        b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(base_str)
+        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+        
+        t_ar, t_ke, t_vi, t_wx, t_aj, t_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+        is_grup_prob = False
+        is_grup_tempo = False
+        is_grup_becmg_trans = False
+        
+        target_hour = tgl_jam_aktual.hour
+        for i in range(1, len(parts), 2):
+            tipe, isi = parts[i], parts[i+1]
+            time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
+            if time_match:
+                s_hr, e_hr = int(time_match.group(2)), int(time_match.group(4))
+                if e_hr == 0: e_hr = 24
+                
+                if s_hr <= target_hour < e_hr:
+                    g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
+                    if g_ar != "-": t_ar = g_ar
+                    if g_ke != "-": t_ke = g_ke
+                    if g_vi != "-": t_vi = g_vi
+                    if g_wx != "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi: t_wx = g_wx
+                    if g_aj != "-": t_aj = g_aj
+                    if g_at != "-": t_at = g_at
+                    
+                    if 'PROB' in tipe: is_grup_prob = True
+                    if 'TEMPO' in tipe: is_grup_tempo = True
+                    if tipe == 'BECMG':
+                        is_grup_becmg_trans = True
+                        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                        
+        m_obs_data = {'M_Arah': m_ar, 'M_Kec': m_ke, 'M_Vis': m_vi, 'M_Wx': m_wx, 'M_AwanJml': m_aj, 'M_AwanTgi': m_at}
+        base_bundle = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
+        
+        status_jam_ini, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(
+            m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
+        )
+        
+        m_cw = 0.0
+        t_cw = 0.0
+        
+        is_crit = "NORMAL"
+        try:
+            if int(m_vi) < 5000 or (m_aj in ["BKN", "OVC"] and int(m_at) < 1500):
+                is_crit = "CRITICAL MINIMA"
+        except: pass
 
-def hitung_awan_tgi(*args):
-    if len(args) < 2: return 0
-    f, o = args[0], args[1]
-    f_hgt = dapatkan_val(f, 'Tinggi_Awan')
-    o_hgt = dapatkan_val(o, 'Tinggi_Awan')
+        if speci_terkait:
+            for speci_row in speci_terkait:
+                sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at = ekstrak_param_metar_speci(speci_row[col_teks])
+                sp_obs_data = {'M_Arah': sp_ar, 'M_Kec': sp_ke, 'M_Vis': sp_vi, 'M_Wx': sp_wx, 'M_AwanJml': sp_aj, 'M_AwanTgi': sp_at}
+                status_speci, sp_s_ar, sp_s_ke, sp_s_vi, sp_s_wx, sp_s_aj, sp_s_at = evaluasi_sandi_tunggal(
+                    sp_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
+                )
+                
+                if status_speci == "S":
+                    status_jam_ini = "S"
+                    if sp_s_ar == "S": s_ar = "S"
+                    if sp_s_ke == "S": s_ke = "S"
+                    if sp_s_vi == "S": s_vi = "S"
+                    if sp_s_wx == "S": s_wx = "S"
+                    if sp_s_aj == "S": s_aj = "S"
+                    if sp_s_at == "S": s_at = "S"
+                
+                try:
+                    if int(sp_vi) < 5000 or (sp_aj in ["BKN", "OVC"] and int(sp_at) < 1500): is_crit = "CRITICAL MINIMA"
+                except: pass
+                    
+                baris_speci_final.append({
+                    'Waktu SPECI (UTC)': speci_row['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'Sandi SPECI':       speci_row[col_teks], 'TAFOR Berlaku': taf_aktif,
+                    'M_Arah': sp_ar, 'T_Arah': t_ar, 'S_Arah': sp_s_ar,
+                    'M_Kec': sp_ke, 'T_Kec': t_ke, 'S_Kec': sp_s_ke,
+                    'M_Vis': sp_vi, 'T_Vis': t_vi, 'S_Vis': sp_s_vi,
+                    'M_Wx': sp_wx, 'T_Wx': t_wx, 'S_Wx': sp_s_wx,
+                    'M_AwanJml': sp_aj, 'T_AwanJml': t_aj, 'S_AwanJml': sp_s_aj,
+                    'M_AwanTgi': sp_at, 'T_AwanTgi': t_at, 'S_AwanTgi': sp_s_at,
+                    'Hasil Akhir': "ACCURATE" if status_speci == "B" else "MISS"
+                })
+                    
+        baris_analisis_final.append({
+            'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
+            'Sandi METAR Aktual': teks_metar, 'Sandi TAF Prakiraan': taf_aktif,
+            'M_Arah': m_ar, 'T_Arah': t_ar, 'D_Arah': "-", 'S_Arah': s_ar,
+            'M_Kec': m_ke, 'T_Kec': t_ke, 'D_Kec': "-", 'S_Kec': s_ke,
+            'M_Vis': m_vi, 'T_Vis': t_vi, 'D_Vis': "-", 'S_Vis': s_vi,
+            'M_Wx': m_wx, 'T_Wx': t_wx, 'D_Wx': "-", 'S_Wx': s_wx,
+            'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'D_AwanJml': "-", 'S_AwanJml': s_aj,
+            'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'D_AwanTgi': "-", 'S_AwanTgi': s_at,
+            'M_Crosswind_Knot': m_cw, 'T_Crosswind_Knot': t_cw, 'Status_Minima': is_crit,
+            'Hasil Akhir': "ACCURATE" if status_jam_ini == "B" else "MISS",
+            'Kode_Stasiun': m_stasiun
+        })
+        
+    return pd.DataFrame(baris_analisis_final), pd.DataFrame(baris_speci_final), None, None
+
+def hitung_verifikasi_TAFOR(df_input):
+    df_work = df_input.copy()
+    df_work['Bulan_Tahun'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.strftime('%Y-%m')
+    df_work['Tanggal'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.day
+    df_work['Jam'] = pd.to_datetime(df_work['Waktu Aktual (UTC)']).dt.hour
+    rekapan = {k: {'B': 0, 'S': 0} for k in ['A', 'B', 'C', 'D', 'E', 'F']}
     
-    if f_hgt is None and isinstance(f, str):
-        h = re.search(r'\d{3}', f)
-        f_hgt = int(h.group()) * 100 if h else None
-    if o_hgt is None and isinstance(o, str):
-        h = re.search(r'\d{3}', o)
-        o_hgt = int(h.group()) * 100 if h else None
-    return verifikasi_tinggi_awan(f_hgt, o_hgt)
-
-
-# ==============================================================================
-# 4. ORCHESTRATION LAYER FOR APP.PY
-# ==============================================================================
-
-def proses_verifikasi(*args, **kwargs):
-    """
-    Mengembalikan objek SmartDataFrameObject. Jika di-unpack menjadi 4 bagian 
-    ia akan menyerahkan 4 klon dirinya, jika tidak ia bertindak sebagai DataFrame asli.
-    """
-    if args:
-        return SmartDataFrameObject(args[0])
-    return SmartDataFrameObject(True)
-
-def hitung_verifikasi_TAFOR(*args, **kwargs):
-    if args:
-        skor = [1 if x in [1, 'B'] else 0 for x in args if x in [0, 1, 'B', 'S']]
-        if skor: return 1 if all(s == 1 for s in skor) else 0
-    return 1
-
-def konversi_ke_huruf(skor_int):
-    return 'B' if skor_int == 1 else 'S'
+    for bln_thn in df_work['Bulan_Tahun'].unique():
+        df_bulan = df_work[df_work['Bulan_Tahun'] == bln_thn]
+        
+        for tgl in range(1, 32):
+            data_tgl = df_bulan[df_bulan['Tanggal'] == tgl]
+            if data_tgl.empty: continue
+            data_tgl_sorted = data_tgl.sort_values('Jam')
+            tafs_hari_ini = []
+            for _, row in data_tgl_sorted.iterrows():
+                sandi = row['Sandi TAF Prakiraan']
+                if sandi != "-" and sandi not in tafs_hari_ini: tafs_hari_ini.append(sandi)
+            if not tafs_hari_ini: continue
+                
+            for taf_sandi in tafs_hari_ini:
+                baris_m_base = data_tgl_sorted[data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi].iloc[0]
+                parts = re.split(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b', str(taf_sandi))
+                
+                b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
+                cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+                
+                m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi']}
+                _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
+                
+                for k, stat in zip(['A','B','C','D','E','F'], [s_ar, s_ke, s_vi, s_wx, s_aj, s_at]):
+                    if stat in ['B', 'S']: rekapan[k][stat] += 1
+                        
+                for i in range(1, len(parts), 2):
+                    tipe, isi = parts[i], parts[i+1]
+                    time_match = re.search(r'(\d{2})(\d{2})/(\d{2})(\d{2})', isi)
+                    jam_target = int(time_match.group(2)) if time_match else 0
+                    
+                    data_jam = data_tgl_sorted[(data_tgl_sorted['Jam'] == jam_target) & (data_tgl_sorted['Sandi TAF Prakiraan'] == taf_sandi)]
+                    baris_m_trend = data_jam.iloc[0] if not data_jam.empty else baris_m_base
+                    
+                    t_ar, t_ke, t_vi, t_wx, t_aj, t_at = parse_sandi(isi)
+                    if t_ar == "-": t_ar = cur_ar
+                    if t_ke == "-": t_ke = cur_ke
+                    if t_vi == "-": t_vi = cur_vi
+                    if t_wx == "NIL" and not re.search(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b', isi) and "CAVOK" not in isi: t_wx = cur_wx
+                    if t_aj == "-": t_aj = cur_aj
+                    if t_at == "-": t_at = cur_at
+                    
+                    m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi']}
+                    
+                    _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = evaluasi_sandi_tunggal(
+                        m_obs_trend, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, 
+                        base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at), 
+                        is_grup_prob=('PROB' in tipe), is_grup_tempo=('TEMPO' in tipe), is_grup_becmg_trans=('BECMG' in tipe)
+                    )
+                    
+                    for k, stat in zip(['A','B','C','D','E','F'], [s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t]):
+                        if stat in ['B', 'S']: rekapan[k][stat] += 1
+                        
+                    if tipe == 'BECMG':
+                        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                        
+    return rekapan
