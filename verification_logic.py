@@ -237,9 +237,40 @@ def verifikasi_tinggi_awan(fcst_height_ft, obs_height_ft):
 
 
 # ==============================================================================
-# 3. UTILITY INTERFACE - KONVERSI SKOR 1/0 MENJADI 'B' / 'S' UNTUK WEB & EXCEL
+# 3. UTILITY INTERFACE - KONVERSI SKOR
 # ==============================================================================
 
 def konversi_ke_huruf(skor_int):
-    """Mengubah nilai integer 1/0 dari mesin verifikasi menjadi string B/S"""
+    """Mengubah nilai integer 1/0 menjadi string B/S"""
     return 'B' if skor_int == 1 else 'S'
+
+
+# ==============================================================================
+# 4. JEMBATAN PENGHUBUNG KODE LAMA (LEGACY COMPATIBILITY LAYER FOR EXCEL EXPORT)
+# ==============================================================================
+
+def hitung_angin_arah(fcst, obs):
+    """Jembatan pintar untuk excel_export yang mengirim string langsung atau dict"""
+    if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
+    if isinstance(obs, str): obs = ekstrak_angin(obs)
+    return verifikasi_arah_angin(fcst, obs)
+
+def hitung_angin_kec(fcst, obs):
+    """Jembatan pintar untuk excel_export yang mengirim string langsung atau dict"""
+    if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
+    if isinstance(obs, str): obs = ekstrak_angin(obs)
+    return verifikasi_kecepatan_angin(fcst, obs)
+
+def hitung_gusty(fcst, obs):
+    if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
+    if isinstance(obs, str): obs = ekstrak_angin(obs)
+    return verifikasi_gusty(fcst, obs)
+
+# Menyediakan alias nama lama agar tidak merusak proses impor di excel_export.py
+hitung_visibilitas = verifikasi_visibilitas
+hitung_cuaca = verifikasi_presipitasi
+hitung_presipitasi = verifikasi_presipitasi
+hitung_jumlah_awan = verifikasi_jumlah_awan
+hitung_awan_jumlah = verifikasi_jumlah_awan
+hitung_tinggi_awan = verifikasi_tinggi_awan
+hitung_awan_tinggi = verifikasi_tinggi_awan
