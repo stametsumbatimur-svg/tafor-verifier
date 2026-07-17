@@ -246,17 +246,17 @@ def konversi_ke_huruf(skor_int):
 
 
 # ==============================================================================
-# 4. JEMBATAN PENGHUBUNG KODE LAMA (LEGACY COMPATIBILITY LAYER FOR EXCEL EXPORT)
+# 4. JEMBATAN PENGHUBUNG KODE LAMA KETAT (EXACT MATCH FOR EXCEL_EXPORT.PY LINE 7)
 # ==============================================================================
 
 def hitung_angin_arah(fcst, obs):
-    """Jembatan pintar untuk excel_export yang mengirim string langsung atau dict"""
+    """Jembatan untuk excel_export yang mengirim string sandi langsung atau dict"""
     if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
     if isinstance(obs, str): obs = ekstrak_angin(obs)
     return verifikasi_arah_angin(fcst, obs)
 
 def hitung_angin_kec(fcst, obs):
-    """Jembatan pintar untuk excel_export yang mengirim string langsung atau dict"""
+    """Jembatan untuk excel_export yang mengirim string sandi langsung atau dict"""
     if isinstance(fcst, str): fcst = ekstrak_angin(fcst)
     if isinstance(obs, str): obs = ekstrak_angin(obs)
     return verifikasi_kecepatan_angin(fcst, obs)
@@ -266,11 +266,9 @@ def hitung_gusty(fcst, obs):
     if isinstance(obs, str): obs = ekstrak_angin(obs)
     return verifikasi_gusty(fcst, obs)
 
-# Menyediakan alias nama lama agar tidak merusak proses impor di excel_export.py
-hitung_visibilitas = verifikasi_visibilitas
+# Pemetaan nama alias singkat yang di-import oleh excel_export.py secara eksak
+hitung_vis = verifikasi_visibilitas
 hitung_cuaca = verifikasi_presipitasi
-hitung_presipitasi = verifikasi_presipitasi
-hitung_jumlah_awan = verifikasi_jumlah_awan
-hitung_awan_jumlah = verifikasi_jumlah_awan
-hitung_tinggi_awan = verifikasi_tinggi_awan
-hitung_awan_tinggi = verifikasi_tinggi_awan
+hitung_awan_jml = verifikasi_jumlah_awan
+hitung_awan_tgi = verifikasi_tinggi_awan
+parse_sandi = ekstrak_angin
