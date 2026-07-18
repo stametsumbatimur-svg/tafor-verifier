@@ -438,7 +438,7 @@ def buat_tabel_laporan_excel(df_input):
             cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
             
             # =================================================================
-            # 👉 1. UBAHAN MASA BERLAKU BASE TAF (DINAMIS DARI SANDI)
+            # 1. UBAHAN MASA BERLAKU BASE TAF (DINAMIS DARI SANDI)
             # =================================================================
             validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
             if validity_match:
@@ -449,7 +449,8 @@ def buat_tabel_laporan_excel(df_input):
             else:
                 jangka_base = "00-12" # Default/Fallback jika regex gagal
                 jam_akhir_taf = "12"
-            # =================================================================
+                
+            # Deteksi AMD / COR
             if 'AMD' in str(taf_sandi).upper():
                 label_perubahan = "Base (AMD)"
             elif 'COR' in str(taf_sandi).upper():
@@ -457,26 +458,14 @@ def buat_tabel_laporan_excel(df_input):
             else:
                 label_perubahan = "Base"
             # =================================================================
-            # Simpan baris Base
-            baris_laporan.append({
-                'Tanggal': tgl_str, 
-                'Jangka_Waktu': jangka_base,
-                'Perubahan': label_perubahan, # <--- Kolom penanda AMD/COR/Base biasa
-                'T_Arah': b_ar, 'T_Kec': b_ke, 'T_Vis': b_vi, 'T_Wx': b_wx, 'T_AwanJml': b_aj, 'T_AwanTgi': b_at,
-                'M_Arah': baris_m_base['M_Arah'], 'S_Arah': s_ar,
-                'M_Kec': baris_m_base['M_Kec'], 'S_Kec': s_ke,
-                'M_Vis': baris_m_base['M_Vis'], 'S_Vis': s_vi,
-                'M_Wx': baris_m_base['M_Wx'], 'S_Wx': s_wx,
-                'M_AwanJml': baris_m_base['M_AwanJml'], 'S_AwanJml': s_aj,
-                'M_AwanTgi': baris_m_base['M_AwanTgi'], 'S_AwanTgi': s_at
-            })
+            
             # Evaluasi Base
             m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
                           'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 
                           'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 'M_TS_CB': False}
             _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
             
-            # Simpan baris Base
+            # Simpan baris Base (DUPLIKAT SEBELUMNYA SUDAH DIHAPUS)
             baris_laporan.append({
                 'Tanggal': tgl_str, 'Jangka_Waktu': jangka_base,
                 'Perubahan': label_perubahan,
@@ -493,6 +482,18 @@ def buat_tabel_laporan_excel(df_input):
             for i in range(1, len(parts), 2):
                 tipe, isi = parts[i], parts[i+1]
                 
+                # Menentukan Nama Label Trend (FM/TEMPO/BECMG) yang benar
+                if tipe.startswith('FM'):
+                    label_trend = "FM"
+                elif 'TEMPO' in tipe:
+                    label_trend = "TEMPO"
+                elif 'BECMG' in tipe:
+                    label_trend = "BECMG"
+                elif 'PROB' in tipe:
+                    label_trend = "PROB"
+                else:
+                    label_trend = tipe
+
                 if tipe.startswith('FM'):
                     jam_target = int(tipe[4:6])
                     jam_fm = tipe[4:6]
@@ -504,7 +505,6 @@ def buat_tabel_laporan_excel(df_input):
                     # Menggunakan prefix T, B, atau P sesuai Excel SOP
                     prefix = 'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
                     jangka_trend = f"{prefix}.{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
-                # =================================================================
                 
                 # Cari data METAR aktual yang paling mendekati jam target
                 baris_m_trend = next((r for h, r in list_rows if h == jam_target), baris_m_base)
@@ -540,7 +540,7 @@ def buat_tabel_laporan_excel(df_input):
                 # Simpan baris Trend
                 baris_laporan.append({
                     'Tanggal': tgl_str, 'Jangka_Waktu': jangka_trend,
-                    'Perubahan': label_perubahan,
+                    'Perubahan': label_trend, # <--- SUDAH DIPERBAIKI (Tadinya salah ambil label_perubahan)
                     'T_Arah': t_ar, 'T_Kec': t_ke, 'T_Vis': t_vi, 'T_Wx': t_wx, 'T_AwanJml': t_aj, 'T_AwanTgi': t_at,
                     'M_Arah': baris_m_trend['M_Arah'], 'S_Arah': s_ar_t,
                     'M_Kec': baris_m_trend['M_Kec'], 'S_Kec': s_ke_t,
