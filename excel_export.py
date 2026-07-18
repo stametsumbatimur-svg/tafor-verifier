@@ -16,8 +16,10 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     kolom_skor = ['S_Arah', 'S_Kec', 'S_Vis', 'S_Wx', 'S_AwanJml', 'S_AwanTgi']
     for col in kolom_skor:
         if col in df_vfinal.columns:
-            # Pastikan formatnya boolean sejati
-            df_vfinal[col] = df_vfinal[col].astype(bool)
+            
+            df_vfinal[col] = df_vfinal[col].apply(
+                lambda x: False if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else bool(x)
+            )
     output = io.BytesIO()
     # Menggunakan engine xlsxwriter agar bisa manipulasi sel tingkat lanjut
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
