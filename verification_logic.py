@@ -13,7 +13,7 @@ RE_WIND = re.compile(r'\b(\d{3}|\/\/\/|VRB|000)(\d{2,3})(G\d{2,3})?KT\b')
 RE_VIS = re.compile(r'\b\d{4}\b')
 RE_WX = re.compile(r'(?<![A-Z])[-+]?(?:MI|BC|PR|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS|TS)\b')
 RE_CLOUD = re.compile(r'\b(FEW|SCT|BKN|OVC)(\d{3,4})(?:CB|TCU)?\b')
-RE_PARTS = re.compile(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40)\b')
+RE_PARTS = re.compile(r'\b(BECMG|TEMPO|PROB30 TEMPO|PROB40 TEMPO|PROB30|PROB40|FM\d{6})\b')
 RE_TIME_GRP = re.compile(r'(\d{2})(\d{2})/(\d{2})(\d{2})')
 RE_WX_EXCLUDE = re.compile(r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b')
 RE_VALID_TAF = re.compile(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}')
@@ -227,12 +227,35 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         
         for i in range(1, len(parts), 2):
             tipe, isi = parts[i], parts[i+1]
-            time_match = RE_TIME_GRP.search(isi)
-            if time_match:
-                s_hr, e_hr = int(time_match.group(2)), int(time_match.group(4))
-                if e_hr == 0: e_hr = 24
-                if s_hr <= target_hour < e_hr:
-                    g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
+            
+            # 1. Ekstraksi Waktu (Pisahkan logika FM dan BECMG/TEMPO)
+            if tipe.startswith('FM'):
+                s_hr = int(tipe[4:6]) # Ekstrak jam dari FMddhhmm
+                e_hr = 24
+            else:
+                time_match = RE_TIME_GRP.search(isi)
+                if time_match:
+                    s_hr, e_hr = int(time_match.group(2)), int(time_match.group(4))
+                    if e_hr == 0: e_hr = 24
+                else:
+                    continue # Skip jika tidak ada format waktu standar
+            
+            # 2. Logika Evaluasi dan Override
+            if s_hr <= target_hour < e_hr:
+                g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
+                
+                if tipe.startswith('FM'):
+                    # FM Override total (Ganti lembaran baru)
+                    t_ar = g_ar if g_ar != "-" else "VRB"
+                    t_ke = g_ke if g_ke != "-" else "00"
+                    t_vi = g_vi if g_vi != "-" else "9999"
+                    t_wx = g_wx if g_wx != "-" else "NIL"
+                    t_aj = g_aj if g_aj != "-" else "NSC"
+                    t_at = g_at if g_at != "-" else "0"
+                    # FM otomatis menjadi base baru
+                    cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                else:
+                    # BECMG / TEMPO Override parsial
                     if g_ar != "-": t_ar = g_ar
                     if g_ke != "-": t_ke = g_ke
                     if g_vi != "-": t_vi = g_vi
@@ -240,11 +263,11 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     if g_aj != "-": t_aj = g_aj
                     if g_at != "-": t_at = g_at
                     
-                    if 'PROB' in tipe: is_grup_prob = True
-                    if 'TEMPO' in tipe: is_grup_tempo = True
-                    if tipe == 'BECMG':
-                        is_grup_becmg_trans = True
-                        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
+                if 'PROB' in tipe: is_grup_prob = True
+                if 'TEMPO' in tipe: is_grup_tempo = True
+                if tipe == 'BECMG':
+                    is_grup_becmg_trans = True
+                    cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
                         
         m_obs_data = {'M_Arah': m_ar, 'M_Kec': m_ke, 'M_Vis': m_vi, 'M_Wx': m_wx, 'M_AwanJml': m_aj, 'M_AwanTgi': m_at, 'M_TS_CB': m_ts_cb}
         base_bundle = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
@@ -336,19 +359,34 @@ def hitung_verifikasi_TAFOR(df_input):
                     
             for i in range(1, len(parts), 2):
                 tipe, isi = parts[i], parts[i+1]
-                time_match = RE_TIME_GRP.search(isi)
-                jam_target = int(time_match.group(2)) if time_match else 0
+                
+                # Ekstraksi waktu target
+                if tipe.startswith('FM'):
+                    jam_target = int(tipe[4:6])
+                else:
+                    time_match = RE_TIME_GRP.search(isi)
+                    jam_target = int(time_match.group(2)) if time_match else 0
                 
                 # Cari baris yang jamnya pas, atau fallback ke base
                 baris_m_trend = next((r for h, r in list_rows if h == jam_target), baris_m_base)
                 
-                t_ar, t_ke, t_vi, t_wx, t_aj, t_at = parse_sandi(isi)
-                if t_ar == "-": t_ar = cur_ar
-                if t_ke == "-": t_ke = cur_ke
-                if t_vi == "-": t_vi = cur_vi
-                if t_wx == "-" and not RE_WX_EXCLUDE.search(isi) and "CAVOK" not in isi: t_wx = cur_wx
-                if t_aj == "-": t_aj = cur_aj
-                if t_at == "-": t_at = cur_at
+                g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
+                
+                # Override Logika Rekapan
+                if tipe.startswith('FM'):
+                    t_ar = g_ar if g_ar != "-" else "VRB"
+                    t_ke = g_ke if g_ke != "-" else "00"
+                    t_vi = g_vi if g_vi != "-" else "9999"
+                    t_wx = g_wx if g_wx != "-" else "NIL"
+                    t_aj = g_aj if g_aj != "-" else "NSC"
+                    t_at = g_at if g_at != "-" else "0"
+                else:
+                    t_ar = g_ar if g_ar != "-" else cur_ar
+                    t_ke = g_ke if g_ke != "-" else cur_ke
+                    t_vi = g_vi if g_vi != "-" else cur_vi
+                    t_wx = g_wx if (g_wx != "-" and not RE_WX_EXCLUDE.search(isi) and "CAVOK" not in isi) else cur_wx
+                    t_aj = g_aj if g_aj != "-" else cur_aj
+                    t_at = g_at if g_at != "-" else cur_at
                 
                 m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi'], 'M_TS_CB': False}
                 
@@ -361,7 +399,7 @@ def hitung_verifikasi_TAFOR(df_input):
                 for k, stat in zip(['A','B','C','D','E','F'], [s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t]):
                     if stat in ['B', 'S']: rekapan[k][stat] += 1
                     
-                if tipe == 'BECMG':
+                if tipe.startswith('FM') or tipe == 'BECMG':
                     cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
                     
     return rekapan
