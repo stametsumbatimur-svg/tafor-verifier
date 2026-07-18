@@ -85,56 +85,53 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
             worksheet.write(13 + row_num, col_num, val, format_tabel_data)
 
     # ==========================================
-    # 5. HEADER & NARASI PERSYARATAN 
+    # 5. HEADER & NARASI PERSYARATAN (TANPA KOLOM MINIMUM)
     # ==========================================
     worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROM FORECAST', format_title)
     worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
     
+    # Baris 4 (Header Narasi - Diperlebar menutupi bekas Minimum)
     worksheet.merge_range(4, 0, 4, 1, 'UNSUR METEOROLOGI', format_req_header)
-    worksheet.merge_range(4, 2, 4, 6, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header)
-    worksheet.write(4, 7, 'MINIMUM', format_req_header)
+    worksheet.merge_range(4, 2, 4, 7, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header) 
     worksheet.merge_range(4, 8, 4, 9, 'UNSUR METEOROLOGI', format_req_header)
-    worksheet.merge_range(4, 10, 4, batas_col - 1, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header)
-    worksheet.write(4, batas_col, 'MINIMUM', format_req_header)
+    worksheet.merge_range(4, 10, 4, batas_col, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header) 
     
+    # Baris 5 (Arah Angin & Jml Awan)
     worksheet.merge_range(5, 0, 5, 1, 'A. Arah Angin', format_req_bold)
-    worksheet.merge_range(5, 2, 5, 6, 'Benar apabila arah sama, atau selisih ≤ 60°. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, dianggap benar.', format_req_text)
-    worksheet.write(5, 7, '80%', format_req_center)
+    worksheet.merge_range(5, 2, 5, 7, 'Benar apabila arah sama, atau selisih ≤ 60°. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, dianggap benar.', format_req_text)
     worksheet.merge_range(5, 8, 5, 9, 'E. Jumlah Awan', format_req_bold)
-    worksheet.merge_range(5, 10, 5, batas_col - 1, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan > 5000 ft, dianggap benar.', format_req_text)
-    worksheet.write(5, batas_col, '70%', format_req_center)
+    worksheet.merge_range(5, 10, 5, batas_col, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan > 5000 ft, dianggap benar.', format_req_text)
     
+    # Baris 6 (Kecepatan Angin & Tinggi Awan)
     worksheet.merge_range(6, 0, 6, 1, 'B. Kecepatan Angin', format_req_bold)
-    worksheet.merge_range(6, 2, 6, 6, 'Selisih kecepatan dasar ≤ 10 knot. Status gust harus konsisten.', format_req_text)
-    worksheet.write(6, 7, '80%', format_req_center)
+    worksheet.merge_range(6, 2, 6, 7, 'Selisih kecepatan dasar ≤ 10 knot. Status gust harus konsisten.', format_req_text)
     worksheet.merge_range(6, 8, 6, 9, 'F. Tinggi Dasar Awan', format_req_bold)
-    worksheet.merge_range(6, 10, 6, batas_col - 1, 'Selisih ≤ 100 ft untuk <1000 ft. Untuk ≥ 1000 ft, selisih ≤ 30% dari tinggi awan Manual.', format_req_text)
-    worksheet.write(6, batas_col, '70%', format_req_center)
+    worksheet.merge_range(6, 10, 6, batas_col, 'Selisih ≤ 100 ft untuk <1000 ft. Untuk ≥ 1000 ft, selisih ≤ 30% dari tinggi awan Manual.', format_req_text)
 
+    # Baris 7 (Jarak Pandang)
     worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
-    worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
-    worksheet.write(7, 7, '80%', format_req_center)
+    worksheet.merge_range(7, 2, 7, 7, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
     worksheet.merge_range(7, 8, 7, 9, '', format_req_bold)
-    worksheet.merge_range(7, 10, 7, batas_col - 1, '', format_req_text)
-    worksheet.write(7, batas_col, '', format_req_center)
+    worksheet.merge_range(7, 10, 7, batas_col, '', format_req_text)
 
+    # Baris 8 (Cuaca / Endapan)
     worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
-    worksheet.merge_range(8, 2, 8, 6, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
-    worksheet.write(8, 7, '80%', format_req_center)
+    worksheet.merge_range(8, 2, 8, 7, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
     worksheet.merge_range(8, 8, 8, 9, '', format_req_bold)
-    worksheet.merge_range(8, 10, 8, batas_col - 1, '', format_req_text)
-    worksheet.write(8, batas_col, '', format_req_center)
+    worksheet.merge_range(8, 10, 8, batas_col, '', format_req_text)
 
+    # Set Tinggi Baris
     worksheet.set_row(5, 45)
     worksheet.set_row(6, 35)
     worksheet.set_row(7, 35)
     worksheet.set_row(8, 45)
     
+    # Baris 10 (Identitas Stasiun)
     worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
     worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
     worksheet.write(10, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
-
+    
     # ==========================================
     # 6. WARNA KONDISIONAL B/S, FILTER & FREEZE
     # ==========================================
