@@ -81,7 +81,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     # 5. HEADER & NARASI PERSYARATAN 
     # ==========================================
     worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROM FORECAST', format_title)
-    worksheet.merge_range(1, 0, 1, batas_col, 'Sesuai Logika SIVETA (Berdasarkan Gambar Toleransi)', format_subtitle)
     worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
     
     worksheet.merge_range(4, 0, 4, 1, 'UNSUR METEOROLOGI', format_req_header)
