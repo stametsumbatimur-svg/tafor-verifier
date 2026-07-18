@@ -176,29 +176,29 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
 
     # ==========================================
-    # 9. SETUP HINGGA COCOK PADA CETAK PORTRAIT
+    # 9. SETUP HINGGA COCOK PADA CETAK PORTRAIT (KOLOM SKOR DIPERLEBAR)
     # ==========================================
     worksheet.set_column('A:A', 4.5)   # Tanggal ringkas
     worksheet.set_column('B:C', 9.5)   # Jangka Waktu & Perubahan
-    worksheet.set_column('D:E', 5.5)   # Arah & Kec TAF
-    worksheet.set_column('F:I', 6.5)   # Vis, Wx, Awan TAF
-    worksheet.set_column('J:J', 5.5)   # Arah METAR
-    worksheet.set_column('K:K', 4.0)   # Skor Arah (Ultra Slim)
-    worksheet.set_column('L:L', 5.5)   # Kec METAR
-    worksheet.set_column('M:M', 4.0)   # Skor Kec (Ultra Slim)
-    worksheet.set_column('N:N', 6.5)   # Vis METAR
-    worksheet.set_column('O:O', 4.0)   # Skor Vis (Ultra Slim)
-    worksheet.set_column('P:P', 6.5)   # Wx METAR
-    worksheet.set_column('Q:Q', 4.0)   # Skor Wx (Ultra Slim)
-    worksheet.set_column('R:R', 6.5)   # Awan Jml METAR
-    worksheet.set_column('S:S', 4.0)   # Skor Awan Jml (Ultra Slim)
-    worksheet.set_column('T:T', 6.5)   # Awan Tgi METAR
-    worksheet.set_column('U:U', 4.0)   # Skor Awan Tgi (Ultra Slim)
+    worksheet.set_column('D:E', 6.0)   # Arah & Kec TAF
+    worksheet.set_column('F:I', 7.0)   # Vis, Wx, Awan TAF
+    worksheet.set_column('J:J', 6.0)   # Arah METAR
+    worksheet.set_column('K:K', 6.8)   # 🚀 Skor Arah (Diperlebar dari 4.0 agar % tidak ####)
+    worksheet.set_column('L:L', 6.0)   # Kec METAR
+    worksheet.set_column('M:M', 6.8)   # 🚀 Skor Kec (Diperlebar dari 4.0 agar % tidak ####)
+    worksheet.set_column('N:N', 7.0)   # Vis METAR
+    worksheet.set_column('O:O', 6.8)   # 🚀 Skor Vis (Diperlebar dari 4.0 agar % tidak ####)
+    worksheet.set_column('P:P', 7.0)   # Wx METAR
+    worksheet.set_column('Q:Q', 6.8)   # 🚀 Skor Wx (Diperlebar dari 4.0 agar % tidak ####)
+    worksheet.set_column('R:R', 7.0)   # Awan Jml METAR
+    worksheet.set_column('S:S', 6.8)   # 🚀 Skor Awan Jml (Diperlebar dari 4.0 agar % tidak ####)
+    worksheet.set_column('T:T', 7.0)   # Awan Tgi METAR
+    worksheet.set_column('U:U', 6.8)   # 🚀 Skor Awan Tgi (Diperlebar dari 4.0 agar % tidak ####)
 
-    worksheet.set_portrait()            # 🟢 AKTOR UTAMA: UBAH JADI PORTRAIT
+    worksheet.set_portrait()            # Tetap mode tegak
     worksheet.set_paper(9)              # Kertas A4             
     worksheet.fit_to_pages(1, 0)        # Paksa lebar tabel pas total 1 halaman Portrait
-    worksheet.set_margins(left=0.15, right=0.15, top=0.4, bottom=0.4) # Margin ultra tipis
+    worksheet.set_margins(left=0.15, right=0.15, top=0.4, bottom=0.4) 
     
     worksheet.repeat_rows(12, 12)       
     
