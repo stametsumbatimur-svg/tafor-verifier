@@ -130,6 +130,10 @@ if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
 
 # Inject Banner
 with banner_container:
+    waktu_sekarang = datetime.now()
+    jam_statis = waktu_sekarang.strftime('%H:%M')
+    tgl_statis = waktu_sekarang.strftime('%d %b %Y')
+    
     st.markdown(f"""
         <div class="bmkg-portal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="display: flex; align-items: center;">
@@ -143,7 +147,10 @@ with banner_container:
             </div>
             <div style="text-align: right; background: rgba(0,0,0,0.25); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="font-size: 24px; font-weight: 800; color: #FFFFFF; font-family: monospace; letter-spacing: 2px;">
-                    #️⃣ ACTIVE MODE
+                    🕰️ {jam_statis} UTC
+                </div>
+                <div style="font-size: 12px; color: #00A8E8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;">
+                    {tgl_statis}
                 </div>
             </div>
         </div>
