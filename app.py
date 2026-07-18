@@ -1,31 +1,24 @@
-# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR (Pristine Streamlined Version)
+# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR
 import importlib
 import verification_logic
 importlib.reload(verification_logic)
 import excel_export
 importlib.reload(excel_export)
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
-import re
-import os
-import sqlite3
-import io
 from datetime import datetime
-from verification_logic import buat_tabel_laporan_excel, proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, hitung_verifikasi_TAFOR
+from verification_logic import buat_tabel_laporan_excel, proses_verifikasi
 from excel_export import generate_klasik_31_sheet, export_v_final_excel
 
 st.set_page_config(page_title="SIVETA - BMKG", layout="wide")
 
 # =========================================================================
-# 🔒 INITIALIZATION MEMORI JAGA (ANTI-KEYERROR)
+# 🔒 INITIALIZATION MEMORI JAGA
 # =========================================================================
 if 'diklik_proses' not in st.session_state: 
     st.session_state['diklik_proses'] = False
 if 'df_hasil' not in st.session_state: 
     st.session_state['df_hasil'] = None
-if 'df_speci_report' not in st.session_state: 
-    st.session_state['df_speci_report'] = None
 
 # =========================================================================
 # 🎨 PORTAL THEME INJECTION (PORTAL BMKG STYLE)
@@ -77,54 +70,6 @@ def jalankan_komputasi_cached(df_m_raw, df_t_raw, df_sp_raw):
     return proses_verifikasi(df_m_raw, df_t_raw, df_sp_raw)
 
 # ==========================================
-# 🗄️ DATABASE SYSTEM UNIVERSAL MURNI ICAO
-# ==========================================
-def init_db():
-    conn = sqlite3.connect('verifier_db.sqlite')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS rekap_performa_v2
-                 (stasiun TEXT, bulan_tahun TEXT, 
-                  total_k REAL, total_s REAL,
-                  k_a REAL, k_b REAL, k_c REAL, k_d REAL, k_e REAL, k_f REAL,
-                  s_a REAL, s_b REAL, s_c REAL, s_d REAL, s_e REAL, s_f REAL,
-                  PRIMARY KEY (stasiun, bulan_tahun))''')
-    conn.commit()
-    conn.close()
-
-def simpan_rekap_db(stasiun, bulan_tahun, global_score, rows_tafor):
-    try:
-        conn = sqlite3.connect('verifier_db.sqlite')
-        c = conn.cursor()
-        
-        c.execute("SELECT COUNT(*) FROM rekap_performa_v2 WHERE stasiun=? AND bulan_tahun=?", (stasiun, bulan_tahun))
-        data_ada = c.fetchone()[0]
-        
-        # Peta parameter ke database untuk menjaga kecocokan schema lama jika diperlukan
-        p = [r['pct'] for r in rows_tafor]
-        params = (
-            global_score, global_score,
-            p[0], p[1], p[2], p[3], p[4], p[5],
-            p[0], p[1], p[2], p[3], p[4], p[5],
-            stasiun, bulan_tahun
-        )
-        
-        if data_ada > 0:
-            c.execute('''UPDATE rekap_performa_v2
-                         SET total_k=?, total_s=?, k_a=?, k_b=?, k_c=?, k_d=?, k_e=?, k_f=?,
-                             s_a=?, s_b=?, s_c=?, s_d=?, s_e=?, s_f=?
-                         WHERE stasiun=? AND bulan_tahun=?''', params)
-        else:
-            c.execute('''INSERT INTO rekap_performa_v2 
-                         (total_k, total_s, k_a, k_b, k_c, k_d, k_e, k_f, s_a, s_b, s_c, s_d, s_e, s_f, stasiun, bulan_tahun)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', params)
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        pass
-
-init_db()
-
-# ==========================================
 # 🗓️ SIDEBAR (HANYA UNTUK FILTER TANGGAL)
 # ==========================================
 st.sidebar.header("🗓️ Navigasi Laporan")
@@ -138,7 +83,6 @@ elif isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 1:
 else:
     tgl_mulai = tgl_selesai = tanggal_pilihan[0] if isinstance(tanggal_pilihan, list) else tanggal_pilihan
 
-# Banner Container
 banner_container = st.container()
 
 # ==========================================
@@ -190,7 +134,6 @@ if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
 
 # Inject Banner
 with banner_container:
-    waktu_sekarang = datetime.now()
     st.markdown(f"""
         <div class="bmkg-portal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="display: flex; align-items: center;">
@@ -219,9 +162,9 @@ if df_metar_raw is not None and df_taf_raw is not None:
             with st.spinner(f"Sedang memproses Verifikasi TAFOR stasiun {stasiun_aktif}..."):
                 st.session_state['excel_ready'] = False
                 
-                # Masukkan data SPECI murni jika diunggah, jika tidak buat dataframe kosong
                 df_speci_umpan = df_speci_raw if df_speci_raw is not None else pd.DataFrame(columns=df_metar_raw.columns)
-                df_hasil, df_speci_report, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
+                # 💡 Menggunakan '_' untuk mengabaikan output logbook/speci report yang tidak lagi dicetak di app.py
+                df_hasil, _, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
                 df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
                 
                 st.session_state['df_hasil'] = df_hasil
@@ -239,7 +182,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     if df_filtered.empty:
         st.warning(f"⚠️ Berkas data kosong pada rentang tanggal {tgl_mulai} s.d {tgl_selesai}. Silakan sesuaikan filter tanggal.")
     else:
-        # Perhitungan Akurasi per Unsur Cuaca
         rows_tafor = []
         total_b_global = 0
         total_sampel_global = 0
@@ -264,10 +206,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             
         total_accuracy_global = (total_b_global / total_sampel_global * 100) if total_sampel_global > 0 else 0.0
         
-        # Simpan rekap ke local database
-        simpan_rekap_db(stasiun_aktif, tgl_mulai.strftime('%Y-%m'), total_accuracy_global, rows_tafor)
-        
-        # Tampilan Web Sesuai Permintaan
         st.markdown("### 📊 VERIFIKASI TAFOR: Komparasi Akurasi per Unsur Cuaca")
         
         c_head1, c_head2, c_head3 = st.columns([3, 2, 2])
@@ -276,7 +214,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         c_head3.write("🔢 **Proporsi Data (Benar / Total)**")
         st.markdown("---")
         
-        for idx, item in enumerate(rows_tafor):
+        for item in rows_tafor:
             c1, c2, c3 = st.columns([3, 2, 2])
             c1.write(f"**{item['param']}**")
             c2.code(f" {round(item['pct'], 2)} % ")
@@ -284,7 +222,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             
         st.markdown("---")
         
-        # Total Akurasi Keseluruhan
         st.subheader("🏆 TOTAL AKURASI KESELURUHAN")
         st.metric(label="Total Akurasi Verifikasi TAFOR", value=f"{round(total_accuracy_global, 1)}%")
         st.markdown("---")
@@ -298,7 +235,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         
         st.markdown("### 📥 Unduh Laporan Excel")
         
-        # Form Administrasi Tanda Tangan
         c_ttd1, c_ttd2 = st.columns(2)
         with c_ttd1:
             nama_kepala = st.text_input("Nama Kepala Stasiun:", value="[NAMA KEPALA STASIUN]")
@@ -309,13 +245,11 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             
         st.markdown("---")
         
-        # 💡 OPSI UNDUH KLASIK (Menjadi Pilihan Checkbox)
         opsi_klasik = st.checkbox("Sertakan Laporan Format KLASIK (31 Sheet Harian)")
         
         if st.button("⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True):
             with st.spinner("Mesin sedang merakit data ke format Excel... Mohon tunggu sebentar..."):
                 
-                # 1. Selalu buat file utama VERIFIKASI TAFOR
                 st.session_state['dl_verifikasi_tafor'] = export_v_final_excel(
                     df_vfinal = buat_tabel_laporan_excel(df_filtered), 
                     bulan = nama_bulan, 
@@ -327,7 +261,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                     nip_kepala = nip_kepala
                 )
                 
-                # 2. Buat file KLASIK hanya jika dicentang oleh user
                 if opsi_klasik:
                     st.session_state['dl_klasik'] = generate_klasik_31_sheet(df_filtered).getvalue()
                 else:
@@ -335,7 +268,6 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                     
                 st.session_state['excel_ready'] = True
 
-        # Tampilkan tombol unduh asli jika status sudah siap
         if st.session_state.get('excel_ready', False):
             st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
             
