@@ -18,7 +18,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     kolom_skor = ['S_Arah', 'S_Kec', 'S_Vis', 'S_Wx', 'S_AwanJml', 'S_AwanTgi']
     for col in kolom_skor:
         if col in df_excel.columns:
-            # Konversi: Jika aslinya False/Salah -> 'S', selain itu -> 'B'
             df_excel[col] = df_excel[col].apply(
                 lambda x: 'S' if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else 'B'
             )
@@ -46,17 +45,16 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 10})
     format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%', 'font_size': 10})
     
-    format_tabel_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'font_size': 10})
+    format_tabel_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 10})
     format_tabel_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 10})
     
     format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
     format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
     
-    # Format Nama TTD dengan Underline (Garis Bawah)
     format_ttd_nama = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 11, 'underline': True})
 
     # ==========================================
-    # 3. MENCARI BATAS KOLOM
+    # 3. MENCARI BATAS KOLOM & NAMA HEADER CANTIK
     # ==========================================
     if 'S_AwanTgi' in df_excel.columns:
         batas_col = df_excel.columns.get_loc('S_AwanTgi')
@@ -66,11 +64,20 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     batas_col = max(batas_col, 15)
     max_col_data = len(df_excel.columns) - 1
 
+    # Header yang lebih ramah-baca dan menghemat ruang kolom
+    nama_kolom_cantik = [
+        "Tanggal", "Jangka Waktu", "Perubahan",
+        "Arah\n(T)", "Kec\n(T)", "Vis\n(T)", "Cuaca\n(T)", "Jml Awan\n(T)", "Tgi Awan\n(T)",
+        "Arah\n(M)", "Hasil", "Kec\n(M)", "Hasil", "Vis\n(M)", "Hasil", 
+        "Cuaca\n(M)", "Hasil", "Jml Awan\n(M)", "Hasil", "Tgi Awan\n(M)", "Hasil"
+    ]
+
     # ==========================================
-    # 4. MENULIS DATAFRAME MANUAL DENGAN BORDER TEPAT
+    # 4. MENULIS HEADER & DATAFRAME MANUAL
     # ==========================================
-    for col_num, value in enumerate(df_excel.columns):
-        worksheet.write(12, col_num, value, format_tabel_header)
+    worksheet.set_row(12, 35) # Tinggikan baris header untuk Wrap Text
+    for col_num, col_name in enumerate(nama_kolom_cantik):
+        worksheet.write(12, col_num, col_name, format_tabel_header)
         
     for row_num, row_data in enumerate(df_excel.values):
         for col_num, value in enumerate(row_data):
@@ -104,13 +111,9 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(6, 10, 6, batas_col - 1, 'Selisih ≤ 100 ft untuk <1000 ft. Untuk ≥ 1000 ft, selisih ≤ 30% dari tinggi awan Manual.', format_req_text)
     worksheet.write(6, batas_col, '70%', format_req_center)
 
-    # ... (kode baris 5 dan 6 di atasnya biarkan sama) ...
-
     worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
     worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
     worksheet.write(7, 7, '80%', format_req_center)
-    
-    # 💡 PERBAIKAN: Ubah penomoran baris di sini dari 8 menjadi 7 agar sejajar dengan Jarak Pandang
     worksheet.merge_range(7, 8, 7, 9, '', format_req_bold)
     worksheet.merge_range(7, 10, 7, batas_col - 1, '', format_req_text)
     worksheet.write(7, batas_col, '', format_req_center)
@@ -148,35 +151,32 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.freeze_panes(13, 0) 
 
     # ==========================================
-    # 7. FOOTER & RUMUS PERSENTASE (REVISI GIGI OMPONG)
+    # 7. FOOTER & RUMUS PERSENTASE
     # ==========================================
     baris_jumlah_idx = 12 + jumlah_baris_data + 1 
     excel_baris_jumlah = baris_jumlah_idx + 1 
     baris_persen_idx = baris_jumlah_idx + 1
     excel_baris_persen = baris_persen_idx + 1 
 
-    # 💡 PERBAIKAN MERGE: Cukup merge dari kolom 0 sampai 2 saja agar kolom sebelahnya tidak tertimpa
     worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
     worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE KEBENARAN', format_border_bold)
 
-    # 💡 PERBAIKAN BORDER PONDASI: Tulis border penuh (string kosong) dari ujung ke ujung DULU
     for col_idx in range(3, max_col_data + 1):
         worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
-        worksheet.write(baris_persen_idx, col_idx, "", format_border_bold) # Mencegah gigi ompong
+        worksheet.write(baris_persen_idx, col_idx, "", format_border_bold)
 
-    # 💡 MENIMPA BORDER DENGAN RUMUS PADA KOLOM SKOR TERTENTU
     for col_name in kolom_skor:
         if col_name in df_excel.columns:
             col_idx = df_excel.columns.get_loc(col_name)
             col_huruf = xl_col_to_name(col_idx) 
             rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
-            # Timpa sel yang tadinya kosong dengan rumus persentase
             worksheet.write_formula(baris_persen_idx, col_idx, rumus_persen, format_persen)
 
     # ==========================================
-    # 8. TANDA TANGAN (KIRI DAN KANAN)
+    # 8. TANDA TANGAN (Dengan Jarak Aman Orphan Page)
     # ==========================================
-    baris_ttd = baris_persen_idx + 4
+    # Jarak +4 baris kosong agar tanda tangan tidak kejepit tabel jika terlempar ke halaman baru
+    baris_ttd = baris_persen_idx + 4 
     
     worksheet.merge_range(baris_ttd, 0, baris_ttd, 3, "Mengetahui,", format_subtitle)
     worksheet.merge_range(baris_ttd + 1, 0, baris_ttd + 1, 3, "Kepala Stasiun", format_subtitle)
@@ -190,18 +190,22 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
 
     # ==========================================
-    # 9. SETUP PRINT
+    # 9. SETUP PRINT TEROPTIMASI
     # ==========================================
-    worksheet.set_column(0, 0, 7.5)   
-    worksheet.set_column(1, 1, 9.5)   
-    worksheet.set_column(2, max_col_data, 7.5) 
+    # Mengatur lebar kolom agar proporsional dan tidak saling bertumpuk
+    worksheet.set_column('A:A', 8.5)   
+    worksheet.set_column('B:B', 13.5)   
+    worksheet.set_column('C:C', 11.5)  
+    worksheet.set_column('D:U', 7.5) 
 
     worksheet.set_landscape()            
-    worksheet.set_paper(9)              
-    worksheet.fit_to_pages(1, 0)        
+    worksheet.set_paper(9) # Kertas A4             
+    worksheet.fit_to_pages(1, 0) # Paksa lebar data pas 1 halaman      
     worksheet.set_margins(left=0.24, right=0.24, top=0.5, bottom=0.5)
     
+    # Hanya mengulangi Header Tabel (Baris Index ke-12) ke halaman selanjutnya
     worksheet.repeat_rows(12, 12)       
+    
     akhir_baris_print = baris_ttd + 7
     worksheet.print_area(0, 0, akhir_baris_print, max_col_data)
 
