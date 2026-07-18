@@ -10,113 +10,131 @@ from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, 
 from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 
 def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
+    # Gunakan .copy() agar modifikasi (seperti menghapus tanggal berulang) tidak merusak data asli di UI
+    df_excel = df_vfinal.copy()
+    
     # ==========================================
-    # 1. PENGAMANAN TIPE DATA (BOOLEAN MURNI)
+    # 1. PENGAMANAN BOOLEAN & MERAPIKAN TANGGAL
     # ==========================================
     kolom_skor = ['S_Arah', 'S_Kec', 'S_Vis', 'S_Wx', 'S_AwanJml', 'S_AwanTgi']
     for col in kolom_skor:
-        if col in df_vfinal.columns:
-            # Pastikan teks 'False', 'Salah', dll menjadi boolean False. Sisanya True.
-            df_vfinal[col] = df_vfinal[col].apply(
+        if col in df_excel.columns:
+            df_excel[col] = df_excel[col].apply(
                 lambda x: False if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else bool(x)
             )
+
+    # Membiarkan Tanggal hanya muncul di baris pertama (Base) per harinya agar rapi tanpa di-merge
+    if 'Tanggal' in df_excel.columns:
+        df_excel.loc[df_excel['Tanggal'].duplicated(), 'Tanggal'] = ""
 
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
-    # Menulis Dataframe ke Excel (Mulai Baris Excel ke-12 / Index 11)
-    df_vfinal.to_excel(writer, sheet_name='V_FINAL', startrow=11, index=False)
+    # Tulis DataFrame mulai baris Excel ke-12 (Index 11)
+    df_excel.to_excel(writer, sheet_name='V_FINAL', startrow=11, index=False)
     
     workbook  = writer.book
     worksheet = writer.sheets['V_FINAL']
     
     # ==========================================
-    # 2. PERSIAPAN STYLING & WARNA (Sesuai SOP)
+    # 2. FORMATTING STYLES
     # ==========================================
     format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
     format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 11})
     format_bold_left = workbook.add_format({'bold': True, 'align': 'left'})
-    format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter'})
-    
-    # Perbaikan Bug 1%: num_format menggunakan '0%' (bukan '0"%"')
+    format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True})
     format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%'})
-    
-    # Format Warna (Hijau untuk Benar/True, Merah untuk Salah/False)
     format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
     format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
 
     # ==========================================
-    # 3. MEMBANGUN HEADER JUDUL
+    # 3. HEADER & PERSYARATAN TOLERANSI KETELITIAN
     # ==========================================
-    max_col = len(df_vfinal.columns) - 1
+    max_col = len(df_excel.columns) - 1
     
     worksheet.merge_range(0, 0, 0, max_col, 'VERIFIKASI AERODROM FORECAST', format_title)
     worksheet.merge_range(1, 0, 1, max_col, 'Instruksi Met./No.029/Verifikasi Prakiraan/II/88', format_subtitle)
     worksheet.write(3, 0, 'PERSYARATAN KETELITIAN PRAKIRAAN :', format_bold_left)
     
-    # Tabel Persyaratan
+    # Header Tabel Persyaratan
     headers_req = ['UNSUR METEOROLOGI', 'PERSYARATAN/TOLERANSI KETELITIAN', 'PROSENTASE MINIMUM', 
                    'UNSUR METEOROLOGI', 'PERSYARATAN/TOLERANSI KETELITIAN', 'PROSEN MINIMUM']
-    kolom_header_posisi = [0, 3, 6, 8, 11, 15] # Posisi kasar kolom header persyaratan
+    kolom_header_posisi = [0, 3, 6, 8, 11, 15] 
     for idx, col_pos in enumerate(kolom_header_posisi):
         if col_pos <= max_col:
             worksheet.write(4, col_pos, headers_req[idx], format_border_bold)
             
+    # Mengisi Unsur Kiri (Angin & Vis)
     worksheet.write(5, 0, "A. Arah angin")
+    worksheet.write(5, 3, "± 30 Derajat", format_subtitle)
+    worksheet.write(5, 6, "80%", format_subtitle)
+    
     worksheet.write(6, 0, "B. Kecepatan angin")
+    worksheet.write(6, 3, "± 5 KT (≤ 30 KT) atau ± 20% (> 30 KT)", format_subtitle)
+    worksheet.write(6, 6, "80%", format_subtitle)
+    
     worksheet.write(7, 0, "C. JARAK PANDANG")
-    worksheet.write(5, 8, "D. CUACA/ENDAPAN")
-    worksheet.write(6, 8, "E. JUMLAH AWAN")
-    worksheet.write(7, 8, "F. TINGGI DASAR AWAN")
+    worksheet.write(7, 3, "± 30%", format_subtitle)
+    worksheet.write(7, 6, "80%", format_subtitle)
 
-    # Baris Identitas
+    # Mengisi Unsur Kanan (Cuaca & Awan)
+    if max_col >= 8:
+        worksheet.write(5, 8, "D. CUACA/ENDAPAN")
+        worksheet.write(5, 11, "Kejadian Sesuai Kategori Sandi TAF", format_subtitle)
+        worksheet.write(5, 15, "80%", format_subtitle)
+        
+        worksheet.write(6, 8, "E. JUMLAH AWAN")
+        worksheet.write(6, 11, "Perubahan Signifikan (BKN/OVC)", format_subtitle)
+        worksheet.write(6, 15, "70%", format_subtitle)
+        
+        worksheet.write(7, 8, "F. TINGGI DASAR AWAN")
+        worksheet.write(7, 11, "± 30% atau < 400 FT", format_subtitle)
+        worksheet.write(7, 15, "70%", format_subtitle)
+
+    # Identitas Laporan
     worksheet.write(9, 0, f"BULAN : {bulan}", format_bold_left)
     worksheet.write(9, 3, f"TAHUN : {tahun}", format_bold_left)
     worksheet.write(9, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
     worksheet.write(9, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
     # ==========================================
-    # 4. CONDITIONAL FORMATTING (PEWARNAAN OTOMATIS)
+    # 4. DATA, WARNA (CONDITIONAL FORMATTING), & FILTER
     # ==========================================
-    jumlah_baris_data = len(df_vfinal)
-    excel_start_data_row = 13 # Data di Excel mulai baris ke-13 (karena header di baris 12)
+    jumlah_baris_data = len(df_excel)
+    excel_start_data_row = 13 
     excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1
     
-    # Area data yang akan diwarnai otomatis
+    # Menerapkan Warna Otomatis
     data_range = f"A{excel_start_data_row}:{xl_col_to_name(max_col)}{excel_last_data_row}"
-    
-    # Terapkan warna Hijau untuk True, Merah untuk False
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': True, 'format': format_hijau})
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': False, 'format': format_merah})
 
+    # Mengaktifkan Fitur AutoFilter Excel (Mulai dari Header Baris ke-12)
+    worksheet.autofilter(11, 0, excel_last_data_row, max_col)
+
     # ==========================================
-    # 5. FOOTER (JUMLAH & RUMUS PERSENTASE)
+    # 5. FOOTER & RUMUS PERSENTASE
     # ==========================================
     baris_jumlah_idx = 11 + jumlah_baris_data + 1 
     excel_baris_jumlah = baris_jumlah_idx + 1 
     baris_persen_idx = baris_jumlah_idx + 1
     excel_baris_persen = baris_persen_idx + 1 
 
-    # Tulis Label Footer
     worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
     worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE PRAKIRAAN CUACA YANG BENAR', format_border_bold)
 
-    # Tulis Total Baris (Jumlah Data) ke semua kolom kecuali label
     for col_idx in range(3, max_col + 1):
         worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
 
-    # Injeksi Rumus Dinamis ke Kolom Skor Saja
     for col_name in kolom_skor:
-        if col_name in df_vfinal.columns:
-            col_idx = df_vfinal.columns.get_loc(col_name)
-            col_huruf = xl_col_to_name(col_idx) # Deteksi otomatis huruf kolom (misal: 'K', 'M')
-            
-            # Rumus Excel: =IFERROR(COUNTIF(K13:K50, TRUE)/K51, 0)
+        if col_name in df_excel.columns:
+            col_idx = df_excel.columns.get_loc(col_name)
+            col_huruf = xl_col_to_name(col_idx) 
             rumus_persen = f"=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, TRUE) / {col_huruf}{excel_baris_jumlah}, 0)"
             worksheet.write_formula(f"{col_huruf}{excel_baris_persen}", rumus_persen, format_persen)
 
     # ==========================================
-    # 6. TANDA TANGAN & SETTING SIAP PRINT
+    # 6. TANDA TANGAN & PAGE SETUP PRINT
     # ==========================================
     baris_ttd = baris_persen_idx + 4
     col_ttd = max_col - 4 if max_col >= 4 else max_col
@@ -124,12 +142,11 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.write(baris_ttd + 1, col_ttd, "Petugas Pembuat Laporan,", format_subtitle)
     worksheet.write(baris_ttd + 5, col_ttd, f"( {nama_petugas} )", format_title)
 
-    # Konfigurasi Page Setup (Siap Print)
-    worksheet.set_landscape()           # Orientasi Lanskap
-    worksheet.set_paper(9)              # Kertas A4 (Index 9 di Excel)
-    worksheet.fit_to_pages(1, 0)        # Fit 1 halaman ke samping, biarkan ke bawah mengalir bebas
+    worksheet.set_landscape()           
+    worksheet.set_paper(9)              
+    worksheet.fit_to_pages(1, 0)        
     worksheet.set_margins(left=0.5, right=0.5, top=0.5, bottom=0.5)
-    worksheet.set_column('A:Z', 12)     # Lebarkan sel agar rapi
+    worksheet.set_column('A:Z', 13)     # Dilebarkan sedikit agar tombol filter tidak menutupi teks
     
     writer.close()
     return output.getvalue()
