@@ -3,8 +3,65 @@ import pandas as pd
 from io import BytesIO
 from datetime import datetime
 import openpyxl
-from openpyxl.styles import Font
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
+
+def export_v_final_excel(df_laporan, output_path):
+    """
+    Mengekspor DataFrame Laporan V FINAL ke dalam file Excel dengan format rapi.
+    Memberikan highlight warna hijau untuk 'B' (Benar) dan merah untuk 'S' (Salah).
+    """
+    # Gunakan ExcelWriter dengan engine openpyxl agar bisa di-format
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        df_laporan.to_excel(writer, sheet_name='V FINAL', index=False)
+        
+        workbook = writer.book
+        worksheet = writer.sheets['V FINAL']
+        
+        # 1. Tentukan Gaya Format
+        fill_benar = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Hijau
+        font_benar = Font(color="006100", bold=True)
+        
+        fill_salah = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Merah
+        font_salah = Font(color="9C0006", bold=True)
+        
+        border_thin = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        
+        alignment_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        # 2. Format Header
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            cell.alignment = alignment_center
+            cell.border = border_thin
+
+        # 3. Format Data & Auto-fit Kolom
+        for row_idx, row in enumerate(worksheet.iter_rows(min_row=2, max_row=worksheet.max_row, min_col=1, max_col=worksheet.max_column), start=2):
+            for col_idx, cell in enumerate(row, start=1):
+                cell.alignment = alignment_center
+                cell.border = border_thin
+                
+                # Cek jika kolom adalah kolom evaluasi / Status (S_Arah, S_Kec, dll)
+                col_name = str(worksheet.cell(row=1, column=col_idx).value)
+                if col_name.startswith('S_'):
+                    if cell.value == 'B':
+                        cell.fill = fill_benar
+                        cell.font = font_benar
+                    elif cell.value == 'S':
+                        cell.fill = fill_salah
+                        cell.font = font_salah
+
+        # 4. Atur Lebar Kolom
+        for col_idx in range(1, worksheet.max_column + 1):
+            col_letter = get_column_letter(col_idx)
+            worksheet.column_dimensions[col_letter].width = 15
+
+    return output_path
 
 def generate_lapbul_excel(df_hasil, df_speci=None):
     tgl_jam = pd.DatetimeIndex(df_hasil['Waktu Aktual (UTC)'])
