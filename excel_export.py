@@ -108,9 +108,9 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
     worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
     worksheet.write(7, 7, '80%', format_req_center)
-    #worksheet.merge_range(7, 8, 7, 9, 'G. Suhu Udara', format_req_bold)
-    #worksheet.merge_range(7, 10, 7, batas_col - 1, 'Selisih ≤ 1°C.', format_req_text)
-    #worksheet.write(7, batas_col, '70%', format_req_center)
+    worksheet.merge_range(8, 8, 8, 9, '', format_req_bold)
+    worksheet.merge_range(8, 10, 8, batas_col - 1, '', format_req_text)
+    worksheet.write(8, batas_col, '', format_req_center)
 
     worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
     worksheet.merge_range(8, 2, 8, 6, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
@@ -138,7 +138,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     
     data_range = f"A{excel_start_data_row}:{xl_col_to_name(max_col_data)}{excel_last_data_row}"
     
-    # Deteksi warna sekarang berbasis Huruf "B" atau "S"
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': '"B"', 'format': format_hijau})
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': '"S"', 'format': format_merah})
 
@@ -146,39 +145,41 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.freeze_panes(13, 0) 
 
     # ==========================================
-    # 7. FOOTER & RUMUS PERSENTASE
+    # 7. FOOTER & RUMUS PERSENTASE (REVISI GIGI OMPONG)
     # ==========================================
     baris_jumlah_idx = 12 + jumlah_baris_data + 1 
     excel_baris_jumlah = baris_jumlah_idx + 1 
     baris_persen_idx = baris_jumlah_idx + 1
     excel_baris_persen = baris_persen_idx + 1 
 
+    # 💡 PERBAIKAN MERGE: Cukup merge dari kolom 0 sampai 2 saja agar kolom sebelahnya tidak tertimpa
     worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
-    worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 9, 'PROSENTASE KEBENARAN', format_border_bold)
+    worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE KEBENARAN', format_border_bold)
 
+    # 💡 PERBAIKAN BORDER PONDASI: Tulis border penuh (string kosong) dari ujung ke ujung DULU
     for col_idx in range(3, max_col_data + 1):
         worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
+        worksheet.write(baris_persen_idx, col_idx, "", format_border_bold) # Mencegah gigi ompong
 
+    # 💡 MENIMPA BORDER DENGAN RUMUS PADA KOLOM SKOR TERTENTU
     for col_name in kolom_skor:
         if col_name in df_excel.columns:
             col_idx = df_excel.columns.get_loc(col_name)
             col_huruf = xl_col_to_name(col_idx) 
-            # Rumus Excel diubah untuk menghitung sel yang bernilai "B"
             rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
-            worksheet.write_formula(f"{col_huruf}{excel_baris_persen}", rumus_persen, format_persen)
+            # Timpa sel yang tadinya kosong dengan rumus persentase
+            worksheet.write_formula(baris_persen_idx, col_idx, rumus_persen, format_persen)
 
     # ==========================================
     # 8. TANDA TANGAN (KIRI DAN KANAN)
     # ==========================================
     baris_ttd = baris_persen_idx + 4
     
-    # BLOK KIRI: Kepala Stasiun (Dimerge 4 kolom agar letaknya rapi/center)
     worksheet.merge_range(baris_ttd, 0, baris_ttd, 3, "Mengetahui,", format_subtitle)
     worksheet.merge_range(baris_ttd + 1, 0, baris_ttd + 1, 3, "Kepala Stasiun", format_subtitle)
     worksheet.merge_range(baris_ttd + 5, 0, baris_ttd + 5, 3, nama_kepala, format_ttd_nama)
     worksheet.merge_range(baris_ttd + 6, 0, baris_ttd + 6, 3, f"NIP. {nip_kepala}", format_subtitle)
 
-    # BLOK KANAN: Petugas Pembuat Laporan (Dimerge 4 kolom batas akhir tabel)
     col_ttd_start = max(batas_col - 3, 4)
     col_ttd_end = batas_col
     worksheet.merge_range(baris_ttd, col_ttd_start, baris_ttd, col_ttd_end, "Petugas Pembuat Laporan", format_subtitle)
@@ -186,13 +187,12 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
 
     # ==========================================
-    # 9. SETUP PRINT (UBAH KE LANDSCAPE AGAR FONT BESAR!)
+    # 9. SETUP PRINT
     # ==========================================
     worksheet.set_column(0, 0, 7.5)   
     worksheet.set_column(1, 1, 9.5)   
     worksheet.set_column(2, max_col_data, 7.5) 
 
-    # 💡 Orientasi Mendatar agar 21 Kolom tidak menyempit!
     worksheet.set_landscape()            
     worksheet.set_paper(9)              
     worksheet.fit_to_pages(1, 0)        
