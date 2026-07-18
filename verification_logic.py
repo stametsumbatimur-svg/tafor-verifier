@@ -473,18 +473,17 @@ def buat_tabel_laporan_excel(df_input):
             for i in range(1, len(parts), 2):
                 tipe, isi = parts[i], parts[i+1]
                 
-                # =================================================================
-                # 👉 2. UBAHAN FORMAT TULISAN WAKTU TREND SESUAI SOP EXCEL
-                # =================================================================
                 if tipe.startswith('FM'):
                     jam_target = int(tipe[4:6])
                     jam_fm = tipe[4:6]
-                    jangka_trend = f"{jam_fm}-{jam_akhir_taf}" # Format FM: [jam_FM]-[jam_akhir_TAF]
+                    # Menuliskan FM dengan rentang waktu, misal: "FM.02-12"
+                    jangka_trend = f"FM.{jam_fm}-{jam_akhir_taf}" 
                 else:
                     time_match = RE_TIME_GRP.search(isi)
                     jam_target = int(time_match.group(2)) if time_match else 0
-                    # Dibuat bersih tanpa prefix T atau B. Contoh: "02-06"
-                    jangka_trend = f"{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
+                    # Menggunakan prefix T, B, atau P sesuai Excel SOP
+                    prefix = 'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
+                    jangka_trend = f"{prefix}.{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
                 # =================================================================
                 
                 # Cari data METAR aktual yang paling mendekati jam target
