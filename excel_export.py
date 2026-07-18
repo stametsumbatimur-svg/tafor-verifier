@@ -28,20 +28,19 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
-    # Tulis DataFrame mulai baris Excel ke-13 (Index 12) 
-    df_excel.to_excel(writer, sheet_name='V_FINAL', startrow=12, index=False)
-    
+    # Kita HAPUS df_excel.to_excel karena kita akan menulis manual agar bisa diberi Border!
     workbook  = writer.book
-    worksheet = writer.sheets['V_FINAL']
+    
+    # Buat Worksheet
+    worksheet = workbook.add_worksheet('V_FINAL')
     
     # ==========================================
-    # 2. FORMATTING STYLES (Font Size Normal 10-11)
+    # 2. FORMATTING STYLES (Font Size 10-11 & BORDERS)
     # ==========================================
     format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
     format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 11})
     format_bold_left = workbook.add_format({'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 11})
     
-    # Header menggunakan font 10 agar muat di kolom yang lebih sempit
     format_req_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 10})
     format_req_text = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 10})
     format_req_center = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'bold': True, 'font_size': 10})
@@ -50,12 +49,16 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 10})
     format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%', 'font_size': 10})
     
-    # Warna Boolean (Font dibuat 10 agar pas di kolom kecil)
-    format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'align': 'center', 'font_size': 10})
-    format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'align': 'center', 'font_size': 10})
+    # Format Khusus Tabel Data (Dilengkapi BORDER)
+    format_tabel_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'font_size': 10})
+    format_tabel_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 10})
+    
+    # Warna Boolean (Diberi border juga agar tidak bolong garisnya saat diwarnai)
+    format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
+    format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
 
     # ==========================================
-    # 3. MENCARI BATAS KOLOM S_AwanTgi
+    # 3. MENCARI BATAS KOLOM
     # ==========================================
     if 'S_AwanTgi' in df_excel.columns:
         batas_col = df_excel.columns.get_loc('S_AwanTgi')
@@ -66,13 +69,26 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     max_col_data = len(df_excel.columns) - 1
 
     # ==========================================
-    # 4. HEADER & NARASI PERSYARATAN 
+    # 4. MENULIS DATAFRAME MANUAL DENGAN BORDER TEPAT
+    # ==========================================
+    # A. Tulis Header DataFrame (Baris 13 Excel / Index 12)
+    for col_num, value in enumerate(df_excel.columns):
+        worksheet.write(12, col_num, value, format_tabel_header)
+        
+    # B. Tulis Isi Data (Mulai Baris 14 Excel / Index 13)
+    for row_num, row_data in enumerate(df_excel.values):
+        for col_num, value in enumerate(row_data):
+            # Cek jika NaN/Null maka kosongkan
+            val = "" if pd.isna(value) else value
+            worksheet.write(13 + row_num, col_num, val, format_tabel_data)
+
+    # ==========================================
+    # 5. HEADER & NARASI PERSYARATAN 
     # ==========================================
     worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROM FORECAST', format_title)
     worksheet.merge_range(1, 0, 1, batas_col, 'Sesuai Logika SIVETA (Berdasarkan Gambar Toleransi)', format_subtitle)
     worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
     
-    # Baris 4: Header Tabel
     worksheet.merge_range(4, 0, 4, 1, 'UNSUR METEOROLOGI', format_req_header)
     worksheet.merge_range(4, 2, 4, 6, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header)
     worksheet.write(4, 7, 'MINIMUM', format_req_header)
@@ -81,7 +97,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.merge_range(4, 10, 4, batas_col - 1, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header)
     worksheet.write(4, batas_col, 'MINIMUM', format_req_header)
     
-    # Baris 5
     worksheet.merge_range(5, 0, 5, 1, 'A. Arah Angin', format_req_bold)
     worksheet.merge_range(5, 2, 5, 6, 'Benar apabila arah sama, atau selisih ≤ 60°. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, tetap dianggap benar.', format_req_text)
     worksheet.write(5, 7, '80%', format_req_center)
@@ -90,7 +105,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.merge_range(5, 10, 5, batas_col - 1, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan > 5000 ft, otomatis dianggap benar.', format_req_text)
     worksheet.write(5, batas_col, '70%', format_req_center)
     
-    # Baris 6
     worksheet.merge_range(6, 0, 6, 1, 'B. Kecepatan Angin', format_req_bold)
     worksheet.merge_range(6, 2, 6, 6, 'Selisih kecepatan dasar ≤ 10 knot. Status gust harus konsisten.', format_req_text)
     worksheet.write(6, 7, '80%', format_req_center)
@@ -99,7 +113,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.merge_range(6, 10, 6, batas_col - 1, 'Selisih ≤ 100 ft untuk <1000 ft. Untuk ≥ 1000 ft, selisih ≤ 30% dari tinggi awan Manual.', format_req_text)
     worksheet.write(6, batas_col, '70%', format_req_center)
 
-    # Baris 7
     worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
     worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama (Sesuai 5 Kelas SIVETA).', format_req_text)
     worksheet.write(7, 7, '80%', format_req_center)
@@ -108,7 +121,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.merge_range(7, 10, 7, batas_col - 1, 'Selisih ≤ 1°C.', format_req_text)
     worksheet.write(7, batas_col, '70%', format_req_center)
 
-    # Baris 8
     worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
     worksheet.merge_range(8, 2, 8, 6, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
     worksheet.write(8, 7, '80%', format_req_center)
@@ -122,20 +134,20 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.set_row(7, 35)
     worksheet.set_row(8, 45)
 
-    # Identitas
     worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
     worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
     worksheet.write(10, 11, f"STASIUN {stasiun}", format_bold_left)
 
     # ==========================================
-    # 5. DATA, WARNA, & FILTER
+    # 6. WARNA KONDISIONAL, FILTER & FREEZE
     # ==========================================
     jumlah_baris_data = len(df_excel)
     excel_start_data_row = 14 
     excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1
     
     data_range = f"A{excel_start_data_row}:{xl_col_to_name(max_col_data)}{excel_last_data_row}"
+    # Beri warna Hijau/Merah, dan karena sudah ada format border, bordernya tidak akan tertimpa!
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': True, 'format': format_hijau})
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': False, 'format': format_merah})
 
@@ -143,7 +155,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.freeze_panes(13, 0) 
 
     # ==========================================
-    # 6. FOOTER
+    # 7. FOOTER
     # ==========================================
     baris_jumlah_idx = 12 + jumlah_baris_data + 1 
     excel_baris_jumlah = baris_jumlah_idx + 1 
@@ -164,7 +176,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
             worksheet.write_formula(f"{col_huruf}{excel_baris_persen}", rumus_persen, format_persen)
 
     # ==========================================
-    # 7. TANDA TANGAN 
+    # 8. TANDA TANGAN 
     # ==========================================
     baris_ttd = baris_persen_idx + 4
     col_ttd = batas_col - 3 if batas_col >= 3 else batas_col
@@ -173,18 +185,17 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.write(baris_ttd + 5, col_ttd, f"( {nama_petugas} )", format_title)
 
     # ==========================================
-    # 8. RAHASIA SETUP PRINT AGAR TIDAK KEKECILAN
+    # 9. SETUP PRINT & LEBAR KOLOM (FIX ISSUE ####)
     # ==========================================
-    # Menyesuaikan lebar kolom persis seperti file Excel referensi Anda!
-    worksheet.set_column(0, 0, 7.5)   # Kolom A (Tanggal) -> Lebar 7.5
-    worksheet.set_column(1, 1, 9.5)   # Kolom B (Jangka Waktu) -> Lebar 9.5
-    worksheet.set_column(2, max_col_data, 5.5) # Sisa kolom data & True/False -> Dikecilkan jadi 5.5!
+    worksheet.set_column(0, 0, 7.5)   # Kolom Tanggal
+    worksheet.set_column(1, 1, 9.5)   # Kolom Jangka Waktu
+    
+    # 💡 Perbaikan: Lebar kolom ditingkatkan menjadi 7.5 agar "100.00%" tidak menjadi ####
+    worksheet.set_column(2, max_col_data, 7.5) 
 
     worksheet.set_portrait()            
     worksheet.set_paper(9)              
     worksheet.fit_to_pages(1, 0)        
-    
-    # Margin disamakan dengan file referensi (Sangat mepet: ~0.24 inch / 0.6 cm)
     worksheet.set_margins(left=0.24, right=0.24, top=0.5, bottom=0.5)
     
     worksheet.repeat_rows(12, 12)       
