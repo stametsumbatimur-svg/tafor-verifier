@@ -535,6 +535,12 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         import io # Pastikan ini ada di bagian atas file app.py Kapten
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         
+        # Ambil nama bulan dan tahun untuk Header Excel
+        # (Bisa menggunakan kamus bulan jika ingin bahasa Indonesia: 'January': 'Januari', dst)
+        nama_bulan = tgl_mulai.strftime('%B') 
+        tahun_str = tgl_mulai.strftime('%Y')
+        nama_forecaster = "KAPTEN METEO" # Nanti bisa diubah pakai st.text_input jika mau dinamis
+        
         st.markdown("### 📥 Unduh Laporan Excel")
         st.info("💡 Untuk mempercepat kinerja aplikasi, file Excel tidak dibuat secara otomatis. Klik tombol di bawah ini jika Anda ingin menyiapkannya.")
         
@@ -552,27 +558,39 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                     st.session_state['dl_k_sp'] = generate_klasik_31_sheet(df_filtered).getvalue()
                     st.session_state['dl_s_sp'] = generate_form_2026(df_filtered, df_speci_filtered).getvalue()
                     
-                    # -- TAMBAHAN: V FINAL (+SPECI) --
-                    buf_v_sp = io.BytesIO()
-                    export_v_final_excel(buat_tabel_laporan_excel(df_filtered), buf_v_sp)
-                    st.session_state['dl_v_sp'] = buf_v_sp.getvalue()
+                    # -- TAMBAHAN: V FINAL (+SPECI) SUDAH DIPERBAIKI --
+                    st.session_state['dl_v_sp'] = export_v_final_excel(
+                        df_vfinal = buat_tabel_laporan_excel(df_filtered), 
+                        bulan = nama_bulan, 
+                        tahun = tahun_str, 
+                        stasiun = stasiun_aktif, 
+                        nama_petugas = nama_forecaster
+                    )
 
                     st.session_state['dl_k_nosp'] = generate_klasik_31_sheet(df_fil_nosp).getvalue()
                     st.session_state['dl_s_nosp'] = generate_form_2026(df_fil_nosp, empty_sp).getvalue()
                     
-                    # -- TAMBAHAN: V FINAL (-SPECI) --
-                    buf_v_nosp = io.BytesIO()
-                    export_v_final_excel(buat_tabel_laporan_excel(df_fil_nosp), buf_v_nosp)
-                    st.session_state['dl_v_nosp'] = buf_v_nosp.getvalue()
+                    # -- TAMBAHAN: V FINAL (-SPECI) SUDAH DIPERBAIKI --
+                    st.session_state['dl_v_nosp'] = export_v_final_excel(
+                        df_vfinal = buat_tabel_laporan_excel(df_fil_nosp), 
+                        bulan = nama_bulan, 
+                        tahun = tahun_str, 
+                        stasiun = stasiun_aktif, 
+                        nama_petugas = nama_forecaster
+                    )
                 else:
                     # Siapkan 2 file untuk Mode Murni (Tanpa SPECI)
                     st.session_state['dl_k'] = generate_klasik_31_sheet(df_filtered).getvalue()
                     st.session_state['dl_s'] = generate_form_2026(df_filtered, df_speci_filtered).getvalue()
                     
-                    # -- TAMBAHAN: V FINAL --
-                    buf_v = io.BytesIO()
-                    export_v_final_excel(buat_tabel_laporan_excel(df_filtered), buf_v)
-                    st.session_state['dl_v'] = buf_v.getvalue()
+                    # -- TAMBAHAN: V FINAL SUDAH DIPERBAIKI --
+                    st.session_state['dl_v'] = export_v_final_excel(
+                        df_vfinal = buat_tabel_laporan_excel(df_filtered), 
+                        bulan = nama_bulan, 
+                        tahun = tahun_str, 
+                        stasiun = stasiun_aktif, 
+                        nama_petugas = nama_forecaster
+                    )
                 
                 # Kunci status bahwa file sudah matang
                 st.session_state['excel_ready'] = True
