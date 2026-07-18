@@ -13,6 +13,11 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     Fungsi untuk meng-export dataframe V FINAL ke Excel dengan Header SOP BMKG,
     Footer (Jumlah & Persentase), dan Tanda Tangan petugas.
     """
+    kolom_skor = ['S_Arah', 'S_Kec', 'S_Vis', 'S_Wx', 'S_AwanJml', 'S_AwanTgi']
+    for col in kolom_skor:
+        if col in df_vfinal.columns:
+            # Pastikan formatnya boolean sejati
+            df_vfinal[col] = df_vfinal[col].astype(bool)
     output = io.BytesIO()
     # Menggunakan engine xlsxwriter agar bisa manipulasi sel tingkat lanjut
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
@@ -29,9 +34,9 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
     format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 11})
     format_bold_left = workbook.add_format({'bold': True, 'align': 'left'})
-    format_border = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
     format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter'})
-    
+    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0"%"'})
+
     # Format Khusus Highlight Nilai Benar/Salah (Bisa disesuaikan dengan kolom skor Kapten)
     format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'border': 1, 'align': 'center'})
     format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'border': 1, 'align': 'center'})
@@ -73,34 +78,45 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.write(9, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
     # ==========================================
-    # 3. MEMBANGUN FOOTER & RUMUS (Sesuai Gambar 2)
+    # 3. MEMBANGUN FOOTER & RUMUS (ANTI #DIV/0!)
     # ==========================================
     jumlah_baris_data = len(df_vfinal)
-    baris_akhir_data = 11 + jumlah_baris_data
     
-    # Baris JUMLAH (Hitung total baris)
-    worksheet.merge_range(baris_akhir_data, 0, baris_akhir_data, 2, 'JUMLAH', format_border_bold)
+    # Kalkulasi baris Excel yang akurat
+    excel_start_data_row = 13  # Data pertama selalu di baris ke-13 Excel
+    excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1 # Baris terakhir data
+    
+    # Python index untuk menulis baris 'JUMLAH' (karena index xlsxwriter dimulai dari 0)
+    baris_jumlah_idx = 11 + jumlah_baris_data + 1 
+    excel_baris_jumlah = baris_jumlah_idx + 1 # Excel row aktual untuk JUMLAH
+    
+    # Tulis Baris JUMLAH
+    worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
+    
+    max_col = len(df_vfinal.columns) - 1
     for col_idx in range(3, max_col + 1):
-        # Gunakan rumus Excel COUNT atau sekadar print jumlah baris
-        worksheet.write(baris_akhir_data, col_idx, jumlah_baris_data, format_border_bold)
+        # Tulis jumlah total baris evaluasi
+        worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
 
-    # Baris PROSENTASE
-    baris_persen = baris_akhir_data + 1
-    worksheet.merge_range(baris_persen, 0, baris_persen, 2, 'PROSENTASE PRAKIRAAN CUACA YANG BENAR', format_border_bold)
+    # Tulis Baris PROSENTASE
+    baris_persen_idx = baris_jumlah_idx + 1
+    excel_baris_persen = baris_persen_idx + 1 # Excel row aktual untuk PROSENTASE
+    worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE PRAKIRAAN CUACA YANG BENAR', format_border_bold)
     
-    # Looping untuk memasang rumus persentase di kolom hasil evaluasi (A-F)
-    # Asumsi kolom S_Arah ada di index 8 (Huruf Excel: I), dst. Kapten perlu sesuaikan index huruf ini.
-    # Contoh Rumus: =COUNTIF(I13:I90, True)/I91
-    kolom_skor_huruf = ['I', 'K', 'M', 'O', 'Q', 'S'] # Sesuaikan dengan posisi kolom S_Arah, S_Kec, dll
+    # Huruf Kolom Excel untuk S_Arah (K), S_Kec (M), S_Vis (O), S_Wx (Q), S_AwanJml (S), S_AwanTgi (U)
+    # Catatan: Sesuaikan huruf ini jika urutan kolom di dataframe Kapten berubah!
+    kolom_skor_huruf = ['K', 'M', 'O', 'Q', 'S', 'U']
     for col_huruf in kolom_skor_huruf:
-        rumus_persen = f"=(COUNTIF({col_huruf}13:{col_huruf}{baris_akhir_data}, TRUE) / {col_huruf}{baris_akhir_data+1})"
+        #rumus_persen = f"=(COUNTIF({col_huruf}13:{col_huruf}{baris_akhir_data}, TRUE) / {col_huruf}{baris_akhir_data+1})"
+        rumus_persen = f"=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, TRUE) / {col_huruf}{excel_baris_jumlah}, 0)"
         # xlsxwriter akan memproses ini sebagai formula dinamis di dalam Excel
-        worksheet.write_formula(f"{col_huruf}{baris_persen+1}", rumus_persen, format_persen)
+        #worksheet.write_formula(f"{col_huruf}{baris_persen+1}", rumus_persen, format_persen)
+        worksheet.write_formula(f"{col_huruf}{excel_baris_persen}", rumus_persen, format_persen)
 
     # ==========================================
     # 4. TANDA TANGAN PETUGAS
     # ==========================================
-    baris_ttd = baris_persen + 4
+    baris_ttd = excel_baris_persen + 4
     worksheet.write(baris_ttd, max_col - 3, "Mengetahui,", format_subtitle)
     worksheet.write(baris_ttd + 1, max_col - 3, "Petugas Pembuat Laporan,", format_subtitle)
     worksheet.write(baris_ttd + 5, max_col - 3, f"( {nama_petugas} )", format_title)
