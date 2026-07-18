@@ -105,12 +105,16 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(6, 10, 6, batas_col - 1, 'Selisih ≤ 100 ft untuk <1000 ft. Untuk ≥ 1000 ft, selisih ≤ 30% dari tinggi awan Manual.', format_req_text)
     worksheet.write(6, batas_col, '70%', format_req_center)
 
+    # ... (kode baris 5 dan 6 di atasnya biarkan sama) ...
+
     worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
     worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
     worksheet.write(7, 7, '80%', format_req_center)
-    worksheet.merge_range(8, 8, 8, 9, '', format_req_bold)
-    worksheet.merge_range(8, 10, 8, batas_col - 1, '', format_req_text)
-    worksheet.write(8, batas_col, '', format_req_center)
+    
+    # 💡 PERBAIKAN: Ubah penomoran baris di sini dari 8 menjadi 7 agar sejajar dengan Jarak Pandang
+    worksheet.merge_range(7, 8, 7, 9, '', format_req_bold)
+    worksheet.merge_range(7, 10, 7, batas_col - 1, '', format_req_text)
+    worksheet.write(7, batas_col, '', format_req_center)
 
     worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
     worksheet.merge_range(8, 2, 8, 6, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
@@ -123,7 +127,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.set_row(6, 35)
     worksheet.set_row(7, 35)
     worksheet.set_row(8, 45)
-
+    
     worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
     worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
