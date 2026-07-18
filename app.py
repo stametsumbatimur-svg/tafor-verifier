@@ -11,8 +11,8 @@ import re
 import os
 import sqlite3
 from datetime import datetime
-from verification_logic import proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, hitung_verifikasi_TAFOR
-from excel_export import generate_lapbul_excel, generate_form_2026, generate_logbook_excel, generate_klasik_31_sheet
+from verification_logic import buat_tabel_laporan_excel, proses_verifikasi, parse_sandi, hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, hitung_verifikasi_TAFOR
+from excel_export import generate_lapbul_excel, generate_form_2026, generate_logbook_excel, generate_klasik_31_sheet, export_v_final_excel
 
 st.set_page_config(page_title="SIVETA - BMKG", layout="wide")
 
@@ -532,6 +532,7 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         # ==========================================
         # AREA DOWNLOAD BUTTONS (EFISIEN / ON-DEMAND)
         # ==========================================
+        import io # Pastikan ini ada di bagian atas file app.py Kapten
         str_m, str_s = tgl_mulai.strftime('%Y%m%d'), tgl_selesai.strftime('%Y%m%d')
         
         st.markdown("### 📥 Unduh Laporan Excel")
@@ -550,12 +551,28 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                     
                     st.session_state['dl_k_sp'] = generate_klasik_31_sheet(df_filtered).getvalue()
                     st.session_state['dl_s_sp'] = generate_form_2026(df_filtered, df_speci_filtered).getvalue()
+                    
+                    # -- TAMBAHAN: V FINAL (+SPECI) --
+                    buf_v_sp = io.BytesIO()
+                    export_v_final_excel(buat_tabel_laporan_excel(df_filtered), buf_v_sp)
+                    st.session_state['dl_v_sp'] = buf_v_sp.getvalue()
+
                     st.session_state['dl_k_nosp'] = generate_klasik_31_sheet(df_fil_nosp).getvalue()
                     st.session_state['dl_s_nosp'] = generate_form_2026(df_fil_nosp, empty_sp).getvalue()
+                    
+                    # -- TAMBAHAN: V FINAL (-SPECI) --
+                    buf_v_nosp = io.BytesIO()
+                    export_v_final_excel(buat_tabel_laporan_excel(df_fil_nosp), buf_v_nosp)
+                    st.session_state['dl_v_nosp'] = buf_v_nosp.getvalue()
                 else:
                     # Siapkan 2 file untuk Mode Murni (Tanpa SPECI)
                     st.session_state['dl_k'] = generate_klasik_31_sheet(df_filtered).getvalue()
                     st.session_state['dl_s'] = generate_form_2026(df_filtered, df_speci_filtered).getvalue()
+                    
+                    # -- TAMBAHAN: V FINAL --
+                    buf_v = io.BytesIO()
+                    export_v_final_excel(buat_tabel_laporan_excel(df_filtered), buf_v)
+                    st.session_state['dl_v'] = buf_v.getvalue()
                 
                 # Kunci status bahwa file sudah matang
                 st.session_state['excel_ready'] = True
@@ -572,17 +589,23 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                     st.write("**🌪️ VERSI LENGKAP (+SPECI)**")
                     st.download_button("📄 Klasik 31 (+SPECI)", data=st.session_state['dl_k_sp'], file_name=f"KLASIK_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
                     st.download_button("📄 Verifikasi SOP (+SPECI)", data=st.session_state['dl_s_sp'], file_name=f"SOP_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    # Tombol V FINAL
+                    st.download_button("📊 V FINAL (+SPECI)", data=st.session_state['dl_v_sp'], file_name=f"V_FINAL_SPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
                 
                 with c_dl2:
                     st.write("**☀️ VERSI MURNI (-SPECI)**")
                     st.download_button("📄 Klasik 31 (Tanpa SPECI)", data=st.session_state['dl_k_nosp'], file_name=f"KLASIK_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
                     st.download_button("📄 Verifikasi SOP (Tanpa SPECI)", data=st.session_state['dl_s_nosp'], file_name=f"SOP_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    # Tombol V FINAL
+                    st.download_button("📊 V FINAL (Tanpa SPECI)", data=st.session_state['dl_v_nosp'], file_name=f"V_FINAL_NOSPECI_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
             
             else:
-                c_dl1, c_dl2 = st.columns(2)
+                c_dl1, c_dl2, c_dl3 = st.columns(3) # Ubah jadi 3 kolom agar muat 3 tombol
                 with c_dl1:
-                    st.download_button("📄 Unduh Klasik 31 Sheet", data=st.session_state['dl_k'], file_name=f"KLASIK_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    st.download_button("📄 Unduh Klasik 31", data=st.session_state['dl_k'], file_name=f"KLASIK_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
                 with c_dl2:
-                    st.download_button("📄 Unduh Verifikasi SOP 2025", data=st.session_state['dl_s'], file_name=f"SOP_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                    st.download_button("📄 Unduh Verifikasi SOP", data=st.session_state['dl_s'], file_name=f"SOP_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
+                with c_dl3:
+                    st.download_button("📊 Unduh V FINAL", data=st.session_state['dl_v'], file_name=f"V_FINAL_{stasiun_aktif}_{str_m}.xlsx", use_container_width=True)
                     
         st.markdown("---")
