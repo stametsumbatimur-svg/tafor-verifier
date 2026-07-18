@@ -450,7 +450,26 @@ def buat_tabel_laporan_excel(df_input):
                 jangka_base = "00-12" # Default/Fallback jika regex gagal
                 jam_akhir_taf = "12"
             # =================================================================
-            
+            if 'AMD' in str(taf_sandi).upper():
+                label_perubahan = "Base (AMD)"
+            elif 'COR' in str(taf_sandi).upper():
+                label_perubahan = "Base (COR)"
+            else:
+                label_perubahan = "Base"
+            # =================================================================
+            # Simpan baris Base
+            baris_laporan.append({
+                'Tanggal': tgl_str, 
+                'Jangka_Waktu': jangka_base,
+                'Perubahan': label_perubahan, # <--- Kolom penanda AMD/COR/Base biasa
+                'T_Arah': b_ar, 'T_Kec': b_ke, 'T_Vis': b_vi, 'T_Wx': b_wx, 'T_AwanJml': b_aj, 'T_AwanTgi': b_at,
+                'M_Arah': baris_m_base['M_Arah'], 'S_Arah': s_ar,
+                'M_Kec': baris_m_base['M_Kec'], 'S_Kec': s_ke,
+                'M_Vis': baris_m_base['M_Vis'], 'S_Vis': s_vi,
+                'M_Wx': baris_m_base['M_Wx'], 'S_Wx': s_wx,
+                'M_AwanJml': baris_m_base['M_AwanJml'], 'S_AwanJml': s_aj,
+                'M_AwanTgi': baris_m_base['M_AwanTgi'], 'S_AwanTgi': s_at
+            })
             # Evaluasi Base
             m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
                           'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 
@@ -460,6 +479,7 @@ def buat_tabel_laporan_excel(df_input):
             # Simpan baris Base
             baris_laporan.append({
                 'Tanggal': tgl_str, 'Jangka_Waktu': jangka_base,
+                'Perubahan': label_perubahan,
                 'T_Arah': b_ar, 'T_Kec': b_ke, 'T_Vis': b_vi, 'T_Wx': b_wx, 'T_AwanJml': b_aj, 'T_AwanTgi': b_at,
                 'M_Arah': baris_m_base['M_Arah'], 'S_Arah': s_ar,
                 'M_Kec': baris_m_base['M_Kec'], 'S_Kec': s_ke,
@@ -520,6 +540,7 @@ def buat_tabel_laporan_excel(df_input):
                 # Simpan baris Trend
                 baris_laporan.append({
                     'Tanggal': tgl_str, 'Jangka_Waktu': jangka_trend,
+                    'Perubahan': label_perubahan,
                     'T_Arah': t_ar, 'T_Kec': t_ke, 'T_Vis': t_vi, 'T_Wx': t_wx, 'T_AwanJml': t_aj, 'T_AwanTgi': t_at,
                     'M_Arah': baris_m_trend['M_Arah'], 'S_Arah': s_ar_t,
                     'M_Kec': baris_m_trend['M_Kec'], 'S_Kec': s_ke_t,
