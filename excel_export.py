@@ -10,7 +10,6 @@ from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, 
 from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 
 def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
-    # Gunakan .copy() agar modifikasi (seperti menghapus tanggal berulang) tidak merusak data asli di UI
     df_excel = df_vfinal.copy()
     
     # ==========================================
@@ -23,15 +22,14 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
                 lambda x: False if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else bool(x)
             )
 
-    # Membiarkan Tanggal hanya muncul di baris pertama (Base) per harinya agar rapi tanpa di-merge
     if 'Tanggal' in df_excel.columns:
         df_excel.loc[df_excel['Tanggal'].duplicated(), 'Tanggal'] = ""
 
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
-    # Tulis DataFrame mulai baris Excel ke-12 (Index 11)
-    df_excel.to_excel(writer, sheet_name='V_FINAL', startrow=11, index=False)
+    # Tulis DataFrame mulai baris Excel ke-13 (Index 12) agar ruang header di atas cukup
+    df_excel.to_excel(writer, sheet_name='V_FINAL', startrow=12, index=False)
     
     workbook  = writer.book
     worksheet = writer.sheets['V_FINAL']
@@ -41,67 +39,92 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     # ==========================================
     format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
     format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 11})
-    format_bold_left = workbook.add_format({'bold': True, 'align': 'left'})
+    format_bold_left = workbook.add_format({'bold': True, 'align': 'left', 'valign': 'vcenter'})
+    
+    # Format Tabel Persyaratan Khusus
+    format_req_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True})
+    format_req_text = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'text_wrap': True})
+    format_req_center = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'bold': True})
+    format_req_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'left', 'valign': 'vcenter'})
+    
     format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True})
     format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%'})
     format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
     format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'})
 
     # ==========================================
-    # 3. HEADER & PERSYARATAN TOLERANSI KETELITIAN
+    # 3. HEADER & NARASI PERSYARATAN (SESUAI GAMBAR)
     # ==========================================
     max_col = len(df_excel.columns) - 1
-    
+    if max_col < 15: 
+        max_col = 15 # Pastikan kolom cukup untuk direntangkan
+        
     worksheet.merge_range(0, 0, 0, max_col, 'VERIFIKASI AERODROM FORECAST', format_title)
-    worksheet.merge_range(1, 0, 1, max_col, 'Instruksi Met./No.029/Verifikasi Prakiraan/II/88', format_subtitle)
-    worksheet.write(3, 0, 'PERSYARATAN KETELITIAN PRAKIRAAN :', format_bold_left)
+    worksheet.merge_range(1, 0, 1, max_col, 'Sesuai Logika SIVETA (Berdasarkan Gambar Toleransi)', format_subtitle)
+    worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
     
-    # Header Tabel Persyaratan
-    headers_req = ['UNSUR METEOROLOGI', 'PERSYARATAN/TOLERANSI KETELITIAN', 'PROSENTASE MINIMUM', 
-                   'UNSUR METEOROLOGI', 'PERSYARATAN/TOLERANSI KETELITIAN', 'PROSEN MINIMUM']
-    kolom_header_posisi = [0, 3, 6, 8, 11, 15] 
-    for idx, col_pos in enumerate(kolom_header_posisi):
-        if col_pos <= max_col:
-            worksheet.write(4, col_pos, headers_req[idx], format_border_bold)
-            
-    # Mengisi Unsur Kiri (Angin & Vis)
-    worksheet.write(5, 0, "A. Arah angin")
-    worksheet.write(5, 3, "± 30 Derajat", format_subtitle)
-    worksheet.write(5, 6, "80%", format_subtitle)
+    # --- BARIS 4: Header Tabel ---
+    worksheet.merge_range(4, 0, 4, 1, 'UNSUR METEOROLOGI', format_req_header)
+    worksheet.merge_range(4, 2, 4, 6, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header)
+    worksheet.write(4, 7, 'MINIMUM', format_req_header)
     
-    worksheet.write(6, 0, "B. Kecepatan angin")
-    worksheet.write(6, 3, "± 5 KT (≤ 30 KT) atau ± 20% (> 30 KT)", format_subtitle)
-    worksheet.write(6, 6, "80%", format_subtitle)
+    worksheet.merge_range(4, 8, 4, 9, 'UNSUR METEOROLOGI', format_req_header)
+    worksheet.merge_range(4, 10, 4, 14, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header)
+    worksheet.write(4, 15, 'MINIMUM', format_req_header)
     
-    worksheet.write(7, 0, "C. JARAK PANDANG")
-    worksheet.write(7, 3, "± 30%", format_subtitle)
-    worksheet.write(7, 6, "80%", format_subtitle)
+    # --- BARIS 5: Arah Angin & Jumlah Awan ---
+    worksheet.merge_range(5, 0, 5, 1, 'A. Arah Angin', format_req_bold)
+    worksheet.merge_range(5, 2, 5, 6, 'Benar apabila arah sama, atau selisih ≤ 60°. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, tetap dianggap benar sesuai logika program.', format_req_text)
+    worksheet.write(5, 7, '80%', format_req_center)
+    
+    worksheet.merge_range(5, 8, 5, 9, 'E. Jumlah Awan', format_req_bold)
+    worksheet.merge_range(5, 10, 5, 14, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan Manual > 5000 ft, otomatis dianggap benar.', format_req_text)
+    worksheet.write(5, 15, '70%', format_req_center)
+    
+    # --- BARIS 6: Kecepatan Angin & Tinggi Dasar Awan ---
+    worksheet.merge_range(6, 0, 6, 1, 'B. Kecepatan Angin', format_req_bold)
+    worksheet.merge_range(6, 2, 6, 6, 'Selisih kecepatan dasar ≤ 10 knot. Status gust harus konsisten (keduanya sama-sama memiliki gust atau sama-sama tidak memiliki gust).', format_req_text)
+    worksheet.write(6, 7, '80%', format_req_center)
+    
+    worksheet.merge_range(6, 8, 6, 9, 'F. Tinggi Dasar Awan', format_req_bold)
+    worksheet.merge_range(6, 10, 6, 14, 'Selisih ≤ 100 ft untuk tinggi awan <1000 ft. Untuk tinggi awan ≥ 1000 ft, selisih ≤ 30% dari tinggi awan Manual.', format_req_text)
+    worksheet.write(6, 15, '70%', format_req_center)
 
-    # Mengisi Unsur Kanan (Cuaca & Awan)
-    if max_col >= 8:
-        worksheet.write(5, 8, "D. CUACA/ENDAPAN")
-        worksheet.write(5, 11, "Kejadian Sesuai Kategori Sandi TAF", format_subtitle)
-        worksheet.write(5, 15, "80%", format_subtitle)
-        
-        worksheet.write(6, 8, "E. JUMLAH AWAN")
-        worksheet.write(6, 11, "Perubahan Signifikan (BKN/OVC)", format_subtitle)
-        worksheet.write(6, 15, "70%", format_subtitle)
-        
-        worksheet.write(7, 8, "F. TINGGI DASAR AWAN")
-        worksheet.write(7, 11, "± 30% atau < 400 FT", format_subtitle)
-        worksheet.write(7, 15, "70%", format_subtitle)
+    # --- BARIS 7: Jarak Pandang & Suhu Udara ---
+    worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang\n(Visibility)', format_req_bold)
+    worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama. Kelas: <800 m; 800-1499 m; 1500-2999 m; 3000-4999 m; ≥ 5000 m.', format_req_text)
+    worksheet.write(7, 7, '80%', format_req_center)
+    
+    worksheet.merge_range(7, 8, 7, 9, 'G. Suhu Udara', format_req_bold)
+    worksheet.merge_range(7, 10, 7, 14, 'Selisih ≤ 1°C (sesuai ketentuan yang berlaku jika tetap menggunakan fungsi suhu).', format_req_text)
+    worksheet.write(7, 15, '70%', format_req_center)
+
+    # --- BARIS 8: Cuaca Endapan & (Kosong untuk simetri) ---
+    worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
+    worksheet.merge_range(8, 2, 8, 6, 'Benar apabila Manual dan SIVETA sama-sama mendeteksi atau sama-sama tidak mendeteksi presipitasi sedang/lebat (RA, SHRA, TSRA, +RA). Hujan ringan (-RA) tidak dihitung sebagai presipitasi sedang/lebat.', format_req_text)
+    worksheet.write(8, 7, '80%', format_req_center)
+    
+    worksheet.merge_range(8, 8, 8, 9, '', format_req_bold)
+    worksheet.merge_range(8, 10, 8, 14, '', format_req_text)
+    worksheet.write(8, 15, '', format_req_center)
+
+    # Melebarkan Tinggi Baris (Row Height) agar teks panjang terbaca semua
+    worksheet.set_row(5, 55)
+    worksheet.set_row(6, 45)
+    worksheet.set_row(7, 50)
+    worksheet.set_row(8, 55)
 
     # Identitas Laporan
-    worksheet.write(9, 0, f"BULAN : {bulan}", format_bold_left)
-    worksheet.write(9, 3, f"TAHUN : {tahun}", format_bold_left)
-    worksheet.write(9, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
-    worksheet.write(9, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
+    worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
+    worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
+    worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
+    worksheet.write(10, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
     # ==========================================
     # 4. DATA, WARNA (CONDITIONAL FORMATTING), & FILTER
     # ==========================================
     jumlah_baris_data = len(df_excel)
-    excel_start_data_row = 13 
+    excel_start_data_row = 14 # Karena dataframe mulai di index 12 (baris 13 adalah header data)
     excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1
     
     # Menerapkan Warna Otomatis
@@ -109,13 +132,13 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': True, 'format': format_hijau})
     worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': False, 'format': format_merah})
 
-    # Mengaktifkan Fitur AutoFilter Excel (Mulai dari Header Baris ke-12)
-    worksheet.autofilter(11, 0, excel_last_data_row, max_col)
+    # Mengaktifkan Fitur AutoFilter Excel (Mulai dari Header DataFrame Baris ke-13)
+    worksheet.autofilter(12, 0, 12 + jumlah_baris_data, max_col)
 
     # ==========================================
     # 5. FOOTER & RUMUS PERSENTASE
     # ==========================================
-    baris_jumlah_idx = 11 + jumlah_baris_data + 1 
+    baris_jumlah_idx = 12 + jumlah_baris_data + 1 
     excel_baris_jumlah = baris_jumlah_idx + 1 
     baris_persen_idx = baris_jumlah_idx + 1
     excel_baris_persen = baris_persen_idx + 1 
@@ -146,7 +169,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     worksheet.set_paper(9)              
     worksheet.fit_to_pages(1, 0)        
     worksheet.set_margins(left=0.5, right=0.5, top=0.5, bottom=0.5)
-    worksheet.set_column('A:Z', 13)     # Dilebarkan sedikit agar tombol filter tidak menutupi teks
+    worksheet.set_column('A:Z', 13)     
     
     writer.close()
     return output.getvalue()
