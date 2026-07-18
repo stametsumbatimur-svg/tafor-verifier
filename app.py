@@ -92,7 +92,6 @@ df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
 
 with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan (Klik untuk Buka)"):
     st.markdown("""
-    ---
     #### 🛠️ CARA PENGGUNAAN
     1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS (https://bmkgsatu.bmkg.go.id/extractgts).
     2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv`. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir.
