@@ -1,8 +1,6 @@
-import pandas as pd
-import numpy as np
+# 🔥 SIVETA - Verification Core Logic (Ultra-Clean Streamlined Version)
 import re
-import math
-import sqlite3
+import pandas as pd
 from datetime import datetime, timedelta
 
 # =========================================================================
@@ -183,12 +181,10 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
     
     has_cccc = 'cccc' in df_metar.columns
 
-    # Pra-pemrosesan Data (Menghindari Series indexing dalam loop)
     metar_list = df_metar.assign(dt_obj=pd.to_datetime(df_metar[col_waktu_metar].astype(str).str.slice(0, 19), errors='coerce')).dropna(subset=['dt_obj']).sort_values('dt_obj').to_dict('records')
     taf_raw = df_taf.assign(dt_obj=pd.to_datetime(df_taf[col_waktu_taf].astype(str).str.slice(0, 19), errors='coerce')).dropna(subset=['dt_obj']).sort_values('dt_obj').to_dict('records')
     speci_raw = df_speci.assign(dt_obj=pd.to_datetime(df_speci[df_speci.columns[0]].astype(str).str.slice(0, 19), errors='coerce')).dropna(subset=['dt_obj']).sort_values('dt_obj').to_dict('records')
 
-    # Pra-Kompilasi Daftar TAF Aktif (Sangat Cepat)
     taf_list = []
     for tr in taf_raw:
         t_teks = str(tr[col_teks_taf])
@@ -210,7 +206,6 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         
         m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(teks_metar)
         
-        # Filter TAF tanpa memanggil Pandas DataFrame
         kandidat = [t for t in taf_list if t['issue'] <= tgl_jam_aktual and t['valid'] <= tgl_jam_aktual < t['valid'] + timedelta(hours=12)]
         if not kandidat: continue
         
@@ -230,9 +225,8 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         for i in range(1, len(parts), 2):
             tipe, isi = parts[i], parts[i+1]
             
-            # 1. Ekstraksi Waktu (Pisahkan logika FM dan BECMG/TEMPO)
             if tipe.startswith('FM'):
-                s_hr = int(tipe[4:6]) # Ekstrak jam dari FMddhhmm
+                s_hr = int(tipe[4:6])
                 e_hr = 24
             else:
                 time_match = RE_TIME_GRP.search(isi)
@@ -240,24 +234,20 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     s_hr, e_hr = int(time_match.group(2)), int(time_match.group(4))
                     if e_hr == 0: e_hr = 24
                 else:
-                    continue # Skip jika tidak ada format waktu standar
+                    continue
             
-            # 2. Logika Evaluasi dan Override
             if s_hr <= target_hour < e_hr:
                 g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
                 
                 if tipe.startswith('FM'):
-                    # FM Override total (Ganti lembaran baru)
                     t_ar = g_ar if g_ar != "-" else "VRB"
                     t_ke = g_ke if g_ke != "-" else "00"
                     t_vi = g_vi if g_vi != "-" else "9999"
                     t_wx = g_wx if g_wx != "-" else "NIL"
                     t_aj = g_aj if g_aj != "-" else "NSC"
                     t_at = g_at if g_at != "-" else "0"
-                    # FM otomatis menjadi base baru
                     cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
                 else:
-                    # BECMG / TEMPO Override parsial
                     if g_ar != "-": t_ar = g_ar
                     if g_ke != "-": t_ke = g_ke
                     if g_vi != "-": t_vi = g_vi
@@ -285,7 +275,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
         if speci_terkait:
             for sp in speci_terkait:
-                sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at, sp_ts_cb = ekstrak_param_metar_speci(sp[list(sp.keys())[1]])
+                sp_ar, sp_ke, sp_vi, sp_wx, sp_aj, sp_at, sp_ts_cb = ekstrak_param_metar_speci(sp[df_speci.columns[1]])
                 sp_obs_data = {'M_Arah': sp_ar, 'M_Kec': sp_ke, 'M_Vis': sp_vi, 'M_Wx': sp_wx, 'M_AwanJml': sp_aj, 'M_AwanTgi': sp_at, 'M_TS_CB': sp_ts_cb}
                 status_speci, sp_s_ar, sp_s_ke, sp_s_vi, sp_s_wx, sp_s_aj, sp_s_at = evaluasi_sandi_tunggal(
                     sp_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
@@ -302,7 +292,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     
                 baris_speci_final.append({
                     'Waktu SPECI (UTC)': sp['dt_obj'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'Sandi SPECI':       sp[list(sp.keys())[1]], 'TAFOR Berlaku': taf_aktif,
+                    'Sandi SPECI':       sp[df_speci.columns[1]], 'TAFOR Berlaku': taf_aktif,
                     'M_Arah': sp_ar, 'T_Arah': t_ar, 'S_Arah': sp_s_ar,
                     'M_Kec': sp_ke, 'T_Kec': t_ke, 'S_Kec': sp_s_ke,
                     'M_Vis': sp_vi, 'T_Vis': t_vi, 'S_Vis': sp_s_vi,
@@ -315,109 +305,26 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         baris_analisis_final.append({
             'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
             'Sandi METAR Aktual': teks_metar, 'Sandi TAF Prakiraan': taf_aktif,
-            'M_Arah': m_ar, 'T_Arah': t_ar, 'D_Arah': "-", 'S_Arah': s_ar,
-            'M_Kec': m_ke, 'T_Kec': t_ke, 'D_Kec': "-", 'S_Kec': s_ke,
-            'M_Vis': m_vi, 'T_Vis': t_vi, 'D_Vis': "-", 'S_Vis': s_vi,
-            'M_Wx': m_wx, 'T_Wx': t_wx, 'D_Wx': "-", 'S_Wx': s_wx,
-            'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'D_AwanJml': "-", 'S_AwanJml': s_aj,
-            'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'D_AwanTgi': "-", 'S_AwanTgi': s_at,
-            'M_Crosswind_Knot': 0.0, 'T_Crosswind_Knot': 0.0, 'Status_Minima': is_crit,
+            'M_Arah': m_ar, 'T_Arah': t_ar, 'S_Arah': s_ar,
+            'M_Kec': m_ke, 'T_Kec': t_ke, 'S_Kec': s_ke,
+            'M_Vis': m_vi, 'T_Vis': t_vi, 'S_Vis': s_vi,
+            'M_Wx': m_wx, 'T_Wx': t_wx, 'S_Wx': s_wx,
+            'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'S_AwanJml': s_aj,
+            'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'S_AwanTgi': s_at,
+            'Status_Minima': is_crit,
             'Hasil Akhir': "ACCURATE" if status_jam_ini == "B" else "MISS",
             'Kode_Stasiun': m_stasiun
         })
         
     return pd.DataFrame(baris_analisis_final), pd.DataFrame(baris_speci_final), None, None
 
-def hitung_verifikasi_TAFOR(df_input):
-    df_work = df_input.to_dict('records')
-    rekapan = {k: {'B': 0, 'S': 0} for k in ['A', 'B', 'C', 'D', 'E', 'F']}
-    
-    # Kelompokkan berdasar hari & sandi TAF dengan memori Cepat
-    taf_harian = {}
-    for row in df_work:
-        if row['Sandi TAF Prakiraan'] == "-": continue
-        dt_val = datetime.strptime(row['Waktu Aktual (UTC)'], '%Y-%m-%d %H:%M:%S')
-        key_hari = dt_val.strftime('%Y-%m-%d')
-        sandi = row['Sandi TAF Prakiraan']
-        
-        if key_hari not in taf_harian: taf_harian[key_hari] = {}
-        if sandi not in taf_harian[key_hari]: taf_harian[key_hari][sandi] = []
-        taf_harian[key_hari][sandi].append((dt_val.hour, row))
-        
-    for hari, dict_tafs in taf_harian.items():
-        for taf_sandi, list_rows in dict_tafs.items():
-            list_rows.sort(key=lambda x: x[0]) 
-            baris_m_base = list_rows[0][1]
-            
-            parts = RE_PARTS.split(str(taf_sandi))
-            b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
-            cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
-            
-            m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 'M_TS_CB': False}
-            _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
-            
-            for k, stat in zip(['A','B','C','D','E','F'], [s_ar, s_ke, s_vi, s_wx, s_aj, s_at]):
-                if stat in ['B', 'S']: rekapan[k][stat] += 1
-                    
-            for i in range(1, len(parts), 2):
-                tipe, isi = parts[i], parts[i+1]
-                
-                # Ekstraksi waktu target
-                if tipe.startswith('FM'):
-                    jam_target = int(tipe[4:6])
-                else:
-                    time_match = RE_TIME_GRP.search(isi)
-                    jam_target = int(time_match.group(2)) if time_match else 0
-                
-                # Cari baris yang jamnya pas, atau fallback ke base
-                baris_m_trend = next((r for h, r in list_rows if h == jam_target), baris_m_base)
-                
-                g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
-                
-                # Override Logika Rekapan
-                if tipe.startswith('FM'):
-                    t_ar = g_ar if g_ar != "-" else "VRB"
-                    t_ke = g_ke if g_ke != "-" else "00"
-                    t_vi = g_vi if g_vi != "-" else "9999"
-                    t_wx = g_wx if g_wx != "-" else "NIL"
-                    t_aj = g_aj if g_aj != "-" else "NSC"
-                    t_at = g_at if g_at != "-" else "0"
-                else:
-                    t_ar = g_ar if g_ar != "-" else cur_ar
-                    t_ke = g_ke if g_ke != "-" else cur_ke
-                    t_vi = g_vi if g_vi != "-" else cur_vi
-                    t_wx = g_wx if (g_wx != "-" and not RE_WX_EXCLUDE.search(isi) and "CAVOK" not in isi) else cur_wx
-                    t_aj = g_aj if g_aj != "-" else cur_aj
-                    t_at = g_at if g_at != "-" else cur_at
-                
-                m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi'], 'M_TS_CB': False}
-                
-                _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = evaluasi_sandi_tunggal(
-                    m_obs_trend, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, 
-                    base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at), 
-                    is_grup_prob=('PROB' in tipe), is_grup_tempo=('TEMPO' in tipe), is_grup_becmg_trans=('BECMG' in tipe)
-                )
-                
-                for k, stat in zip(['A','B','C','D','E','F'], [s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t]):
-                    if stat in ['B', 'S']: rekapan[k][stat] += 1
-                    
-                if tipe.startswith('FM') or tipe == 'BECMG':
-                    cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
-                    
-    return rekapan
 def buat_tabel_laporan_excel(df_input):
-    """
-    Fungsi khusus untuk memecah data verifikasi SIVETA menjadi format per-baris 
-    (Base, TEMPO, BECMG, FM) agar siap di-export ke format V FINAL.xlsx BMKG.
-    """
     df_work = df_input.to_dict('records')
     baris_laporan = []
     
-    # Kelompokkan data berdasarkan tanggal dan sandi TAF
     taf_harian = {}
     for row in df_work:
         if row['Sandi TAF Prakiraan'] == "-": continue
-        # Pastikan kolom waktu diparsing dengan benar
         dt_val = pd.to_datetime(row['Waktu Aktual (UTC)'])
         key_hari = dt_val.strftime('%Y-%m-%d')
         sandi = row['Sandi TAF Prakiraan']
@@ -430,47 +337,37 @@ def buat_tabel_laporan_excel(df_input):
         tgl_str = datetime.strptime(hari, '%Y-%m-%d').strftime('%d')
         
         for taf_sandi, list_rows in dict_tafs.items():
-            # Urutkan berdasarkan jam agar sinkron
             list_rows.sort(key=lambda x: x[0]) 
             baris_m_base = list_rows[0][1]
             
-            # Parsing Base TAF
             parts = RE_PARTS.split(str(taf_sandi))
             b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
             cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
             
-            # =================================================================
-            # 1. UBAHAN MASA BERLAKU BASE TAF (DINAMIS DARI SANDI)
-            # =================================================================
             validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
             if validity_match:
                 jam_mulai = validity_match.group(1)
                 jam_selesai = validity_match.group(2)
                 jangka_base = f"{jam_mulai}-{jam_selesai}"
-                jam_akhir_taf = jam_selesai # Disimpan untuk acuan batas akhir sandi FM
+                jam_akhir_taf = jam_selesai 
             else:
-                jangka_base = "00-12" # Default/Fallback jika regex gagal
+                jangka_base = "00-12" 
                 jam_akhir_taf = "12"
                 
-            # Deteksi AMD / COR
             if 'AMD' in str(taf_sandi).upper():
                 label_perubahan = "Base (AMD)"
             elif 'COR' in str(taf_sandi).upper():
                 label_perubahan = "Base (COR)"
             else:
                 label_perubahan = "Base"
-            # =================================================================
             
-            # Evaluasi Base
             m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
                           'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 
                           'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 'M_TS_CB': False}
             _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
             
-            # Simpan baris Base (DUPLIKAT SEBELUMNYA SUDAH DIHAPUS)
             baris_laporan.append({
-                'Tanggal': tgl_str, 'Jangka_Waktu': jangka_base,
-                'Perubahan': label_perubahan,
+                'Tanggal': tgl_str, 'Jangka_Waktu': jangka_base, 'Perubahan': label_perubahan,
                 'T_Arah': b_ar, 'T_Kec': b_ke, 'T_Vis': b_vi, 'T_Wx': b_wx, 'T_AwanJml': b_aj, 'T_AwanTgi': b_at,
                 'M_Arah': baris_m_base['M_Arah'], 'S_Arah': s_ar,
                 'M_Kec': baris_m_base['M_Kec'], 'S_Kec': s_ke,
@@ -480,11 +377,9 @@ def buat_tabel_laporan_excel(df_input):
                 'M_AwanTgi': baris_m_base['M_AwanTgi'], 'S_AwanTgi': s_at
             })
             
-            # Evaluasi Trend (FM / TEMPO / BECMG / PROB)
             for i in range(1, len(parts), 2):
                 tipe, isi = parts[i], parts[i+1]
                 
-                # Menentukan Nama Label Trend (FM/TEMPO/BECMG) yang benar
                 if tipe.startswith('FM'):
                     label_trend = "FM"
                 elif 'TEMPO' in tipe:
@@ -499,21 +394,16 @@ def buat_tabel_laporan_excel(df_input):
                 if tipe.startswith('FM'):
                     jam_target = int(tipe[4:6])
                     jam_fm = tipe[4:6]
-                    # Menuliskan FM dengan rentang waktu, misal: "FM.02-12"
                     jangka_trend = f"FM.{jam_fm}-{jam_akhir_taf}" 
                 else:
                     time_match = RE_TIME_GRP.search(isi)
                     jam_target = int(time_match.group(2)) if time_match else 0
-                    # Menggunakan prefix T, B, atau P sesuai Excel SOP
                     prefix = 'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
                     jangka_trend = f"{prefix}.{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
                 
-                # Cari data METAR aktual yang paling mendekati jam target
                 baris_m_trend = next((r for h, r in list_rows if h == jam_target), baris_m_base)
-                
                 g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
                 
-                # Terapkan Logika Override FM vs BECMG/TEMPO
                 if tipe.startswith('FM'):
                     t_ar = g_ar if g_ar != "-" else "VRB"
                     t_ke = g_ke if g_ke != "-" else "00"
@@ -539,10 +429,8 @@ def buat_tabel_laporan_excel(df_input):
                     is_grup_prob=('PROB' in tipe), is_grup_tempo=('TEMPO' in tipe), is_grup_becmg_trans=('BECMG' in tipe)
                 )
                 
-                # Simpan baris Trend
                 baris_laporan.append({
-                    'Tanggal': tgl_str, 'Jangka_Waktu': jangka_trend,
-                    'Perubahan': label_trend, # <--- SUDAH DIPERBAIKI (Tadinya salah ambil label_perubahan)
+                    'Tanggal': tgl_str, 'Jangka_Waktu': jangka_trend, 'Perubahan': label_trend,
                     'T_Arah': t_ar, 'T_Kec': t_ke, 'T_Vis': t_vi, 'T_Wx': t_wx, 'T_AwanJml': t_aj, 'T_AwanTgi': t_at,
                     'M_Arah': baris_m_trend['M_Arah'], 'S_Arah': s_ar_t,
                     'M_Kec': baris_m_trend['M_Kec'], 'S_Kec': s_ke_t,
@@ -552,7 +440,6 @@ def buat_tabel_laporan_excel(df_input):
                     'M_AwanTgi': baris_m_trend['M_AwanTgi'], 'S_AwanTgi': s_at_t
                 })
                 
-                # Wariskan kondisi base baru jika FM atau BECMG
                 if tipe.startswith('FM') or 'BECMG' in tipe:
                     cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = t_ar, t_ke, t_vi, t_wx, t_aj, t_at
 
