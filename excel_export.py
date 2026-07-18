@@ -29,26 +29,26 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet = workbook.add_worksheet('VERIFIKASI TAFOR')
     
     # ==========================================
-    # 2. FORMATTING STYLES
+    # 2. OPTIMASI FORMATTING STYLES (PORTRAIT MODE)
     # ==========================================
-    format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
-    format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 11})
-    format_bold_left = workbook.add_format({'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 11})
+    format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 11})
+    format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 9})
+    format_bold_left = workbook.add_format({'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 9.5})
     
-    format_req_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 10})
-    format_req_text = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 10})
-    format_req_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 10})
+    format_req_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 8.5})
+    format_req_text = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 8})
+    format_req_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 8.5})
     
-    format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 10})
-    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%', 'font_size': 10})
+    format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 8.5})
+    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%', 'font_size': 8.5})
     
-    format_tabel_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 10})
-    format_tabel_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 10})
+    format_tabel_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 8.5})
+    format_tabel_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 8.5, 'text_wrap': True})
     
-    format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
-    format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 10})
+    format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 8.5})
+    format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 8.5})
     
-    format_ttd_nama = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 11, 'underline': True})
+    format_ttd_nama = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 9.5, 'underline': True})
 
     # ==========================================
     # 3. MENCARI BATAS KOLOM & NAMA HEADER
@@ -62,16 +62,16 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     max_col_data = len(df_excel.columns) - 1
 
     nama_kolom_cantik = [
-        "Tanggal", "Jangka Waktu", "Perubahan",
-        "Arah\n(T)", "Kec\n(T)", "Vis\n(T)", "Cuaca\n(T)", "Jml Awan\n(T)", "Tgi Awan\n(T)",
-        "Arah\n(M)", "Hasil", "Kec\n(M)", "Hasil", "Vis\n(M)", "Hasil", 
-        "Cuaca\n(M)", "Hasil", "Jml Awan\n(M)", "Hasil", "Tgi Awan\n(M)", "Hasil"
+        "Tgl", "Jangka Waktu", "Perubahan",
+        "Arah\n(T)", "Kec\n(T)", "Vis\n(T)", "Cuaca\n(T)", "Jml\nAwan\n(T)", "Tgi\nAwan\n(T)",
+        "Arah\n(M)", "Skor", "Kec\n(M)", "Skor", "Vis\n(M)", "Skor", 
+        "Cuaca\n(M)", "Skor", "Jml\nAwan\n(M)", "Skor", "Tgi\nAwan\n(M)", "Skor"
     ]
 
     # ==========================================
     # 4. MENULIS HEADER & DATAFRAME MANUAL
     # ==========================================
-    worksheet.set_row(12, 35) 
+    worksheet.set_row(12, 38) # Ruang ekstra untuk kompresi teks header vertical
     for col_num, col_name in enumerate(nama_kolom_cantik):
         worksheet.write(12, col_num, col_name, format_tabel_header)
         
@@ -81,7 +81,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
             worksheet.write(13 + row_num, col_num, val, format_tabel_data)
 
     # ==========================================
-    # 5. HEADER & NARASI PERSYARATAN
+    # 5. HEADER & NARASI KRITERIA (DISTRIBUSI TINGGI ROW BARU)
     # ==========================================
     worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROM FORECAST', format_title)
     worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
@@ -111,14 +111,15 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(8, 8, 8, 10, '', format_req_bold) 
     worksheet.merge_range(8, 11, 8, batas_col, '', format_req_text)
 
-    worksheet.set_row(5, 45)
-    worksheet.set_row(6, 35)
+    # Ditinggikan signifikan karena kolom portrait sempit membuat teks kriteria melipat ke bawah
+    worksheet.set_row(5, 68)
+    worksheet.set_row(6, 52)
     worksheet.set_row(7, 35)
-    worksheet.set_row(8, 45)
+    worksheet.set_row(8, 68)
     
     worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
-    worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
+    worksheet.write(10, 6, "(GMT)", format_bold_left)
     worksheet.write(10, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
     # ==========================================
@@ -159,7 +160,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
             worksheet.write_formula(baris_persen_idx, col_idx, rumus_persen, format_persen)
 
     # ==========================================
-    # 8. TANDA TANGAN 
+    # 8. TANDA TANGAN (POSISI KOMPRES)
     # ==========================================
     baris_ttd = baris_persen_idx + 4 
     
@@ -168,24 +169,36 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(baris_ttd + 5, 0, baris_ttd + 5, 3, nama_kepala, format_ttd_nama)
     worksheet.merge_range(baris_ttd + 6, 0, baris_ttd + 6, 3, f"NIP. {nip_kepala}", format_subtitle)
 
-    col_ttd_start = max(batas_col - 3, 4)
+    col_ttd_start = max(batas_col - 4, 4)
     col_ttd_end = batas_col
     worksheet.merge_range(baris_ttd, col_ttd_start, baris_ttd, col_ttd_end, "Petugas Pembuat Laporan", format_subtitle)
     worksheet.merge_range(baris_ttd + 5, col_ttd_start, baris_ttd + 5, col_ttd_end, nama_petugas, format_ttd_nama)
     worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
 
     # ==========================================
-    # 9. SETUP PRINT TEROPTIMASI
+    # 9. SETUP HINGGA COCOK PADA CETAK PORTRAIT
     # ==========================================
-    worksheet.set_column('A:A', 8.5)   
-    worksheet.set_column('B:B', 13.5)   
-    worksheet.set_column('C:C', 11.5)  
-    worksheet.set_column('D:U', 7.5) 
+    worksheet.set_column('A:A', 4.5)   # Tanggal ringkas
+    worksheet.set_column('B:C', 9.5)   # Jangka Waktu & Perubahan
+    worksheet.set_column('D:E', 5.5)   # Arah & Kec TAF
+    worksheet.set_column('F:I', 6.5)   # Vis, Wx, Awan TAF
+    worksheet.set_column('J:J', 5.5)   # Arah METAR
+    worksheet.set_column('K:K', 4.0)   # Skor Arah (Ultra Slim)
+    worksheet.set_column('L:L', 5.5)   # Kec METAR
+    worksheet.set_column('M:M', 4.0)   # Skor Kec (Ultra Slim)
+    worksheet.set_column('N:N', 6.5)   # Vis METAR
+    worksheet.set_column('O:O', 4.0)   # Skor Vis (Ultra Slim)
+    worksheet.set_column('P:P', 6.5)   # Wx METAR
+    worksheet.set_column('Q:Q', 4.0)   # Skor Wx (Ultra Slim)
+    worksheet.set_column('R:R', 6.5)   # Awan Jml METAR
+    worksheet.set_column('S:S', 4.0)   # Skor Awan Jml (Ultra Slim)
+    worksheet.set_column('T:T', 6.5)   # Awan Tgi METAR
+    worksheet.set_column('U:U', 4.0)   # Skor Awan Tgi (Ultra Slim)
 
-    worksheet.set_landscape()            
-    worksheet.set_paper(9)              
-    worksheet.fit_to_pages(1, 0)       
-    worksheet.set_margins(left=0.24, right=0.24, top=0.5, bottom=0.5)
+    worksheet.set_portrait()            # 🟢 AKTOR UTAMA: UBAH JADI PORTRAIT
+    worksheet.set_paper(9)              # Kertas A4             
+    worksheet.fit_to_pages(1, 0)        # Paksa lebar tabel pas total 1 halaman Portrait
+    worksheet.set_margins(left=0.15, right=0.15, top=0.4, bottom=0.4) # Margin ultra tipis
     
     worksheet.repeat_rows(12, 12)       
     
