@@ -39,7 +39,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter'})
     
     # Perbaikan Bug 1%: num_format menggunakan '0%' (bukan '0"%"')
-    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0,00%'})
+    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%'})
     
     # Format Warna (Hijau untuk Benar/True, Merah untuk Salah/False)
     format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
