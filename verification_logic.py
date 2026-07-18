@@ -437,7 +437,19 @@ def buat_tabel_laporan_excel(df_input):
             b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
             cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
             
-            jangka_base = "00-24" # Standar jangka waktu base harian
+            # =================================================================
+            # 👉 1. UBAHAN MASA BERLAKU BASE TAF (DINAMIS DARI SANDI)
+            # =================================================================
+            validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
+            if validity_match:
+                jam_mulai = validity_match.group(1)
+                jam_selesai = validity_match.group(2)
+                jangka_base = f"{jam_mulai}-{jam_selesai}"
+                jam_akhir_taf = jam_selesai # Disimpan untuk acuan batas akhir sandi FM
+            else:
+                jangka_base = "00-12" # Default/Fallback jika regex gagal
+                jam_akhir_taf = "12"
+            # =================================================================
             
             # Evaluasi Base
             m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
@@ -461,15 +473,19 @@ def buat_tabel_laporan_excel(df_input):
             for i in range(1, len(parts), 2):
                 tipe, isi = parts[i], parts[i+1]
                 
-                # Ekstraksi Waktu dan Penamaan Jangka Waktu
+                # =================================================================
+                # 👉 2. UBAHAN FORMAT TULISAN WAKTU TREND SESUAI SOP EXCEL
+                # =================================================================
                 if tipe.startswith('FM'):
                     jam_target = int(tipe[4:6])
-                    jangka_trend = tipe # Akan tertulis misal: FM150200
+                    jam_fm = tipe[4:6]
+                    jangka_trend = f"{jam_fm}-{jam_akhir_taf}" # Format FM: [jam_FM]-[jam_akhir_TAF]
                 else:
                     time_match = RE_TIME_GRP.search(isi)
                     jam_target = int(time_match.group(2)) if time_match else 0
-                    prefix = 'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
-                    jangka_trend = f"{prefix}.{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
+                    # Dibuat bersih tanpa prefix T atau B. Contoh: "02-06"
+                    jangka_trend = f"{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
+                # =================================================================
                 
                 # Cari data METAR aktual yang paling mendekati jam target
                 baris_m_trend = next((r for h, r in list_rows if h == jam_target), baris_m_base)
