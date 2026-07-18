@@ -90,15 +90,12 @@ banner_container = st.container()
 # ==========================================
 df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
 
-with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan Baru (Klik untuk Buka)"):
+with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan (Klik untuk Buka)"):
     st.markdown("""
-    ### ⚡ Alur Kerja Baru SIVETA yang Disederhanakan
-    Aplikasi kini berjalan lebih cepat dan ringkas dengan berfokus penuh pada **Laporan Verifikasi TAFOR**.
-
     ---
     #### 🛠️ CARA PENGGUNAAN
-    1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS.
-    2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv` jika stasiun Anda memilikinya. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir tanpa memisahkan tabel di web.
+    1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS (https://bmkgsatu.bmkg.go.id/extractgts).
+    2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv`. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir.
     3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri.
     4. **Proses:** Tekan tombol **"🚀 PROSES DATA 🚀"**.
     """)
