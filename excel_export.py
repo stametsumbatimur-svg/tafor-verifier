@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+import io
 from io import BytesIO
 from datetime import datetime
 import openpyxl
@@ -7,61 +8,108 @@ from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from verification_logic import hitung_angin_arah, hitung_angin_kec, hitung_vis, hitung_cuaca, hitung_awan_jml, hitung_awan_tgi, parse_sandi
 
-def export_v_final_excel(df_laporan, output_path):
+def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas):
     """
-    Mengekspor DataFrame Laporan V FINAL ke dalam file Excel dengan format rapi.
-    Memberikan highlight warna hijau untuk 'B' (Benar) dan merah untuk 'S' (Salah).
+    Fungsi untuk meng-export dataframe V FINAL ke Excel dengan Header SOP BMKG,
+    Footer (Jumlah & Persentase), dan Tanda Tangan petugas.
     """
-    # Gunakan ExcelWriter dengan engine openpyxl agar bisa di-format
-    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-        df_laporan.to_excel(writer, sheet_name='V FINAL', index=False)
-        
-        workbook = writer.book
-        worksheet = writer.sheets['V FINAL']
-        
-        # 1. Tentukan Gaya Format
-        fill_benar = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid") # Hijau
-        font_benar = Font(color="006100", bold=True)
-        
-        fill_salah = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid") # Merah
-        font_salah = Font(color="9C0006", bold=True)
-        
-        border_thin = Border(
-            left=Side(style='thin'), right=Side(style='thin'),
-            top=Side(style='thin'), bottom=Side(style='thin')
-        )
-        
-        alignment_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    output = io.BytesIO()
+    # Menggunakan engine xlsxwriter agar bisa manipulasi sel tingkat lanjut
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    
+    # Tulis dataframe mulai dari baris ke-12 (index 11 di Python) agar ada ruang untuk Header
+    df_vfinal.to_excel(writer, sheet_name='V_FINAL', startrow=11, index=False)
+    
+    workbook  = writer.book
+    worksheet = writer.sheets['V_FINAL']
+    
+    # ==========================================
+    # 1. PERSIAPAN FORMATTING (STYLING)
+    # ==========================================
+    format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 12})
+    format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 11})
+    format_bold_left = workbook.add_format({'bold': True, 'align': 'left'})
+    format_border = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
+    format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter'})
+    
+    # Format Khusus Highlight Nilai Benar/Salah (Bisa disesuaikan dengan kolom skor Kapten)
+    format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'border': 1, 'align': 'center'})
+    format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'border': 1, 'align': 'center'})
+    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0"%"'})
 
-        # 2. Format Header
-        for cell in worksheet[1]:
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-            cell.alignment = alignment_center
-            cell.border = border_thin
+    # ==========================================
+    # 2. MEMBANGUN HEADER (Sesuai Gambar 1)
+    # ==========================================
+    # Asumsi tabel punya sekitar 18-20 kolom, kita merge A1 sampai T1 (0 sampai 19)
+    max_col = len(df_vfinal.columns) - 1
+    
+    worksheet.merge_range(0, 0, 0, max_col, 'VERIFIKASI AERODROM FORECAST', format_title)
+    worksheet.merge_range(1, 0, 1, max_col, 'Instruksi Met./No.029/Verifikasi Prakiraan/II/88', format_subtitle)
+    
+    worksheet.write(3, 0, 'PERSYARATAN KETELITIAN PRAKIRAAN :', format_bold_left)
+    
+    # Header Tabel Persyaratan (Baris 4)
+    headers_req = ['UNSUR METEOROLOGI', 'PERSYARATAN/TOLERANSI KETELITIAN', 'PROSENTASE MINIMUM', 
+                   'UNSUR METEOROLOGI', 'PERSYARATAN/TOLERANSI KETELITIAN', 'PROSEN MINIMUM']
+    # Catatan: Di Excel asli, ini di-merge per beberapa kolom. 
+    # Untuk simplifikasi via script, kita taruh teksnya di kolom-kolom kunci.
+    worksheet.write(4, 0, headers_req[0], format_border_bold)
+    worksheet.write(4, 3, headers_req[1], format_border_bold)
+    worksheet.write(4, 6, headers_req[2], format_border_bold)
+    worksheet.write(4, 8, headers_req[3], format_border_bold)
+    worksheet.write(4, 11, headers_req[4], format_border_bold)
+    worksheet.write(4, 15, headers_req[5], format_border_bold)
+    
+    # Isi Tabel Persyaratan (Bisa diisi manual string-nya di sini sesuai gambar agar rapi)
+    worksheet.write(5, 0, "A. Arah angin")
+    worksheet.write(6, 0, "B. Kecepatan angin")
+    worksheet.write(7, 0, "C. JARAK PANDANG")
+    # ... Tambahkan teks ketelitian lainnya menggunakan worksheet.write(row, col, "Teks") ...
 
-        # 3. Format Data & Auto-fit Kolom
-        for row_idx, row in enumerate(worksheet.iter_rows(min_row=2, max_row=worksheet.max_row, min_col=1, max_col=worksheet.max_column), start=2):
-            for col_idx, cell in enumerate(row, start=1):
-                cell.alignment = alignment_center
-                cell.border = border_thin
-                
-                # Cek jika kolom adalah kolom evaluasi / Status (S_Arah, S_Kec, dll)
-                col_name = str(worksheet.cell(row=1, column=col_idx).value)
-                if col_name.startswith('S_'):
-                    if cell.value == 'B':
-                        cell.fill = fill_benar
-                        cell.font = font_benar
-                    elif cell.value == 'S':
-                        cell.fill = fill_salah
-                        cell.font = font_salah
+    # Baris Identitas Stasiun (Baris 9)
+    worksheet.write(9, 0, f"BULAN : {bulan}", format_bold_left)
+    worksheet.write(9, 3, f"TAHUN : {tahun}", format_bold_left)
+    worksheet.write(9, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
+    worksheet.write(9, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
-        # 4. Atur Lebar Kolom
-        for col_idx in range(1, worksheet.max_column + 1):
-            col_letter = get_column_letter(col_idx)
-            worksheet.column_dimensions[col_letter].width = 15
+    # ==========================================
+    # 3. MEMBANGUN FOOTER & RUMUS (Sesuai Gambar 2)
+    # ==========================================
+    jumlah_baris_data = len(df_vfinal)
+    baris_akhir_data = 11 + jumlah_baris_data
+    
+    # Baris JUMLAH (Hitung total baris)
+    worksheet.merge_range(baris_akhir_data, 0, baris_akhir_data, 2, 'JUMLAH', format_border_bold)
+    for col_idx in range(3, max_col + 1):
+        # Gunakan rumus Excel COUNT atau sekadar print jumlah baris
+        worksheet.write(baris_akhir_data, col_idx, jumlah_baris_data, format_border_bold)
 
-    return output_path
+    # Baris PROSENTASE
+    baris_persen = baris_akhir_data + 1
+    worksheet.merge_range(baris_persen, 0, baris_persen, 2, 'PROSENTASE PRAKIRAAN CUACA YANG BENAR', format_border_bold)
+    
+    # Looping untuk memasang rumus persentase di kolom hasil evaluasi (A-F)
+    # Asumsi kolom S_Arah ada di index 8 (Huruf Excel: I), dst. Kapten perlu sesuaikan index huruf ini.
+    # Contoh Rumus: =COUNTIF(I13:I90, True)/I91
+    kolom_skor_huruf = ['I', 'K', 'M', 'O', 'Q', 'S'] # Sesuaikan dengan posisi kolom S_Arah, S_Kec, dll
+    for col_huruf in kolom_skor_huruf:
+        rumus_persen = f"=(COUNTIF({col_huruf}13:{col_huruf}{baris_akhir_data}, TRUE) / {col_huruf}{baris_akhir_data+1})"
+        # xlsxwriter akan memproses ini sebagai formula dinamis di dalam Excel
+        worksheet.write_formula(f"{col_huruf}{baris_persen+1}", rumus_persen, format_persen)
+
+    # ==========================================
+    # 4. TANDA TANGAN PETUGAS
+    # ==========================================
+    baris_ttd = baris_persen + 4
+    worksheet.write(baris_ttd, max_col - 3, "Mengetahui,", format_subtitle)
+    worksheet.write(baris_ttd + 1, max_col - 3, "Petugas Pembuat Laporan,", format_subtitle)
+    worksheet.write(baris_ttd + 5, max_col - 3, f"( {nama_petugas} )", format_title)
+
+    # Sesuaikan lebar kolom agar rapi
+    worksheet.set_column('A:Z', 12)
+
+    writer.close()
+    return output.getvalue()
 
 def generate_lapbul_excel(df_hasil, df_speci=None):
     tgl_jam = pd.DatetimeIndex(df_hasil['Waktu Aktual (UTC)'])
@@ -513,7 +561,5 @@ def generate_klasik_31_sheet(df_filtered):
     ws_rekap.cell(row=11, column=2).font = Font(bold=True)
 
     wb.save(output)
-    output.seek(0)
-    return output
     output.seek(0)
     return output
