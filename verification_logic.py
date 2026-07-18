@@ -139,6 +139,8 @@ def hitung_awan_jml(m_jml, t_jml, m_tgi):
 def hitung_awan_tgi(m_tgi, t_tgi):
     if m_tgi == "-" or t_tgi == "-": return "-", "NIL"
     try:
+        if int(m_tgi) > 5000: return ">5000ft", "B" 
+        
         mt, tt = int(m_tgi), int(t_tgi)
         diff = abs(mt - tt)
         return str(diff), "B" if (diff <= 100 if mt < 1000 else diff <= (0.3 * mt)) else "S"
