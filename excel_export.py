@@ -92,10 +92,10 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.write(4, batas_col, 'MINIMUM', format_req_header)
     
     worksheet.merge_range(5, 0, 5, 1, 'A. Arah Angin', format_req_bold)
-    worksheet.merge_range(5, 2, 5, 6, 'Benar apabila arah sama, atau selisih ≤ 60°. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, tetap dianggap benar.', format_req_text)
+    worksheet.merge_range(5, 2, 5, 6, 'Benar apabila arah sama, atau selisih ≤ 60°. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, dianggap benar.', format_req_text)
     worksheet.write(5, 7, '80%', format_req_center)
     worksheet.merge_range(5, 8, 5, 9, 'E. Jumlah Awan', format_req_bold)
-    worksheet.merge_range(5, 10, 5, batas_col - 1, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan > 5000 ft, otomatis dianggap benar.', format_req_text)
+    worksheet.merge_range(5, 10, 5, batas_col - 1, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan > 5000 ft, dianggap benar.', format_req_text)
     worksheet.write(5, batas_col, '70%', format_req_center)
     
     worksheet.merge_range(6, 0, 6, 1, 'B. Kecepatan Angin', format_req_bold)
@@ -106,11 +106,11 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.write(6, batas_col, '70%', format_req_center)
 
     worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
-    worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama (Sesuai 5 Kelas SIVETA).', format_req_text)
+    worksheet.merge_range(7, 2, 7, 6, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
     worksheet.write(7, 7, '80%', format_req_center)
-    worksheet.merge_range(7, 8, 7, 9, 'G. Suhu Udara', format_req_bold)
-    worksheet.merge_range(7, 10, 7, batas_col - 1, 'Selisih ≤ 1°C.', format_req_text)
-    worksheet.write(7, batas_col, '70%', format_req_center)
+    #worksheet.merge_range(7, 8, 7, 9, 'G. Suhu Udara', format_req_bold)
+    #worksheet.merge_range(7, 10, 7, batas_col - 1, 'Selisih ≤ 1°C.', format_req_text)
+    #worksheet.write(7, batas_col, '70%', format_req_center)
 
     worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
     worksheet.merge_range(8, 2, 8, 6, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
@@ -127,7 +127,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
     worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
-    worksheet.write(10, 11, f"STASIUN {stasiun}", format_bold_left)
+    worksheet.write(10, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
     # ==========================================
     # 6. WARNA KONDISIONAL B/S, FILTER & FREEZE
@@ -154,7 +154,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     excel_baris_persen = baris_persen_idx + 1 
 
     worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
-    worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE KEBENARAN', format_border_bold)
+    worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 9, 'PROSENTASE KEBENARAN', format_border_bold)
 
     for col_idx in range(3, max_col_data + 1):
         worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
@@ -174,14 +174,14 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     
     # BLOK KIRI: Kepala Stasiun (Dimerge 4 kolom agar letaknya rapi/center)
     worksheet.merge_range(baris_ttd, 0, baris_ttd, 3, "Mengetahui,", format_subtitle)
-    worksheet.merge_range(baris_ttd + 1, 0, baris_ttd + 1, 3, "Kepala Stasiun,", format_subtitle)
+    worksheet.merge_range(baris_ttd + 1, 0, baris_ttd + 1, 3, "Kepala Stasiun", format_subtitle)
     worksheet.merge_range(baris_ttd + 5, 0, baris_ttd + 5, 3, nama_kepala, format_ttd_nama)
     worksheet.merge_range(baris_ttd + 6, 0, baris_ttd + 6, 3, f"NIP. {nip_kepala}", format_subtitle)
 
     # BLOK KANAN: Petugas Pembuat Laporan (Dimerge 4 kolom batas akhir tabel)
     col_ttd_start = max(batas_col - 3, 4)
     col_ttd_end = batas_col
-    worksheet.merge_range(baris_ttd, col_ttd_start, baris_ttd, col_ttd_end, "Petugas Pembuat Laporan,", format_subtitle)
+    worksheet.merge_range(baris_ttd, col_ttd_start, baris_ttd, col_ttd_end, "Petugas Pembuat Laporan", format_subtitle)
     worksheet.merge_range(baris_ttd + 5, col_ttd_start, baris_ttd + 5, col_ttd_end, nama_petugas, format_ttd_nama)
     worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
 
