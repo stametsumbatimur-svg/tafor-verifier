@@ -7,8 +7,30 @@ import openpyxl
 from openpyxl.styles import Font
 from xlsxwriter.utility import xl_col_to_name
 
+# ==========================================
+# KAMUS PEMETAAN BULAN BAHASA INDONESIA
+# ==========================================
+BULAN_INDO = {
+    1: "JANUARI", 2: "FEBRUARI", 3: "MARET", 4: "APRIL",
+    5: "MEI", 6: "JUNI", 7: "JULI", 8: "AGUSTUS",
+    9: "SEPTEMBER", 10: "OKTOBER", 11: "NOVEMBER", 12: "DESEMBER",
+    "1": "JANUARI", "2": "FEBRUARI", "3": "MARET", "4": "APRIL",
+    "5": "MEI", "6": "JUNI", "7": "JULI", "8": "AGUSTUS",
+    "9": "SEPTEMBER", "10": "OKTOBER", "11": "NOVEMBER", "12": "DESEMBER",
+    "01": "JANUARI", "02": "FEBRUARI", "03": "MARET", "04": "APRIL",
+    "05": "MEI", "06": "JUNI", "07": "JULI", "08": "AGUSTUS",
+    "09": "SEPTEMBER", "10": "OKTOBER", "11": "NOVEMBER", "12": "DESEMBER",
+    "JANUARY": "JANUARI", "FEBRUARY": "FEBRUARI", "MARCH": "MARET",
+    "APRIL": "APRIL", "MAY": "MEI", "JUNE": "JUNI", "JULY": "JULI",
+    "AUGUST": "AGUSTUS", "SEPTEMBER": "SEPTEMBER", "OCTOBER": "OKTOBER",
+    "NOVEMBER": "NOVEMBER", "DECEMBER": "DESEMBER"
+}
+
 def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_petugas="[NIP PETUGAS]", nama_kepala="[NAMA KEPALA STASIUN]", nip_kepala="[NIP KEPALA]"):
     df_excel = df_vfinal.copy()
+    
+    # Konversi input bulan ke Bahasa Indonesia
+    bulan_str = BULAN_INDO.get(str(bulan).strip().upper(), str(bulan).upper())
     
     # ==========================================
     # 1. KONVERSI BOOLEAN MENJADI STRING 'B' & 'S'
@@ -71,7 +93,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     # ==========================================
     # 4. MENULIS HEADER & DATAFRAME MANUAL
     # ==========================================
-    worksheet.set_row(12, 38) # Ruang ekstra untuk kompresi teks header vertical
+    worksheet.set_row(12, 38)
     for col_num, col_name in enumerate(nama_kolom_cantik):
         worksheet.write(12, col_num, col_name, format_tabel_header)
         
@@ -81,9 +103,9 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
             worksheet.write(13 + row_num, col_num, val, format_tabel_data)
 
     # ==========================================
-    # 5. HEADER & NARASI KRITERIA (DISTRIBUSI TINGGI ROW BARU)
+    # 5. HEADER & NARASI KRITERIA
     # ==========================================
-    worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROM FORECAST', format_title)
+    worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROME FORECAST', format_title)
     worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
     
     worksheet.merge_range(4, 0, 4, 1, 'UNSUR METEOROLOGI', format_req_header)
@@ -111,15 +133,15 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(8, 8, 8, 10, '', format_req_bold) 
     worksheet.merge_range(8, 11, 8, batas_col, '', format_req_text)
 
-    # Ditinggikan signifikan karena kolom portrait sempit membuat teks kriteria melipat ke bawah
     worksheet.set_row(5, 68)
     worksheet.set_row(6, 52)
     worksheet.set_row(7, 35)
     worksheet.set_row(8, 68)
     
-    worksheet.write(10, 0, f"BULAN : {bulan}", format_bold_left)
+    # 🎯 BULAN SUDAH BAHASA INDONESIA
+    worksheet.write(10, 0, f"BULAN : {bulan_str}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
-    worksheet.write(10, 6, "(GMT)", format_bold_left)
+    worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
     worksheet.write(10, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
 
     # ==========================================
@@ -156,11 +178,11 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
         if col_name in df_excel.columns:
             col_idx = df_excel.columns.get_loc(col_name)
             col_huruf = xl_col_to_name(col_idx) 
-            rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
+            rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / (COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") + COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "S")), 0)'
             worksheet.write_formula(baris_persen_idx, col_idx, rumus_persen, format_persen)
 
     # ==========================================
-    # 8. TANDA TANGAN (POSISI KOMPRES)
+    # 8. TANDA TANGAN
     # ==========================================
     baris_ttd = baris_persen_idx + 4 
     
@@ -176,28 +198,28 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
 
     # ==========================================
-    # 9. SETUP HINGGA COCOK PADA CETAK PORTRAIT (KOLOM SKOR DIPERLEBAR)
+    # 9. LEBAR KOLOM & PRINT SETUP
     # ==========================================
-    worksheet.set_column('A:A', 4.5)   # Tanggal ringkas
-    worksheet.set_column('B:C', 9.5)   # Jangka Waktu & Perubahan
-    worksheet.set_column('D:E', 6.0)   # Arah & Kec TAF
-    worksheet.set_column('F:I', 7.0)   # Vis, Wx, Awan TAF
-    worksheet.set_column('J:J', 6.0)   # Arah METAR
-    worksheet.set_column('K:K', 6.8)   # 🚀 Skor Arah (Diperlebar dari 4.0 agar % tidak ####)
-    worksheet.set_column('L:L', 6.0)   # Kec METAR
-    worksheet.set_column('M:M', 6.8)   # 🚀 Skor Kec (Diperlebar dari 4.0 agar % tidak ####)
-    worksheet.set_column('N:N', 7.0)   # Vis METAR
-    worksheet.set_column('O:O', 6.8)   # 🚀 Skor Vis (Diperlebar dari 4.0 agar % tidak ####)
-    worksheet.set_column('P:P', 7.0)   # Wx METAR
-    worksheet.set_column('Q:Q', 6.8)   # 🚀 Skor Wx (Diperlebar dari 4.0 agar % tidak ####)
-    worksheet.set_column('R:R', 7.0)   # Awan Jml METAR
-    worksheet.set_column('S:S', 6.8)   # 🚀 Skor Awan Jml (Diperlebar dari 4.0 agar % tidak ####)
-    worksheet.set_column('T:T', 7.0)   # Awan Tgi METAR
-    worksheet.set_column('U:U', 6.8)   # 🚀 Skor Awan Tgi (Diperlebar dari 4.0 agar % tidak ####)
+    worksheet.set_column('A:A', 4.5)
+    worksheet.set_column('B:C', 9.5)
+    worksheet.set_column('D:E', 6.0)
+    worksheet.set_column('F:I', 7.0)
+    worksheet.set_column('J:J', 6.0)
+    worksheet.set_column('K:K', 6.8)
+    worksheet.set_column('L:L', 6.0)
+    worksheet.set_column('M:M', 6.8)
+    worksheet.set_column('N:N', 7.0)
+    worksheet.set_column('O:O', 6.8)
+    worksheet.set_column('P:P', 7.0)
+    worksheet.set_column('Q:Q', 6.8)
+    worksheet.set_column('R:R', 7.0)
+    worksheet.set_column('S:S', 6.8)
+    worksheet.set_column('T:T', 7.0)
+    worksheet.set_column('U:U', 6.8)
 
-    worksheet.set_portrait()            # Tetap mode tegak
-    worksheet.set_paper(9)              # Kertas A4             
-    worksheet.fit_to_pages(1, 0)        # Paksa lebar tabel pas total 1 halaman Portrait
+    worksheet.set_portrait()
+    worksheet.set_paper(9)
+    worksheet.fit_to_pages(1, 0)
     worksheet.set_margins(left=0.15, right=0.15, top=0.4, bottom=0.4) 
     
     worksheet.repeat_rows(12, 12)       
@@ -221,7 +243,9 @@ def generate_klasik_31_sheet(df_filtered):
         return output
 
     contoh_waktu = pd.to_datetime(df_filtered.iloc[0]['Waktu Aktual (UTC)'])
-    nama_bulan = contoh_waktu.strftime("%B").upper()
+    
+    # 🎯 NAMA BULAN OTOMATIS BAHASA INDONESIA
+    nama_bulan = BULAN_INDO.get(contoh_waktu.month, "JANUARI")
     tahun = contoh_waktu.strftime("%Y")
 
     for hari in range(1, 32):
