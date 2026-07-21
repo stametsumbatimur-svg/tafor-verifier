@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Excel Export Engine (Ultra-Clean Streamlined Version)
+# 🔥 SIVETA - Excel Export Engine
 import io
 import re
 import pandas as pd
@@ -39,7 +39,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     for col in kolom_skor:
         if col in df_excel.columns:
             df_excel[col] = df_excel[col].apply(
-                lambda x: 'S' if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else 'B'
+                lambda x: 'S' if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else ('B' if str(x).strip().upper() == 'B' else x)
             )
 
     if 'Tanggal' in df_excel.columns:
@@ -138,7 +138,6 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.set_row(7, 35)
     worksheet.set_row(8, 68)
     
-    # 🎯 BULAN SUDAH BAHASA INDONESIA
     worksheet.write(10, 0, f"BULAN : {bulan_str}", format_bold_left)
     worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
     worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
@@ -160,7 +159,7 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.freeze_panes(13, 0) 
 
     # ==========================================
-    # 7. FOOTER & RUMUS PERSENTASE
+    # 7. FOOTER & RUMUS PERSENTASE (SINKRON DENGAN WEB)
     # ==========================================
     baris_jumlah_idx = 12 + jumlah_baris_data + 1 
     excel_baris_jumlah = baris_jumlah_idx + 1 
@@ -170,15 +169,23 @@ def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_pet
     worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
     worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE KEBENARAN', format_border_bold)
 
+    # Isi kolom non-skor
     for col_idx in range(3, max_col_data + 1):
         worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
         worksheet.write(baris_persen_idx, col_idx, "", format_border_bold)
 
+    # 🎯 PERBAIKAN UTAMA: Rumus Jumlah (B+S saja) & Rumus Persentase B / (B+S)
     for col_name in kolom_skor:
         if col_name in df_excel.columns:
             col_idx = df_excel.columns.get_loc(col_name)
             col_huruf = xl_col_to_name(col_idx) 
-            rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / (COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") + COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "S")), 0)'
+            
+            # 1. Hitung JUMLAH HANYA sampel B dan S (mengabaikan NIL/-)
+            rumus_jumlah = f'=COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") + COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "S")'
+            worksheet.write_formula(baris_jumlah_idx, col_idx, rumus_jumlah, format_border_bold)
+            
+            # 2. Persentase = B / Total (B+S)
+            rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
             worksheet.write_formula(baris_persen_idx, col_idx, rumus_persen, format_persen)
 
     # ==========================================
@@ -243,8 +250,6 @@ def generate_klasik_31_sheet(df_filtered):
         return output
 
     contoh_waktu = pd.to_datetime(df_filtered.iloc[0]['Waktu Aktual (UTC)'])
-    
-    # 🎯 NAMA BULAN OTOMATIS BAHASA INDONESIA
     nama_bulan = BULAN_INDO.get(contoh_waktu.month, "JANUARI")
     tahun = contoh_waktu.strftime("%Y")
 
