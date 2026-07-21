@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR
+# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR 
 import importlib
 import verification_logic
 importlib.reload(verification_logic)
@@ -166,7 +166,6 @@ if df_metar_raw is not None and df_taf_raw is not None:
                 st.session_state['excel_ready'] = False
                 
                 df_speci_umpan = df_speci_raw if df_speci_raw is not None else pd.DataFrame(columns=df_metar_raw.columns)
-                # 💡 Menggunakan '_' untuk mengabaikan output logbook/speci report yang tidak lagi dicetak di app.py
                 df_hasil, _, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
                 df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
                 
@@ -185,6 +184,9 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
     if df_filtered.empty:
         st.warning(f"⚠️ Berkas data kosong pada rentang tanggal {tgl_mulai} s.d {tgl_selesai}. Silakan sesuaikan filter tanggal.")
     else:
+        # 🎯 RAKIT DATAFRAME FINAL SEPERTI DI EXCEL UNTUK DIHITUNG SAMA PRESISI
+        df_vfinal = buat_tabel_laporan_excel(df_filtered)
+        
         rows_tafor = []
         total_b_global = 0
         total_sampel_global = 0
@@ -198,11 +200,20 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
             'S_AwanTgi': 'F. Tinggi Dasar Awan (Cloud Base)'
         }
         
+        # 🎯 LOGIKA HITUNG PERSENTASE SINKRON DENGAN EXCEL
         for col_name, label in p_headers.items():
-            b = (df_filtered[col_name] == "B").sum()
-            s = (df_filtered[col_name] == "S").sum()
-            tot = b + s
-            pct = (b / tot * 100) if tot > 0 else 0.0
+            if col_name in df_vfinal.columns:
+                # Konversi status ke 'B' & 'S' murni
+                s_series = df_vfinal[col_name].apply(
+                    lambda x: 'S' if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else ('B' if str(x).strip().upper() == 'B' else str(x).strip().upper())
+                )
+                b = (s_series == "B").sum()
+                s = (s_series == "S").sum()
+                tot = b + s
+                pct = (b / tot * 100) if tot > 0 else 0.0
+            else:
+                b, s, tot, pct = 0, 0, 0, 0.0
+
             total_b_global += b
             total_sampel_global += tot
             rows_tafor.append({"param": label, "b": int(b), "s": int(s), "tot": int(tot), "pct": pct})
@@ -253,8 +264,9 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
         if st.button("⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True):
             with st.spinner("Mesin sedang merakit data ke format Excel... Mohon tunggu sebentar..."):
                 
+                # 🎯 MENGGUNAKAN df_vfinal YANG SUDAH DIRENCANAKAN UNTUK EXCEL
                 st.session_state['dl_verifikasi_tafor'] = export_v_final_excel(
-                    df_vfinal = buat_tabel_laporan_excel(df_filtered), 
+                    df_vfinal = df_vfinal, 
                     bulan = nama_bulan, 
                     tahun = tahun_str, 
                     stasiun = stasiun_aktif, 
