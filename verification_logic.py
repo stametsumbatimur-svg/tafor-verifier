@@ -373,17 +373,13 @@ def buat_tabel_laporan_excel(df_input):
             b_at,
         )
 
-        validity_match = re.search(
-            r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi)
-        )
+        validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
         if validity_match:
-            jam_mulai = int(validity_match.group(1))
-            jam_selesai_12h = (jam_mulai + 12) % 24
-            jangka_base = f'{jam_mulai:02d}-{jam_selesai_12h:02d}'
-            jam_akhir_taf = f'{jam_selesai_12h:02d}'
+            jam_mulai = validity_match.group(1)
+            jam_selesai = validity_match.group(2)
+            jangka_base = f'{jam_mulai}-{jam_selesai}'
         else:
-            jangka_base = '00-12'
-            jam_akhir_taf = '12'
+            jangka_base = '00-00'
 
         label_perubahan = (
             'Base (AMD)'
