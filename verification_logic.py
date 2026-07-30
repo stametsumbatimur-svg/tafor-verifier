@@ -368,12 +368,7 @@ def buat_tabel_laporan_excel(df_input):
             else:
                 jangka_base = "00-12" 
                 jam_akhir_taf = "12"
-            
-
-
-
-
-            
+                
             if 'AMD' in str(taf_sandi).upper():
                 label_perubahan = "Base (AMD)"
             elif 'COR' in str(taf_sandi).upper():
