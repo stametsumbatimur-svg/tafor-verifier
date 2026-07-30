@@ -336,125 +336,236 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 def buat_tabel_laporan_excel(df_input):
     df_work = df_input.to_dict('records')
     baris_laporan = []
-    
-    taf_harian = {}
-    for row in df_work:
-        if row['Sandi TAF Prakiraan'] == "-": continue
-        dt_val = pd.to_datetime(row['Waktu Aktual (UTC)'])
-        key_hari = dt_val.strftime('%Y-%m-%d')
-        sandi = row['Sandi TAF Prakiraan']
-        
-        if key_hari not in taf_harian: taf_harian[key_hari] = {}
-        if sandi not in taf_harian[key_hari]: taf_harian[key_hari][sandi] = []
-        taf_harian[key_hari][sandi].append((dt_val, row))
-        
-    for hari, dict_tafs in taf_harian.items():
-        tgl_str = datetime.strptime(hari, '%Y-%m-%d').strftime('%d')
-        
-        for taf_sandi, list_rows in dict_tafs.items():
-            list_rows.sort(key=lambda x: x[0]) 
-            baris_m_base = list_rows[0][1]
-            
-            parts = RE_PARTS.split(str(taf_sandi))
-            b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
-            cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
-            
-            validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
-            if validity_match:
-                jam_mulai = int(validity_match.group(1))
-                jam_selesai_12h = (jam_mulai + 12) % 24
-                jangka_base = f"{jam_mulai:02d}-{jam_selesai_12h:02d}"
-                jam_akhir_taf = f"{jam_selesai_12h:02d}" 
-            else:
-                jangka_base = "00-12" 
-                jam_akhir_taf = "12"
-                
-            if 'AMD' in str(taf_sandi).upper():
-                label_perubahan = "Base (AMD)"
-            elif 'COR' in str(taf_sandi).upper():
-                label_perubahan = "Base (COR)"
-            else:
-                label_perubahan = "Base"
-            
-            m_obs_base = {
-                'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
-                'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 
-                'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 
-                'M_TS_CB': baris_m_base.get('M_TS_CB', False)
-            }
-            _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
-            
-            baris_laporan.append({
-                'Tanggal': tgl_str, 'Jangka_Waktu': jangka_base, 'Perubahan': label_perubahan,
-                'T_Arah': b_ar, 'T_Kec': b_ke, 'T_Vis': b_vi, 'T_Wx': b_wx, 'T_AwanJml': b_aj, 'T_AwanTgi': b_at,
-                'M_Arah': baris_m_base['M_Arah'], 'S_Arah': s_ar,
-                'M_Kec': baris_m_base['M_Kec'], 'S_Kec': s_ke,
-                'M_Vis': baris_m_base['M_Vis'], 'S_Vis': s_vi,
-                'M_Wx': baris_m_base['M_Wx'], 'S_Wx': s_wx,
-                'M_AwanJml': baris_m_base['M_AwanJml'], 'S_AwanJml': s_aj,
-                'M_AwanTgi': baris_m_base['M_AwanTgi'], 'S_AwanTgi': s_at
-            })
-            
-            for i in range(1, len(parts), 2):
-                tipe, isi = parts[i], parts[i+1]
-                
-                if tipe.startswith('FM'): label_trend = "FM"
-                elif 'TEMPO' in tipe: label_trend = "TEMPO"
-                elif 'BECMG' in tipe: label_trend = "BECMG"
-                elif 'PROB' in tipe: label_trend = "PROB"
-                else: label_trend = tipe
 
-                if tipe.startswith('FM'):
-                    jam_target = int(tipe[4:6])
-                    jam_fm = tipe[4:6]
-                    jangka_trend = f"FM.{jam_fm}-{jam_akhir_taf}" 
-                else:
-                    time_match = RE_TIME_GRP.search(isi)
-                    jam_target = int(time_match.group(2)) if time_match else 0
-                    prefix = 'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
-                    jangka_trend = f"{prefix}.{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
-                
-                baris_m_trend = next((r for dt_o, r in list_rows if dt_o.hour == jam_target), baris_m_base)
-                g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
-                
-                if tipe.startswith('FM') or tipe == 'BECMG':
-                    if g_ar != "-": cur_ar = g_ar
-                    if g_ke != "-": cur_ke = g_ke
-                    if g_vi != "-": cur_vi = g_vi
-                    if g_wx != "-" and not RE_WX_EXCLUDE.search(isi) and "CAVOK" not in isi: cur_wx = g_wx
-                    if g_aj != "-": cur_aj = g_aj
-                    if g_at != "-": cur_at = g_at
-                    t_ar, t_ke, t_vi, t_wx, t_aj, t_at = cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at
-                else:
-                    t_ar = g_ar if g_ar != "-" else cur_ar
-                    t_ke = g_ke if g_ke != "-" else cur_ke
-                    t_vi = g_vi if g_vi != "-" else cur_vi
-                    t_wx = g_wx if (g_wx != "-" and not RE_WX_EXCLUDE.search(isi) and "CAVOK" not in isi) else cur_wx
-                    t_aj = g_aj if g_aj != "-" else cur_aj
-                    t_at = g_at if g_at != "-" else cur_at
-                
-                m_obs_trend = {
-                    'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 
-                    'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 
-                    'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi'], 
-                    'M_TS_CB': baris_m_trend.get('M_TS_CB', False)
-                }
-                
-                _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = evaluasi_sandi_tunggal(
-                    m_obs_trend, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, 
-                    base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at), 
-                    is_grup_prob=('PROB' in tipe), is_grup_tempo=('TEMPO' in tipe), is_grup_becmg_trans=('BECMG' in tipe)
+    # 🎯 PERBAIKAN: Pengelompokan berdasarkan Tanggal Validitas TAF Utuh (Bukan Tanggal Kalender METAR)
+    taf_groups = {}
+    for row in df_work:
+        if row['Sandi TAF Prakiraan'] == '-':
+            continue
+        sandi = row['Sandi TAF Prakiraan']
+
+        validity_match = re.search(r'\b(\d{2})\d{2}/\d{2}\d{2}\b', str(sandi))
+        dt_val = pd.to_datetime(row['Waktu Aktual (UTC)'])
+
+        tgl_taf = (
+            validity_match.group(1) if validity_match else dt_val.strftime('%d')
+        )
+
+        key_taf = (tgl_taf, sandi)
+        if key_taf not in taf_groups:
+            taf_groups[key_taf] = []
+        taf_groups[key_taf].append((dt_val, row))
+
+    for (tgl_str, taf_sandi), list_rows in taf_groups.items():
+        list_rows.sort(key=lambda x: x[0])
+        baris_m_base = list_rows[0][
+            1
+        ]  # METAR Jam Pertama dari Jendela TAF (misal jam 18:00 UTC)
+
+        parts = RE_PARTS.split(str(taf_sandi))
+        b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
+        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = (
+            b_ar,
+            b_ke,
+            b_vi,
+            b_wx,
+            b_aj,
+            b_at,
+        )
+
+        validity_match = re.search(
+            r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi)
+        )
+        if validity_match:
+            jam_mulai = int(validity_match.group(1))
+            jam_selesai_12h = (jam_mulai + 12) % 24
+            jangka_base = f'{jam_mulai:02d}-{jam_selesai_12h:02d}'
+            jam_akhir_taf = f'{jam_selesai_12h:02d}'
+        else:
+            jangka_base = '00-12'
+            jam_akhir_taf = '12'
+
+        label_perubahan = (
+            'Base (AMD)'
+            if 'AMD' in str(taf_sandi).upper()
+            else (
+                'Base (COR)' if 'COR' in str(taf_sandi).upper() else 'Base'
+            )
+        )
+
+        m_obs_base = {
+            'M_Arah': baris_m_base['M_Arah'],
+            'M_Kec': baris_m_base['M_Kec'],
+            'M_Vis': baris_m_base['M_Vis'],
+            'M_Wx': baris_m_base['M_Wx'],
+            'M_AwanJml': baris_m_base['M_AwanJml'],
+            'M_AwanTgi': baris_m_base['M_AwanTgi'],
+            'M_TS_CB': baris_m_base.get('M_TS_CB', False),
+        }
+        _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(
+            m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+        )
+
+        baris_laporan.append({
+            'Tanggal': tgl_str,
+            'Jangka_Waktu': jangka_base,
+            'Perubahan': label_perubahan,
+            'T_Arah': b_ar,
+            'T_Kec': b_ke,
+            'T_Vis': b_vi,
+            'T_Wx': b_wx,
+            'T_AwanJml': b_aj, 'T_AwanTgi': b_at,
+            'M_Arah': baris_m_base['M_Arah'],
+            'S_Arah': s_ar,
+            'M_Kec': baris_m_base['M_Kec'],
+            'S_Kec': s_ke,
+            'M_Vis': baris_m_base['M_Vis'],
+            'S_Vis': s_vi,
+            'M_Wx': baris_m_base['M_Wx'],
+            'S_Wx': s_wx,
+            'M_AwanJml': baris_m_base['M_AwanJml'],
+            'S_AwanJml': s_aj,
+            'M_AwanTgi': baris_m_base['M_AwanTgi'],
+            'S_AwanTgi': s_at,
+            'METAR_Time': baris_m_base['Waktu Aktual (UTC)'],
+            'TAF_Sandi': taf_sandi,
+            'METAR_Sandi': baris_m_base['Sandi METAR Aktual'],
+        })
+
+        for i in range(1, len(parts), 2):
+            tipe, isi = parts[i], parts[i + 1]
+
+            label_trend = (
+                'FM'
+                if tipe.startswith('FM')
+                else (
+                    'TEMPO'
+                    if 'TEMPO' in tipe
+                    else (
+                        'BECMG'
+                        if 'BECMG' in tipe
+                        else ('PROB' if 'PROB' in tipe else tipe)
+                    )
                 )
-                
-                baris_laporan.append({
-                    'Tanggal': tgl_str, 'Jangka_Waktu': jangka_trend, 'Perubahan': label_trend,
-                    'T_Arah': t_ar, 'T_Kec': t_ke, 'T_Vis': t_vi, 'T_Wx': t_wx, 'T_AwanJml': t_aj, 'T_AwanTgi': t_at,
-                    'M_Arah': baris_m_trend['M_Arah'], 'S_Arah': s_ar_t,
-                    'M_Kec': baris_m_trend['M_Kec'], 'S_Kec': s_ke_t,
-                    'M_Vis': baris_m_trend['M_Vis'], 'S_Vis': s_vi_t,
-                    'M_Wx': baris_m_trend['M_Wx'], 'S_Wx': s_wx_t,
-                    'M_AwanJml': baris_m_trend['M_AwanJml'], 'S_AwanJml': s_aj_t,
-                    'M_AwanTgi': baris_m_trend['M_AwanTgi'], 'S_AwanTgi': s_at_t
-                })
+            )
+
+            if tipe.startswith('FM'):
+                jam_target = int(tipe[4:6])
+                jangka_trend = f'FM.{tipe[4:6]}-{jam_akhir_taf}'
+            else:
+                time_match = RE_TIME_GRP.search(isi)
+                jam_target = int(time_match.group(2)) if time_match else 0
+                prefix = (
+                    'T'
+                    if 'TEMPO' in tipe
+                    else ('B' if 'BECMG' in tipe else 'P')
+                )
+                jangka_trend = (
+                    f'{prefix}.{time_match.group(2)}-{time_match.group(4)}'
+                    if time_match
+                    else tipe
+                )
+
+            # 🎯 PERBAIKAN: Mencari METAR tepat pada jam_target di seluruh jendela 12 jam TAF ini
+            matched_rows = [
+                r for dt_o, r in list_rows if dt_o.hour == jam_target
+            ]
+            baris_m_trend = matched_rows[0] if matched_rows else baris_m_base
+
+            g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
+
+            if tipe.startswith('FM') or tipe == 'BECMG':
+                if g_ar != '-':
+                    cur_ar = g_ar
+                if g_ke != '-':
+                    cur_ke = g_ke
+                if g_vi != '-':
+                    cur_vi = g_vi
+                if (
+                    g_wx != '-'
+                    and not RE_WX_EXCLUDE.search(isi)
+                    and 'CAVOK' not in isi
+                ):
+                    cur_wx = g_wx
+                if g_aj != '-':
+                    cur_aj = g_aj
+                if g_at != '-':
+                    cur_at = g_at
+                t_ar, t_ke, t_vi, t_wx, t_aj, t_at = (
+                    cur_ar,
+                    cur_ke,
+                    cur_vi,
+                    cur_wx,
+                    cur_aj,
+                    cur_at,
+                )
+            else:
+                t_ar = g_ar if g_ar != '-' else cur_ar
+                t_ke = g_ke if g_ke != '-' else cur_ke
+                t_vi = g_vi if g_vi != '-' else cur_vi
+                t_wx = (
+                    g_wx
+                    if (
+                        g_wx != '-'
+                        and not RE_WX_EXCLUDE.search(isi)
+                        and 'CAVOK' not in isi
+                    )
+                    else cur_wx
+                )
+                t_aj = g_aj if g_aj != '-' else cur_aj
+                t_at = g_at if g_at != '-' else cur_at
+
+            m_obs_trend = {
+                'M_Arah': baris_m_trend['M_Arah'],
+                'M_Kec': baris_m_trend['M_Kec'],
+                'M_Vis': baris_m_trend['M_Vis'],
+                'M_Wx': baris_m_trend['M_Wx'],
+                'M_AwanJml': baris_m_trend['M_AwanJml'],
+                'M_AwanTgi': baris_m_trend['M_AwanTgi'],
+                'M_TS_CB': baris_m_trend.get('M_TS_CB', False),
+            }
+
+            _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = (
+                evaluasi_sandi_tunggal(
+                    m_obs_trend,
+                    t_ar,
+                    t_ke,
+                    t_vi,
+                    t_wx,
+                    t_aj,
+                    t_at,
+                    base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at),
+                    is_grup_prob=('PROB' in tipe),
+                    is_grup_tempo=('TEMPO' in tipe),
+                    is_grup_becmg_trans=('BECMG' in tipe),
+                )
+            )
+
+            baris_laporan.append({
+                'Tanggal': tgl_str,
+                'Jangka_Waktu': jangka_trend,
+                'Perubahan': label_trend,
+                'T_Arah': t_ar,
+                'T_Kec': t_ke,
+                'T_Vis': t_vi,
+                'T_Wx': t_wx,
+                'T_AwanJml': t_aj,
+                'T_AwanTgi': t_at,
+                'M_Arah': baris_m_trend['M_Arah'],
+                'S_Arah': s_ar_t,
+                'M_Kec': baris_m_trend['M_Kec'],
+                'S_Kec': s_ke_t,
+                'M_Vis': baris_m_trend['M_Vis'],
+                'S_Vis': s_vi_t,
+                'M_Wx': baris_m_trend['M_Wx'],
+                'S_Wx': s_wx_t,
+                'M_AwanJml': baris_m_trend['M_AwanJml'],
+                'S_AwanJml': s_aj_t,
+                'M_AwanTgi': baris_m_trend['M_AwanTgi'],
+                'S_AwanTgi': s_at_t,
+                'METAR_Time': baris_m_trend['Waktu Aktual (UTC)'],
+                'TAF_Sandi': taf_sandi,
+                'METAR_Sandi': baris_m_trend['Sandi METAR Aktual'],
+            })
 
     return pd.DataFrame(baris_laporan)
