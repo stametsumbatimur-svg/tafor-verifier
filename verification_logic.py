@@ -23,51 +23,79 @@ RE_AMD_COR = re.compile(r'\b(AMD|COR)\b')
 def ekstrak_param_metar_speci(sandi_teks):
     if pd.isna(sandi_teks) or sandi_teks == "-":
         return "-", "-", "-", "-", "-", "-", False
-    sandi_cleaned = RE_DATE_CLEAN.sub('', str(sandi_teks).strip())
-    
+    sandi_cleaned = RE_DATE_CLEAN.sub("", str(sandi_teks).strip())
+
     arah_wind, kec_wind = "-", "-"
     wind_match = RE_WIND.search(sandi_cleaned)
     if wind_match:
         arah_wind = wind_match.group(1)
-        kec_wind = f"{int(wind_match.group(2))}G{int(wind_match.group(3)[1:])}" if wind_match.group(3) else str(int(wind_match.group(2)))
-        
-    vis = "9999" if "CAVOK" in sandi_cleaned else ("-" if not (v := RE_VIS.search(sandi_cleaned)) else v.group(0))
-    wx = "-" if "CAVOK" in sandi_cleaned else ("-" if not (w := RE_WX.search(sandi_cleaned)) else w.group(0))
-            
+        kec_wind = (
+            f"{int(wind_match.group(2))}G{int(wind_match.group(3)[1:])}"
+            if wind_match.group(3)
+            else str(int(wind_match.group(2)))
+        )
+
+    vis = (
+        "9999"
+        if "CAVOK" in sandi_cleaned
+        else ("-" if not (v := RE_VIS.search(sandi_cleaned)) else v.group(0))
+    )
+    wx = (
+        "-"
+        if "CAVOK" in sandi_cleaned
+        else ("-" if not (w := RE_WX.search(sandi_cleaned)) else w.group(0))
+    )
+
     awan_jml, awan_tgi = "-", "-"
+    # 🎯 PERBAIKAN: CAVOK/NSC/NCD di-set tinggi awannya ke 5000 ft (Bukan 0)
     if any(k in sandi_cleaned for k in ["CAVOK", "NSC", "NCD"]):
-        awan_jml, awan_tgi = "NSC", "0"
+        awan_jml, awan_tgi = "NSC", "5000"
     else:
         cloud_matches = RE_CLOUD.findall(sandi_cleaned)
         if cloud_matches:
             terendah = min(cloud_matches, key=lambda x: int(x[1]))
             awan_jml, awan_tgi = terendah[0], str(int(terendah[1]) * 100)
-            
-    has_ts_cb = 'TS' in sandi_cleaned or 'CB' in sandi_cleaned
+
+    has_ts_cb = "TS" in sandi_cleaned or "CB" in sandi_cleaned
     return arah_wind, kec_wind, vis, wx, awan_jml, awan_tgi, has_ts_cb
 
+
 def parse_sandi(grup_teks):
-    if not grup_teks or str(grup_teks).strip() == "": return "-", "-", "-", "-", "-", "-"
-    sandi_cleaned = RE_DATE_CLEAN.sub('', str(grup_teks).strip())
-    
+    if not grup_teks or str(grup_teks).strip() == "":
+        return "-", "-", "-", "-", "-", "-"
+    sandi_cleaned = RE_DATE_CLEAN.sub("", str(grup_teks).strip())
+
     arah, kec = "-", "-"
     w_match = RE_WIND.search(sandi_cleaned)
     if w_match:
         arah = w_match.group(1)
-        kec = f"{int(w_match.group(2))}G{int(w_match.group(3)[1:])}" if w_match.group(3) else str(int(w_match.group(2)))
-        
-    vis = "9999" if "CAVOK" in sandi_cleaned else ("-" if not (v := RE_VIS.search(sandi_cleaned)) else v.group(0))
-    wx = "-" if "CAVOK" in sandi_cleaned or "NSW" in sandi_cleaned else ("-" if not (w := RE_WX.search(sandi_cleaned)) else w.group(0))
-            
+        kec = (
+            f"{int(w_match.group(2))}G{int(w_match.group(3)[1:])}"
+            if w_match.group(3)
+            else str(int(w_match.group(2)))
+        )
+
+    vis = (
+        "9999"
+        if "CAVOK" in sandi_cleaned
+        else ("-" if not (v := RE_VIS.search(sandi_cleaned)) else v.group(0))
+    )
+    wx = (
+        "-"
+        if "CAVOK" in sandi_cleaned or "NSW" in sandi_cleaned
+        else ("-" if not (w := RE_WX.search(sandi_cleaned)) else w.group(0))
+    )
+
     aw_jml, aw_tgi = "-", "-"
+    
     if "CAVOK" in sandi_cleaned:
-        aw_jml, aw_tgi = "NSC", "0"
+        aw_jml, aw_tgi = "NSC", "5000"
     else:
         c_matches = RE_CLOUD.findall(sandi_cleaned)
         if c_matches:
             terendah = min(c_matches, key=lambda x: int(x[1]))
             aw_jml, aw_tgi = terendah[0], str(int(terendah[1]) * 100)
-            
+
     return arah, kec, vis, wx, aw_jml, aw_tgi
 
 # =========================================================================
