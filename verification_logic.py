@@ -427,9 +427,9 @@ def buat_tabel_laporan_excel(df_input):
             'S_AwanJml': s_aj,
             'M_AwanTgi': baris_m_base['M_AwanTgi'],
             'S_AwanTgi': s_at,
-            'METAR_Time': baris_m_base['Waktu Aktual (UTC)'],
-            'TAF_Sandi': taf_sandi,
-            'METAR_Sandi': baris_m_base['Sandi METAR Aktual'],
+           # 'METAR_Time': baris_m_base['Waktu Aktual (UTC)'],
+            #'TAF_Sandi': taf_sandi,
+           # 'METAR_Sandi': baris_m_base['Sandi METAR Aktual'],
         })
 
         for i in range(1, len(parts), 2):
@@ -563,9 +563,9 @@ def buat_tabel_laporan_excel(df_input):
                 'S_AwanJml': s_aj_t,
                 'M_AwanTgi': baris_m_trend['M_AwanTgi'],
                 'S_AwanTgi': s_at_t,
-                'METAR_Time': baris_m_trend['Waktu Aktual (UTC)'],
-                'TAF_Sandi': taf_sandi,
-                'METAR_Sandi': baris_m_trend['Sandi METAR Aktual'],
+                #'METAR_Time': baris_m_trend['Waktu Aktual (UTC)'],
+               # 'TAF_Sandi': taf_sandi,
+               # 'METAR_Sandi': baris_m_trend['Sandi METAR Aktual'],
             })
 
     return pd.DataFrame(baris_laporan)
