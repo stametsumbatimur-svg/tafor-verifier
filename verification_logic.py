@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Verification Core Logic (Ultra-Clean Streamlined Version)
+# 🔥 SIVETA - Verification Core Logic (Fully Compliant SOP BMKG 2025)
 import re
 import pandas as pd
 from datetime import datetime, timedelta
@@ -71,7 +71,7 @@ def parse_sandi(grup_teks):
     return arah, kec, vis, wx, aw_jml, aw_tgi
 
 # =========================================================================
-# 2. EVALUASI AKURASI PARAMETER (LOGIKA SIVETA)
+# 2. EVALUASI AKURASI PARAMETER (LOGIKA SOP BMKG 2025)
 # =========================================================================
 def hitung_angin_arah(m_dir, t_dir, m_kec="-", t_kec="-", m_ts_cb=False):
     m_str, t_str = str(m_dir).strip().upper(), str(t_dir).strip().upper()
@@ -80,7 +80,8 @@ def hitung_angin_arah(m_dir, t_dir, m_kec="-", t_kec="-", m_ts_cb=False):
 
     if m_str == t_str: return (m_str, "B")
     if m_str in ["VRB", "///"] and t_str in ["VRB", "///"]: return (m_str, "B")
-    if t_str == "VRB" and (m_ts_cb or m_spd < 10): return (m_str, "B")
+    # SOP 2025: Kondisi VRB valid jika ada TS/CB atau kecepatan < 10 kt
+    if (m_str == "VRB" or t_str == "VRB") and (m_ts_cb or m_spd < 10 or t_spd < 10): return (m_str, "B")
     if m_spd < 10 and t_spd < 10: return (m_str, "B")
         
     try:
@@ -93,10 +94,10 @@ def hitung_angin_arah(m_dir, t_dir, m_kec="-", t_kec="-", m_ts_cb=False):
 def hitung_angin_kec(m_kec, t_kec):
     if m_kec == "-" or t_kec == "-" or m_kec == "NIL" or t_kec == "NIL": return "-", "NIL"
     try:
-        m_base = int(m_kec.split('G')[0]) if 'G' in m_kec else int(m_kec)
-        t_base = int(t_kec.split('G')[0]) if 'G' in t_kec else int(t_kec)
-        m_gust = int(m_kec.split('G')[1]) if 'G' in m_kec else 0
-        t_gust = int(t_kec.split('G')[1]) if 'G' in t_kec else 0
+        m_base = int(str(m_kec).split('G')[0]) if 'G' in str(m_kec) else int(m_kec)
+        t_base = int(str(t_kec).split('G')[0]) if 'G' in str(t_kec) else int(t_kec)
+        m_gust = int(str(m_kec).split('G')[1]) if 'G' in str(m_kec) else 0
+        t_gust = int(str(t_kec).split('G')[1]) if 'G' in str(t_kec) else 0
         
         diff_base = abs(m_base - t_base)
         stat_base = "B" if diff_base <= 10 else "S"
@@ -106,10 +107,11 @@ def hitung_angin_kec(m_kec, t_kec):
     except: return "-", "S"
 
 def get_vis_class(vis_value):
+    # SOP BMKG 2025 Tabel II: Kelas 4 = 3000-5000m, Kelas 5 = >5000m
     if vis_value < 800: return 1
     elif 800 <= vis_value < 1500: return 2
     elif 1500 <= vis_value < 3000: return 3
-    elif 3000 <= vis_value < 5000: return 4
+    elif 3000 <= vis_value <= 5000: return 4
     return 5
 
 def hitung_vis(m_vis, t_vis):
@@ -119,8 +121,19 @@ def hitung_vis(m_vis, t_vis):
     except: return (None, "S")
 
 def cek_presipitasi_sedang_lebat(wx_str):
-    if pd.isna(wx_str) or wx_str == "-": return False
-    return 'RA' in str(wx_str).upper() and '-RA' not in str(wx_str).upper()
+    # SOP 2025: Hanya mengevaluasi presipitasi sedang/lebat (+RA, RA, TSRA, SHRA, dsb.)
+    # Hujan ringan (-RA, -DZ, -SHRA) dianggap TIDAK terjadi presipitasi sedang/lebat
+    if pd.isna(wx_str) or wx_str in ["-", "NSW", "NIL", "CAVOK"]: return False
+    s = str(wx_str).upper().strip()
+    precip_codes = ['RA', 'DZ', 'SN', 'SG', 'PL', 'GR', 'GS', 'SH', 'TS']
+    if not any(code in s for code in precip_codes): return False
+    
+    tokens = s.split()
+    for t in tokens:
+        if any(code in t for code in precip_codes):
+            if not t.startswith('-'):
+                return True
+    return False
 
 def hitung_cuaca(m_wx, t_wx):
     return "MATCH", ("B" if cek_presipitasi_sedang_lebat(m_wx) == cek_presipitasi_sedang_lebat(t_wx) else "S")
@@ -128,7 +141,8 @@ def hitung_cuaca(m_wx, t_wx):
 def hitung_awan_jml(m_jml, t_jml, m_tgi):
     if m_jml == "-" or t_jml == "-": return "-", "NIL"
     try:
-        if m_tgi != "-" and int(m_tgi) > 5000: return ">5000ft", "B"
+        # SOP 2025: Pengamatan tinggi dasar awan > 1500 m (5000 ft) selalu BENAR
+        if m_tgi != "-" and int(m_tgi) >= 5000: return ">5000ft", "B"
         km = 2 if str(m_jml).upper() in ['BKN', 'OVC'] else 1
         kt = 2 if str(t_jml).upper() in ['BKN', 'OVC'] else 1
         return f"K:{km}vs{kt}", ("B" if km == kt else "S")
@@ -137,15 +151,16 @@ def hitung_awan_jml(m_jml, t_jml, m_tgi):
 def hitung_awan_tgi(m_tgi, t_tgi):
     if m_tgi == "-" or t_tgi == "-": return "-", "NIL"
     try:
-        if int(m_tgi) > 5000: return ">5000ft", "B" 
-        
         mt, tt = int(m_tgi), int(t_tgi)
+        if mt >= 5000 or tt >= 5000: return ">5000ft", "B" 
+        
         diff = abs(mt - tt)
-        return str(diff), "B" if (diff <= 100 if mt < 1000 else diff <= (0.3 * mt)) else "S"
+        # SOP 2025: <1000 ft selisih <=100 ft. >=1000 ft selisih <= 30% x nilai prakiraan
+        return str(diff), "B" if (diff <= 100 if tt < 1000 else diff <= (0.3 * tt)) else "S"
     except: return "-", "S"
 
 # =========================================================================
-# 3. KONTROLLER UTAMA VERIFIKASI (SUPERCHARGED)
+# 3. KONTROLLER UTAMA VERIFIKASI
 # =========================================================================
 def evaluasi_sandi_tunggal(m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle=None, is_grup_prob=False, is_grup_tempo=False, is_grup_becmg_trans=False):
     has_ts_cb = m_obs_data.get('M_TS_CB', False)
@@ -206,6 +221,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         
         m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(teks_metar)
         
+        # SOP 2025: Verifikasi dilakukan hanya untuk 12 jam pertama periode validitas TAF
         kandidat = [t for t in taf_list if t['issue'] <= tgl_jam_aktual and t['valid'] <= tgl_jam_aktual < t['valid'] + timedelta(hours=12)]
         if not kandidat: continue
         
@@ -311,6 +327,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             'M_Wx': m_wx, 'T_Wx': t_wx, 'S_Wx': s_wx,
             'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'S_AwanJml': s_aj,
             'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'S_AwanTgi': s_at,
+            'M_TS_CB': m_ts_cb,  # 🎯 PERBAIKAN: Menyimpan flag TS/CB aktual untuk Laporan Excel
             'Status_Minima': is_crit,
             'Hasil Akhir': "ACCURATE" if status_jam_ini == "B" else "MISS",
             'Kode_Stasiun': m_stasiun
@@ -331,7 +348,8 @@ def buat_tabel_laporan_excel(df_input):
         
         if key_hari not in taf_harian: taf_harian[key_hari] = {}
         if sandi not in taf_harian[key_hari]: taf_harian[key_hari][sandi] = []
-        taf_harian[key_hari][sandi].append((dt_val.hour, row))
+        # 🎯 PERBAIKAN: Menyimpan tuple (datetime_obj, row_data) agar presisi untuk observasi 30-menitan
+        taf_harian[key_hari][sandi].append((dt_val, row))
         
     for hari, dict_tafs in taf_harian.items():
         tgl_str = datetime.strptime(hari, '%Y-%m-%d').strftime('%d')
@@ -361,9 +379,13 @@ def buat_tabel_laporan_excel(df_input):
             else:
                 label_perubahan = "Base"
             
-            m_obs_base = {'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
-                          'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 
-                          'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 'M_TS_CB': False}
+            # 🎯 PERBAIKAN: Meneruskan M_TS_CB aktual dari METAR
+            m_obs_base = {
+                'M_Arah': baris_m_base['M_Arah'], 'M_Kec': baris_m_base['M_Kec'], 
+                'M_Vis': baris_m_base['M_Vis'], 'M_Wx': baris_m_base['M_Wx'], 
+                'M_AwanJml': baris_m_base['M_AwanJml'], 'M_AwanTgi': baris_m_base['M_AwanTgi'], 
+                'M_TS_CB': baris_m_base.get('M_TS_CB', False)
+            }
             _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at)
             
             baris_laporan.append({
@@ -401,7 +423,8 @@ def buat_tabel_laporan_excel(df_input):
                     prefix = 'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
                     jangka_trend = f"{prefix}.{time_match.group(2)}-{time_match.group(4)}" if time_match else tipe
                 
-                baris_m_trend = next((r for h, r in list_rows if h == jam_target), baris_m_base)
+                # 🎯 PERBAIKAN: Pencocokan jam observasi METAR yang presisi berbasis jam aktual
+                baris_m_trend = next((r for dt_o, r in list_rows if dt_o.hour == jam_target), baris_m_base)
                 g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
                 
                 if tipe.startswith('FM'):
@@ -419,9 +442,13 @@ def buat_tabel_laporan_excel(df_input):
                     t_aj = g_aj if g_aj != "-" else cur_aj
                     t_at = g_at if g_at != "-" else cur_at
                 
-                m_obs_trend = {'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 
-                               'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 
-                               'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi'], 'M_TS_CB': False}
+                # 🎯 PERBAIKAN: Meneruskan M_TS_CB aktual untuk evaluasi Trend
+                m_obs_trend = {
+                    'M_Arah': baris_m_trend['M_Arah'], 'M_Kec': baris_m_trend['M_Kec'], 
+                    'M_Vis': baris_m_trend['M_Vis'], 'M_Wx': baris_m_trend['M_Wx'], 
+                    'M_AwanJml': baris_m_trend['M_AwanJml'], 'M_AwanTgi': baris_m_trend['M_AwanTgi'], 
+                    'M_TS_CB': baris_m_trend.get('M_TS_CB', False)
+                }
                 
                 _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = evaluasi_sandi_tunggal(
                     m_obs_trend, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, 
