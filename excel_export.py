@@ -541,10 +541,12 @@ def export_v_final_excel(
         dt_str = pd.to_datetime(r_data['Waktu Aktual (UTC)']).strftime(
             '%H:%M:%S'
         )
+        grup_aktif = r_data.get('Grup_Aktif', r_data.get('Change_Group', 'BASE'))
+
         row_harian = [
             row_i,
             dt_str,
-            'BASE',
+            grup_aktif,  
             r_data.get('Sandi TAF Prakiraan', '-'),
             r_data.get('T_Arah', '-'),
             r_data.get('T_Kec', '-'),
