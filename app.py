@@ -326,8 +326,7 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
     )
     st.session_state["excel_ready"] = True
 
-    # 🎯 TOMBOL UNDUH RESMI (Indentasi Sudah Diperbaiki)
-    if st.session_state.get("excel_ready", False):
+        if st.session_state.get("excel_ready", False):
       st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
 
       st.download_button(
