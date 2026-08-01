@@ -483,3 +483,4 @@ def export_v_final_excel(
   wb.save(output)
   output.seek(0)
   return output.getvalue()
+ekspor_ke_excel = export_v_final_excel
