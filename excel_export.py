@@ -1,351 +1,277 @@
-# 🔥 SIVETA - Excel Export Engine
+# 🔥 SIVETA - Excel Exporter Engine (Multi-Sheet: Rekap SOP + Detail 30-Menit Akuntabel)
 import io
-import re
-import pandas as pd
-from datetime import datetime
 import openpyxl
-from openpyxl.styles import Font
-from xlsxwriter.utility import xl_col_to_name
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
-# ==========================================
-# KAMUS PEMETAAN BULAN BAHASA INDONESIA
-# ==========================================
-BULAN_INDO = {
-    1: "JANUARI", 2: "FEBRUARI", 3: "MARET", 4: "APRIL",
-    5: "MEI", 6: "JUNI", 7: "JULI", 8: "AGUSTUS",
-    9: "SEPTEMBER", 10: "OKTOBER", 11: "NOVEMBER", 12: "DESEMBER",
-    "1": "JANUARI", "2": "FEBRUARI", "3": "MARET", "4": "APRIL",
-    "5": "MEI", "6": "JUNI", "7": "JULI", "8": "AGUSTUS",
-    "9": "SEPTEMBER", "10": "OKTOBER", "11": "NOVEMBER", "12": "DESEMBER",
-    "01": "JANUARI", "02": "FEBRUARI", "03": "MARET", "04": "APRIL",
-    "05": "MEI", "06": "JUNI", "07": "JULI", "08": "AGUSTUS",
-    "09": "SEPTEMBER", "10": "OKTOBER", "11": "NOVEMBER", "12": "DESEMBER",
-    "JANUARY": "JANUARI", "FEBRUARY": "FEBRUARI", "MARCH": "MARET",
-    "APRIL": "APRIL", "MAY": "MEI", "JUNE": "JUNI", "JULY": "JULI",
-    "AUGUST": "AGUSTUS", "SEPTEMBER": "SEPTEMBER", "OCTOBER": "OKTOBER",
-    "NOVEMBER": "NOVEMBER", "DECEMBER": "DESEMBER"
-}
 
-def export_v_final_excel(df_vfinal, bulan, tahun, stasiun, nama_petugas, nip_petugas="[NIP PETUGAS]", nama_kepala="[NAMA KEPALA STASIUN]", nip_kepala="[NIP KEPALA]"):
-    df_excel = df_vfinal.copy()
-    
-    # Konversi input bulan ke Bahasa Indonesia
-    bulan_str = BULAN_INDO.get(str(bulan).strip().upper(), str(bulan).upper())
-    
-    # ==========================================
-    # 1. KONVERSI BOOLEAN MENJADI STRING 'B' & 'S'
-    # ==========================================
-    kolom_skor = ['S_Arah', 'S_Kec', 'S_Vis', 'S_Wx', 'S_AwanJml', 'S_AwanTgi']
-    for col in kolom_skor:
-        if col in df_excel.columns:
-            df_excel[col] = df_excel[col].apply(
-                lambda x: 'S' if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else ('B' if str(x).strip().upper() == 'B' else x)
-            )
+def ekspor_ke_excel(df_analysis, df_laporan, df_speci=None):
+  """Menghasilkan file Excel BytesIO 'VERIFIKASI TAFOR.xlsx' dengan 2 Sheet Utama:
 
-    if 'Tanggal' in df_excel.columns:
-        df_excel.loc[df_excel['Tanggal'].duplicated(), 'Tanggal'] = ""
+  1. Laporan_Rekap_SOP : Tabel Rekapitulasi Format SOP BMKG 2025
+  2. Detail_Verifikasi_30Min : Log Evaluasi METAR 30-Menitan secara
+  Akuntabel/Transparan
+  """
+  output = io.BytesIO()
+  wb = openpyxl.Workbook()
 
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    workbook  = writer.book
-    worksheet = workbook.add_worksheet('VERIFIKASI TAFOR')
-    
-    # ==========================================
-    # 2. OPTIMASI FORMATTING STYLES (PORTRAIT MODE)
-    # ==========================================
-    format_title = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 11})
-    format_subtitle = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'font_size': 9})
-    format_bold_left = workbook.add_format({'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 9.5})
-    
-    format_req_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 8.5})
-    format_req_text = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 8})
-    format_req_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 8.5})
-    
-    format_border_bold = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True, 'font_size': 8.5})
-    format_persen = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'num_format': '0.00%', 'font_size': 8.5})
-    
-    format_tabel_header = workbook.add_format({'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#D9D9D9', 'text_wrap': True, 'font_size': 8.5})
-    format_tabel_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 8.5, 'text_wrap': True})
-    
-    format_hijau = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 8.5})
-    format_merah = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_size': 8.5})
-    
-    format_ttd_nama = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 9.5, 'underline': True})
+  # Styling Presets
+  font_header = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+  font_body = Font(name='Calibri', size=10)
+  font_title = Font(name='Calibri', size=14, bold=True)
 
-    # ==========================================
-    # 3. MENCARI BATAS KOLOM & NAMA HEADER
-    # ==========================================
-    if 'S_AwanTgi' in df_excel.columns:
-        batas_col = df_excel.columns.get_loc('S_AwanTgi')
-    else:
-        batas_col = len(df_excel.columns) - 1
-        
-    batas_col = max(batas_col, 15)
-    max_col_data = len(df_excel.columns) - 1
+  fill_header = PatternFill(
+      start_color='1F4E78', end_color='1F4E78', fill_type='solid'
+  )
+  fill_green = PatternFill(
+      start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'
+  )
+  fill_red = PatternFill(
+      start_color='FFC7CE', end_color='FFC7CE', fill_type='solid'
+  )
+  fill_subhead = PatternFill(
+      start_color='D9E1F2', end_color='D9E1F2', fill_type='solid'
+  )
 
-    nama_kolom_cantik = [
-        "Tgl", "Jangka Waktu", "Perubahan",
-        "Arah\n(T)", "Kec\n(T)", "Vis\n(T)", "Cuaca\n(T)", "Jml\nAwan\n(T)", "Tgi\nAwan\n(T)",
-        "Arah\n(M)", "Skor", "Kec\n(M)", "Skor", "Vis\n(M)", "Skor", 
-        "Cuaca\n(M)", "Skor", "Jml\nAwan\n(M)", "Skor", "Tgi\nAwan\n(M)", "Skor"
+  border_thin = Side(border_style='thin', color='D9D9D9')
+  border_box = Border(
+      left=border_thin, right=border_thin, top=border_thin, bottom=border_thin
+  )
+
+  align_center = Alignment(horizontal='center', vertical='center')
+  align_left = Alignment(horizontal='left', vertical='center')
+
+  # =========================================================================
+  # SHEET 1: LAPORAN REKAP SOP BMKG 2025
+  # =========================================================================
+  ws_rekap = wb.active
+  ws_rekap.title = 'Laporan_Rekap_SOP'
+  ws_rekap.views.sheetView[0].showGridLines = True
+
+  # Judul Sheet 1
+  ws_rekap.merge_cells('A1:U1')
+  ws_rekap['A1'] = (
+      'LAPORAN REKAPITULASI VERIFIKASI TAF (SOP/024/DM/X/2025 - BMKG)'
+  )
+  ws_rekap['A1'].font = font_title
+  ws_rekap['A1'].alignment = align_left
+
+  # Header Tabel Rekap
+  headers_rekap = [
+      'Tanggal',
+      'Jangka Waktu',
+      'Perubahan',
+      'T_Arah',
+      'T_Kec',
+      'T_Vis',
+      'T_Wx',
+      'T_AwanJml',
+      'T_AwanTgi',
+      'M_Arah',
+      'S_Arah',
+      'M_Kec',
+      'S_Kec',
+      'M_Vis',
+      'S_Vis',
+      'M_Wx',
+      'S_Wx',
+      'M_AwanJml',
+      'S_AwanJml',
+      'M_AwanTgi',
+      'S_AwanTgi',
+  ]
+
+  ws_rekap.append([])  # Baris 2 kosong
+  ws_rekap.append(headers_rekap)  # Baris 3 Header
+
+  for col_idx in range(1, len(headers_rekap) + 1):
+    cell = ws_rekap.cell(row=3, column=col_idx)
+    cell.font = font_header
+    cell.fill = fill_header
+    cell.alignment = align_center
+
+  # Isi Data Rekap
+  for r_idx, row in df_laporan.iterrows():
+    row_data = [
+        row.get('Tanggal', '-'),
+        row.get('Jangka_Waktu', '-'),
+        row.get('Perubahan', '-'),
+        row.get('T_Arah', '-'),
+        row.get('T_Kec', '-'),
+        row.get('T_Vis', '-'),
+        row.get('T_Wx', '-'),
+        row.get('T_AwanJml', '-'),
+        row.get('T_AwanTgi', '-'),
+        row.get('M_Arah', '-'),
+        row.get('S_Arah', '-'),
+        row.get('M_Kec', '-'),
+        row.get('S_Kec', '-'),
+        row.get('M_Vis', '-'),
+        row.get('S_Vis', '-'),
+        row.get('M_Wx', '-'),
+        row.get('S_Wx', '-'),
+        row.get('M_AwanJml', '-'),
+        row.get('S_AwanJml', '-'),
+        row.get('M_AwanTgi', '-'),
+        row.get('S_AwanTgi', '-'),
     ]
+    ws_rekap.append(row_data)
+    curr_row = ws_rekap.max_row
 
-    # ==========================================
-    # 4. MENULIS HEADER & DATAFRAME MANUAL
-    # ==========================================
-    worksheet.set_row(12, 38)
-    for col_num, col_name in enumerate(nama_kolom_cantik):
-        worksheet.write(12, col_num, col_name, format_tabel_header)
-        
-    for row_num, row_data in enumerate(df_excel.values):
-        for col_num, value in enumerate(row_data):
-            val = "" if pd.isna(value) else value
-            worksheet.write(13 + row_num, col_num, val, format_tabel_data)
+    for c_idx in range(1, len(row_data) + 1):
+      cell = ws_rekap.cell(row=curr_row, column=c_idx)
+      cell.font = font_body
+      cell.border = border_box
+      cell.alignment = align_center
 
-    # ==========================================
-    # 5. HEADER & NARASI KRITERIA
-    # ==========================================
-    worksheet.merge_range(0, 0, 0, batas_col, 'VERIFIKASI AERODROME FORECAST', format_title)
-    worksheet.merge_range(1, 0, 1, batas_col, 'Standard Operating Procedures (SOP) Nomor: SOP/024/DM/X/2025', format_title)
-    worksheet.write(3, 0, 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :', format_bold_left)
-    
-    worksheet.merge_range(4, 0, 4, 1, 'UNSUR METEOROLOGI', format_req_header)
-    worksheet.merge_range(4, 2, 4, 7, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header) 
-    worksheet.merge_range(4, 8, 4, 10, 'UNSUR METEOROLOGI', format_req_header) 
-    worksheet.merge_range(4, 11, 4, batas_col, 'PERSYARATAN / TOLERANSI KETELITIAN', format_req_header) 
-    
-    worksheet.merge_range(5, 0, 5, 1, 'A. Arah Angin', format_req_bold)
-    worksheet.merge_range(5, 2, 5, 7, 'Benar apabila arah sama, atau selisih <= 60 derajat. Jika kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, dianggap benar.', format_req_text)
-    worksheet.merge_range(5, 8, 5, 10, 'E. Jumlah Awan', format_req_bold) 
-    worksheet.merge_range(5, 11, 5, batas_col, 'Benar apabila berada pada kelompok yang sama: FEW/SCT atau BKN/OVC. Jika tinggi awan > 5000 ft, dianggap benar.', format_req_text)
-    
-    worksheet.merge_range(6, 0, 6, 1, 'B. Kecepatan Angin', format_req_bold)
-    worksheet.merge_range(6, 2, 6, 7, 'Selisih kecepatan dasar <= 10 knot. Status gust harus konsisten.', format_req_text)
-    worksheet.merge_range(6, 8, 6, 10, 'F. Tinggi Dasar Awan', format_req_bold) 
-    worksheet.merge_range(6, 11, 6, batas_col, 'Selisih <= 100 ft untuk <1000 ft. Untuk >= 1000 ft, selisih <= 30% dari tinggi awan Manual.', format_req_text)
+      # Pewarnaan Sel B / S
+      val = str(cell.value).strip().upper()
+      if val == 'B':
+        cell.fill = fill_green
+      elif val == 'S':
+        cell.fill = fill_red
 
-    worksheet.merge_range(7, 0, 7, 1, 'C. Jarak Pandang', format_req_bold)
-    worksheet.merge_range(7, 2, 7, 7, 'Benar apabila berada pada kelas visibility yang sama.', format_req_text)
-    worksheet.merge_range(7, 8, 7, 10, '', format_req_bold) 
-    worksheet.merge_range(7, 11, 7, batas_col, '', format_req_text)
+  # =========================================================================
+  # SHEET 2: DETAIL VERIFIKASI 30-MENITAN (AKUNTABEL & TRANSPARAN)
+  # =========================================================================
+  ws_detail = wb.create_sheet(title='Detail_Verifikasi_30Min')
+  ws_detail.views.sheetView[0].showGridLines = True
 
-    worksheet.merge_range(8, 0, 8, 1, 'D. Cuaca / Endapan', format_req_bold)
-    worksheet.merge_range(8, 2, 8, 7, 'Benar apabila sama-sama mendeteksi atau tidak mendeteksi presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.', format_req_text)
-    worksheet.merge_range(8, 8, 8, 10, '', format_req_bold) 
-    worksheet.merge_range(8, 11, 8, batas_col, '', format_req_text)
+  ws_detail.merge_cells('A1:W1')
+  ws_detail['A1'] = (
+      'LOG EVALUASI AKURASI TAF vs METAR PER 30 MENIT (TRANSPARANSI AKUNTABEL)'
+  )
+  ws_detail['A1'].font = font_title
+  ws_detail['A1'].alignment = align_left
 
-    worksheet.set_row(5, 68)
-    worksheet.set_row(6, 52)
-    worksheet.set_row(7, 35)
-    worksheet.set_row(8, 68)
-    
-    worksheet.write(10, 0, f"BULAN : {bulan_str}", format_bold_left)
-    worksheet.write(10, 3, f"TAHUN : {tahun}", format_bold_left)
-    worksheet.write(10, 6, "(SEMUA WAKTU DALAM GMT)", format_bold_left)
-    worksheet.write(10, 11, f"STASIUN METEOROLOGI {stasiun}", format_bold_left)
+  headers_detail = [
+      'Waktu UTC',
+      'Sandi METAR Aktual',
+      'Sandi TAF Berlaku',
+      'M_Arah',
+      'T_Arah',
+      'S_Arah',
+      'M_Kec',
+      'T_Kec',
+      'S_Kec',
+      'M_Vis',
+      'T_Vis',
+      'S_Vis',
+      'M_Wx',
+      'T_Wx',
+      'S_Wx',
+      'M_AwanJml',
+      'T_AwanJml',
+      'S_AwanJml',
+      'M_AwanTgi',
+      'T_AwanTgi',
+      'S_AwanTgi',
+      'Status Minima',
+      'Hasil Akhir',
+  ]
 
-    # ==========================================
-    # 6. WARNA KONDISIONAL B/S, FILTER & FREEZE
-    # ==========================================
-    jumlah_baris_data = len(df_excel)
-    excel_start_data_row = 14 
-    excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1
-    
-    data_range = f"A{excel_start_data_row}:{xl_col_to_name(max_col_data)}{excel_last_data_row}"
-    
-    worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': '"B"', 'format': format_hijau})
-    worksheet.conditional_format(data_range, {'type': 'cell', 'criteria': '==', 'value': '"S"', 'format': format_merah})
+  ws_detail.append([])  # Baris 2
+  ws_detail.append(headers_detail)  # Baris 3
 
-    worksheet.autofilter(12, 0, 12 + jumlah_baris_data, max_col_data)
-    worksheet.freeze_panes(13, 0) 
+  for col_idx in range(1, len(headers_detail) + 1):
+    cell = ws_detail.cell(row=3, column=col_idx)
+    cell.font = font_header
+    cell.fill = PatternFill(
+        start_color='203764', end_color='203764', fill_type='solid'
+    )
+    cell.alignment = align_center
 
-    # ==========================================
-    # 7. FOOTER & RUMUS PERSENTASE (SINKRON DENGAN WEB)
-    # ==========================================
-    baris_jumlah_idx = 12 + jumlah_baris_data + 1 
-    excel_baris_jumlah = baris_jumlah_idx + 1 
-    baris_persen_idx = baris_jumlah_idx + 1
-    excel_baris_persen = baris_persen_idx + 1 
+  for _, row in df_analysis.iterrows():
+    row_detail = [
+        str(row.get('Waktu Aktual (UTC)', '-')),
+        str(row.get('Sandi METAR Aktual', '-')),
+        str(row.get('Sandi TAF Prakiraan', '-')),
+        row.get('M_Arah', '-'),
+        row.get('T_Arah', '-'),
+        row.get('S_Arah', '-'),
+        row.get('M_Kec', '-'),
+        row.get('T_Kec', '-'),
+        row.get('S_Kec', '-'),
+        row.get('M_Vis', '-'),
+        row.get('T_Vis', '-'),
+        row.get('S_Vis', '-'),
+        row.get('M_Wx', '-'),
+        row.get('T_Wx', '-'),
+        row.get('S_Wx', '-'),
+        row.get('M_AwanJml', '-'),
+        row.get('T_AwanJml', '-'),
+        row.get('S_AwanJml', '-'),
+        row.get('M_AwanTgi', '-'),
+        row.get('T_AwanTgi', '-'),
+        row.get('S_AwanTgi', '-'),
+        row.get('Status_Minima', 'NORMAL'),
+        row.get('Hasil Akhir', 'MISS'),
+    ]
+    ws_detail.append(row_detail)
+    curr_row = ws_detail.max_row
 
-    worksheet.merge_range(baris_jumlah_idx, 0, baris_jumlah_idx, 2, 'JUMLAH', format_border_bold)
-    worksheet.merge_range(baris_persen_idx, 0, baris_persen_idx, 2, 'PROSENTASE KEBENARAN', format_border_bold)
+    for c_idx in range(1, len(row_detail) + 1):
+      cell = ws_detail.cell(row=curr_row, column=c_idx)
+      cell.font = font_body
+      cell.border = border_box
+      cell.alignment = (
+          align_left if c_idx in [2, 3] else align_center
+      )  # Sandi rata kiri
 
-    # Isi kolom non-skor
-    for col_idx in range(3, max_col_data + 1):
-        worksheet.write(baris_jumlah_idx, col_idx, jumlah_baris_data, format_border_bold)
-        worksheet.write(baris_persen_idx, col_idx, "", format_border_bold)
+      # Highlight Warna Status B / S & ACCURATE / MISS
+      val = str(cell.value).strip().upper()
+      if val in ['B', 'ACCURATE']:
+        cell.fill = fill_green
+      elif val in ['S', 'MISS']:
+        cell.fill = fill_red
 
-    # 🎯 PERBAIKAN UTAMA: Rumus Jumlah (B+S saja) & Rumus Persentase B / (B+S)
-    for col_name in kolom_skor:
-        if col_name in df_excel.columns:
-            col_idx = df_excel.columns.get_loc(col_name)
-            col_huruf = xl_col_to_name(col_idx) 
-            
-            # 1. Hitung JUMLAH HANYA sampel B dan S (mengabaikan NIL/-)
-            rumus_jumlah = f'=COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") + COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "S")'
-            worksheet.write_formula(baris_jumlah_idx, col_idx, rumus_jumlah, format_border_bold)
-            
-            # 2. Persentase = B / Total (B+S)
-            rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
-            worksheet.write_formula(baris_persen_idx, col_idx, rumus_persen, format_persen)
+  # =========================================================================
+  # SHEET 3: SPECI EVALUATION (JIKA ADA DATA SPECI)
+  # =========================================================================
+  if df_speci is not None and not df_speci.empty:
+    ws_speci = wb.create_sheet(title='Detail_SPECI')
+    ws_speci.views.sheetView[0].showGridLines = True
+    ws_speci.append(['LOG EVALUASI KHUSUS SANDI SPECI'])
+    ws_speci.append([])
 
-    # ==========================================
-    # 8. TANDA TANGAN
-    # ==========================================
-    baris_ttd = baris_persen_idx + 4 
-    
-    worksheet.merge_range(baris_ttd, 0, baris_ttd, 3, "Mengetahui,", format_subtitle)
-    worksheet.merge_range(baris_ttd + 1, 0, baris_ttd + 1, 3, "Kepala Stasiun", format_subtitle)
-    worksheet.merge_range(baris_ttd + 5, 0, baris_ttd + 5, 3, nama_kepala, format_ttd_nama)
-    worksheet.merge_range(baris_ttd + 6, 0, baris_ttd + 6, 3, f"NIP. {nip_kepala}", format_subtitle)
+    headers_speci = list(df_speci.columns)
+    ws_speci.append(headers_speci)
 
-    col_ttd_start = max(batas_col - 4, 4)
-    col_ttd_end = batas_col
-    worksheet.merge_range(baris_ttd, col_ttd_start, baris_ttd, col_ttd_end, "Petugas Pembuat Laporan", format_subtitle)
-    worksheet.merge_range(baris_ttd + 5, col_ttd_start, baris_ttd + 5, col_ttd_end, nama_petugas, format_ttd_nama)
-    worksheet.merge_range(baris_ttd + 6, col_ttd_start, baris_ttd + 6, col_ttd_end, f"NIP. {nip_petugas}", format_subtitle)
+    for col_idx in range(1, len(headers_speci) + 1):
+      cell = ws_speci.cell(row=3, column=col_idx)
+      cell.font = font_header
+      cell.fill = PatternFill(
+          start_color='7030A0', end_color='7030A0', fill_type='solid'
+      )
+      cell.alignment = align_center
 
-    # ==========================================
-    # 9. LEBAR KOLOM & PRINT SETUP
-    # ==========================================
-    worksheet.set_column('A:A', 4.5)
-    worksheet.set_column('B:C', 9.5)
-    worksheet.set_column('D:E', 6.0)
-    worksheet.set_column('F:I', 7.0)
-    worksheet.set_column('J:J', 6.0)
-    worksheet.set_column('K:K', 6.8)
-    worksheet.set_column('L:L', 6.0)
-    worksheet.set_column('M:M', 6.8)
-    worksheet.set_column('N:N', 7.0)
-    worksheet.set_column('O:O', 6.8)
-    worksheet.set_column('P:P', 7.0)
-    worksheet.set_column('Q:Q', 6.8)
-    worksheet.set_column('R:R', 7.0)
-    worksheet.set_column('S:S', 6.8)
-    worksheet.set_column('T:T', 7.0)
-    worksheet.set_column('U:U', 6.8)
+    for _, row in df_speci.iterrows():
+      ws_speci.append(list(row.values))
+      curr_row = ws_speci.max_row
+      for c_idx in range(1, len(row.values) + 1):
+        cell = ws_speci.cell(row=curr_row, column=c_idx)
+        cell.font = font_body
+        cell.border = border_box
+        cell.alignment = align_center
+        val = str(cell.value).strip().upper()
+        if val in ['B', 'ACCURATE']:
+          cell.fill = fill_green
+        elif val in ['S', 'MISS']:
+          cell.fill = fill_red
 
-    worksheet.set_portrait()
-    worksheet.set_paper(9)
-    worksheet.fit_to_pages(1, 0)
-    worksheet.set_margins(left=0.15, right=0.15, top=0.4, bottom=0.4) 
-    
-    worksheet.repeat_rows(12, 12)       
-    
-    akhir_baris_print = baris_ttd + 7
-    worksheet.print_area(0, 0, akhir_baris_print, max_col_data)
+  # Auto-Fit Lebar Kolom untuk Semua Sheet
+  for sheet in wb.worksheets:
+    for col in sheet.columns:
+      max_len = 0
+      col_letter = get_column_letter(col[0].column)
+      for cell in col:
+        if cell.row == 1:
+          continue  # Abaikan judul gabungan
+        val_str = str(cell.value or '')
+        if len(val_str) > max_len:
+          max_len = len(val_str)
+      sheet.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 50)
 
-    writer.close()
-    return output.getvalue()
-
-
-def generate_klasik_31_sheet(df_filtered):
-    output = io.BytesIO()
-    wb = openpyxl.Workbook()
-    wb.remove(wb.active)
-    
-    if df_filtered.empty:
-        wb.create_sheet("Kosong")
-        wb.save(output)
-        output.seek(0)
-        return output
-
-    contoh_waktu = pd.to_datetime(df_filtered.iloc[0]['Waktu Aktual (UTC)'])
-    nama_bulan = BULAN_INDO.get(contoh_waktu.month, "JANUARI")
-    tahun = contoh_waktu.strftime("%Y")
-
-    for hari in range(1, 32):
-        tgl_str = f"{tahun}-{contoh_waktu.strftime('%m')}-{str(hari).zfill(2)}"
-        try:
-            start_time = datetime.strptime(f"{tgl_str} 00:00", "%Y-%m-%d %H:%M")
-        except ValueError:
-            break 
-            
-        ws = wb.create_sheet(title=str(hari))
-        ws.merge_cells("A1:AD1")
-        ws["C3"] = f"BULAN : {nama_bulan}"
-        ws["E3"] = f"TAHUN : {tahun}"
-        ws["M3"] = "( SEMUA WAKTU DALAM UTC )"
-        
-        headers_atas = ["", "Tanggal", "Jangka waktu", "Prakiraan :", "", "", "", "", "", "", "", "", "KENYATAAN (METAR DAN SPECI):"]
-        headers_bawah = ["", "", "Change Group", "Change Group Time (UTC)", "A", "B1", "B2", "C", "D", "E", "F", "DATA METAR", "A", "H", "B1", "H", "B2", "H", "C", "H", "D", "H", "E", "H", "F", "H"]
-        ws.append(headers_atas)
-        ws.append(headers_bawah)
-        
-        df_hari_ini = df_filtered[df_filtered['Waktu Aktual (UTC)'].str.startswith(tgl_str)]
-        
-        for i in range(48):
-            jam_sekarang = (start_time + pd.Timedelta(minutes=30*i)).strftime("%H:%M:%S")
-            df_jam = df_hari_ini[df_hari_ini['Waktu Aktual (UTC)'].str.contains(jam_sekarang)]
-            
-            if not df_jam.empty:
-                row_data = df_jam.iloc[0]
-                h_a = 1 if row_data.get('S_Arah', 'S') == 'B' else 0
-                h_b = 1 if row_data.get('S_Kec', 'S') == 'B' else 0
-                h_c = 1 if row_data.get('S_Vis', 'S') == 'B' else 0
-                h_d = 1 if row_data.get('S_Wx', 'S') == 'B' else 0
-                h_e = 1 if row_data.get('S_AwanJml', 'S') == 'B' else 0
-                h_f = 1 if row_data.get('S_AwanTgi', 'S') == 'B' else 0
-
-                baris = [
-                    "", hari if i == 0 else "", jam_sekarang, 
-                    row_data.get('Sandi TAF Prakiraan', '-'), "", 
-                    row_data.get('T_Arah', '-'), row_data.get('T_Kec', '-'), 0, row_data.get('T_Vis', '-'), row_data.get('T_Wx', '-'), row_data.get('T_AwanJml', '-'), row_data.get('T_AwanTgi', '-'),
-                    row_data.get('Sandi METAR Aktual', '-'),
-                    row_data.get('M_Arah', '-'), h_a,
-                    row_data.get('M_Kec', '-'), h_b,
-                    0, 1, 
-                    row_data.get('M_Vis', '-'), h_c,
-                    row_data.get('M_Wx', '-'), h_d,
-                    row_data.get('M_AwanJml', '-'), h_e,
-                    row_data.get('M_AwanTgi', '-'), h_f
-                ]
-            else:
-                baris = ["", hari if i == 0 else "", jam_sekarang] + [""]*23
-                
-            baris_bersih = [re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', item) if isinstance(item, str) else item for item in baris]
-            ws.append(baris_bersih)
-
-    # Rekap 1 Bulan Singkat 
-    ws_rekap = wb.create_sheet(title="REKAP 1 BULAN", index=0)
-    ws_rekap.column_dimensions['A'].width = 35
-    ws_rekap.column_dimensions['B'].width = 20
-    ws_rekap["A1"] = f"VERIFIKASI TAF BULAN {nama_bulan} {tahun}"
-    ws_rekap["A1"].font = Font(bold=True)
-    ws_rekap.append([""])
-    ws_rekap.append(["UNSUR METEOROLOGI", "PROSENTASE (%)"])
-    ws_rekap["A3"].font = Font(bold=True); ws_rekap["B3"].font = Font(bold=True)
-    
-    def hitung_persen_unsur(kolom):
-        b = (df_filtered[kolom] == "B").sum()
-        s = (df_filtered[kolom] == "S").sum()
-        tot = b + s
-        pct = round((b / tot * 100), 2) if tot > 0 else 0
-        return pct, b, tot
-
-    p_a, b_a, tot_a = hitung_persen_unsur('S_Arah')
-    p_b, b_b, tot_b = hitung_persen_unsur('S_Kec')
-    p_c, b_c, tot_c = hitung_persen_unsur('S_Vis')
-    p_d, b_d, tot_d = hitung_persen_unsur('S_Wx')
-    p_e, b_e, tot_e = hitung_persen_unsur('S_AwanJml')
-    p_f, b_f, tot_f = hitung_persen_unsur('S_AwanTgi')
-    
-    total_b_global = b_a + b_b + b_c + b_d + b_e + b_f
-    total_data_global = tot_a + tot_b + tot_c + tot_d + tot_e + tot_f
-    rata_rata = round((total_b_global / total_data_global * 100), 1) if total_data_global > 0 else 0
-    
-    ws_rekap.append(["A. Arah Angin", p_a])
-    ws_rekap.append(["B. Kecepatan Angin", p_b])
-    ws_rekap.append(["C. Jarak Pandang (Visibility)", p_c])
-    ws_rekap.append(["D. Cuaca / Endapan", p_d])
-    ws_rekap.append(["E. Jumlah Awan", p_e])
-    ws_rekap.append(["F. Tinggi Dasar Awan", p_f])
-    ws_rekap.append(["", ""])
-    ws_rekap.append(["RATA-RATA TOTAL", rata_rata])
-    
-    ws_rekap.cell(row=11, column=1).font = Font(bold=True)
-    ws_rekap.cell(row=11, column=2).font = Font(bold=True)
-
-    wb.save(output)
-    output.seek(0)
-    return output
+  wb.save(output)
+  output.seek(0)
+  return output.getvalue()
