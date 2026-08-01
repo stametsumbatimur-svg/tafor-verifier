@@ -92,12 +92,12 @@ def export_v_final_excel(
   workbook = xlsxwriter.Workbook(output, {'in_memory': True})
 
   # =========================================================================
-  # 1. SHEET UTAMA: 'VERIFIKASI TAFOR' (PERSIS FORMAT RESMI AWAL)
+  # 1. SHEET UTAMA: 'VERIFIKASI TAFOR' (RANGKUMAN RESMI FORMAT SOP 2025)
   # =========================================================================
   worksheet = workbook.add_worksheet('VERIFIKASI TAFOR')
-  worksheet.hide_gridlines(2)  # Tampilkan garis sel
+  worksheet.hide_gridlines(2)
 
-  # Format Presets
+  # Formats
   format_title = workbook.add_format(
       {'bold': True, 'align': 'center', 'valign': 'vcenter', 'font_size': 11}
   )
@@ -190,12 +190,11 @@ def export_v_final_excel(
       'underline': True,
   })
 
-  # Penentuan Batas Kolom
-  if 'S_AwanTgi' in df_excel.columns:
-    batas_col = df_excel.columns.get_loc('S_AwanTgi')
-  else:
-    batas_col = len(df_excel.columns) - 1
-
+  batas_col = (
+      df_excel.columns.get_loc('S_AwanTgi')
+      if 'S_AwanTgi' in df_excel.columns
+      else len(df_excel.columns) - 1
+  )
   batas_col = max(batas_col, 15)
   max_col_data = len(df_excel.columns) - 1
 
@@ -223,7 +222,6 @@ def export_v_final_excel(
       'Skor',
   ]
 
-  # Menulis Header & Data Tabel
   worksheet.set_row(12, 38)
   for col_num, col_name in enumerate(nama_kolom_cantik):
     worksheet.write(12, col_num, col_name, format_tabel_header)
@@ -233,7 +231,6 @@ def export_v_final_excel(
       val = '' if pd.isna(value) else value
       worksheet.write(13 + row_num, col_num, val, format_tabel_data)
 
-  # Judul & Narasi Kriteria SOP 2025
   worksheet.merge_range(
       0, 0, 0, batas_col, 'VERIFIKASI AERODROME FORECAST', format_title
   )
@@ -334,7 +331,6 @@ def export_v_final_excel(
   worksheet.write(10, 6, '(SEMUA WAKTU DALAM GMT)', format_bold_left)
   worksheet.write(10, 11, f'STASIUN METEOROLOGI {stasiun}', format_bold_left)
 
-  # Format Kondisional B / S
   jumlah_baris_data = len(df_excel)
   excel_start_data_row = 14
   excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1
@@ -357,7 +353,6 @@ def export_v_final_excel(
   worksheet.autofilter(12, 0, 12 + jumlah_baris_data, max_col_data)
   worksheet.freeze_panes(13, 0)
 
-  # Baris Jumlah & Rumus Persentase
   baris_jumlah_idx = 12 + jumlah_baris_data + 1
   excel_baris_jumlah = baris_jumlah_idx + 1
   baris_persen_idx = baris_jumlah_idx + 1
@@ -396,7 +391,6 @@ def export_v_final_excel(
           baris_persen_idx, col_idx, rumus_persen, format_persen
       )
 
-  # Kotak Tanda Tangan
   baris_ttd = baris_persen_idx + 4
   worksheet.merge_range(
       baris_ttd, 0, baris_ttd, 3, 'Mengetahui,', format_subtitle
@@ -438,7 +432,6 @@ def export_v_final_excel(
       format_subtitle,
   )
 
-  # Ukuran Kolom & Seting Print Portrait
   worksheet.set_column('A:A', 4.5)
   worksheet.set_column('B:C', 9.5)
   worksheet.set_column('D:E', 6.0)
@@ -466,7 +459,7 @@ def export_v_final_excel(
   worksheet.print_area(0, 0, akhir_baris_print, max_col_data)
 
   # =========================================================================
-  # 2. SHEET HARIAN (1 s.d. 31): LOG KOMPARASI 30-MENITAN (AKUNTABEL)
+  # 2. SHEET HARIAN (1 s.d. 31): LOG KOMPARASI DINAMIS PER 30-MENIT
   # =========================================================================
   if df_analysis is not None and not df_analysis.empty:
     df_log = df_analysis.copy()
@@ -541,12 +534,27 @@ def export_v_final_excel(
         dt_str = pd.to_datetime(r_data['Waktu Aktual (UTC)']).strftime(
             '%H:%M:%S'
         )
-        grup_aktif = r_data.get('Grup_Aktif', r_data.get('Change_Group', 'BASE'))
+
+        # 🎯 PEMBACAAN DINAMIS: Mengecek kunci 'Grup_Aktif', 'Change_Group', atau 'Perubahan'
+        grup_val = (
+            r_data.get('Grup_Aktif')
+            or r_data.get('Change_Group')
+            or r_data.get('Perubahan')
+        )
+        if pd.isna(grup_val) or str(grup_val).strip() in [
+            '',
+            'nan',
+            'None',
+            '-',
+        ]:
+          grup_aktif = 'BASE'
+        else:
+          grup_aktif = str(grup_val).strip()
 
         row_harian = [
             row_i,
             dt_str,
-            grup_aktif,  
+            grup_aktif,  # 👈 Terisi dinamis: BASE / BECMG 0111/0112 / TEMPO / FM
             r_data.get('Sandi TAF Prakiraan', '-'),
             r_data.get('T_Arah', '-'),
             r_data.get('T_Kec', '-'),
@@ -583,15 +591,14 @@ def export_v_final_excel(
 
       ws_day.set_column('A:A', 5)
       ws_day.set_column('B:B', 10)
-      ws_day.set_column('C:C', 12)
-      ws_day.set_column('D:D', 30)
+      ws_day.set_column('C:C', 14)
+      ws_day.set_column('D:D', 32)
       ws_day.set_column('E:J', 8)
-      ws_day.set_column('K:K', 30)
+      ws_day.set_column('K:K', 32)
       ws_day.set_column('L:W', 8)
 
   workbook.close()
   return output.getvalue()
 
 
-# Alias fungsi ganda
 ekspor_ke_excel = export_v_final_excel
