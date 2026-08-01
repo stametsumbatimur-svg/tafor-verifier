@@ -1,485 +1,336 @@
-# 🔥 SIVETA - Excel Export Engine (Full Multi-Sheet: Rangkuman SOP + Detail Harian 1-31)
-import io
-import re
-import openpyxl
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
+# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR (Compliant SOP BMKG 2025)
+import importlib
+import excel_export
+import verification_logic
+
+importlib.reload(verification_logic)
+importlib.reload(excel_export)
+
+from datetime import datetime
+from excel_export import ekspor_ke_excel
 import pandas as pd
+import streamlit as st
+from verification_logic import buat_tabel_laporan_excel, proses_verifikasi
+
+st.set_page_config(page_title="SIVETA - BMKG", layout="wide")
+
+# =========================================================================
+# 🔒 INITIALIZATION MEMORI JAGA
+# =========================================================================
+if "diklik_proses" not in st.session_state:
+  st.session_state["diklik_proses"] = False
+if "df_hasil" not in st.session_state:
+  st.session_state["df_hasil"] = None
+
+# =========================================================================
+# 🎨 PORTAL THEME INJECTION (PORTAL BMKG STYLE)
+# =========================================================================
+st.markdown(
+    """
+    <style>
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+            background-color: #F4F7FA !important;
+            font-family: 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;
+        }
+        [data-testid="stSidebar"] {
+            background-color: #FFFFFF !important;
+            border-right: 1px solid #E2E8F0;
+        }
+        .bmkg-portal-header {
+            background: linear-gradient(135deg, #004B87 0%, #002244 100%);
+            padding: 24px;
+            border-radius: 12px;
+            color: #FFFFFF;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 75, 135, 0.15);
+            border-left: 6px solid #00A8E8;
+        }
+        [data-testid="stMetricValue"] {
+            font-size: 32px !important;
+            font-weight: 800 !important;
+            color: #004B87 !important;
+        }
+        [data-testid="stMetricLabel"] {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            color: #334155 !important;
+        }
+        [data-testid="stMetric"] {
+            background-color: #FFFFFF;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
 
 # ==========================================
-# KAMUS PEMETAAN BULAN BAHASA INDONESIA
+# ⚡ OPTIMASI MEMORI CACHING (ANTI-LAG)
 # ==========================================
-BULAN_INDO = {
-    1: 'JANUARI',
-    2: 'FEBRUARI',
-    3: 'MARET',
-    4: 'APRIL',
-    5: 'MEI',
-    6: 'JUNI',
-    7: 'JULI',
-    8: 'AGUSTUS',
-    9: 'SEPTEMBER',
-    10: 'OKTOBER',
-    11: 'NOVEMBER',
-    12: 'DESEMBER',
-    '1': 'JANUARI',
-    '2': 'FEBRUARI',
-    '3': 'MARET',
-    '4': 'APRIL',
-    '5': 'MEI',
-    '6': 'JUNI',
-    '7': 'JULI',
-    '8': 'AGUSTUS',
-    '9': 'SEPTEMBER',
-    '10': 'OKTOBER',
-    '11': 'NOVEMBER',
-    '12': 'DESEMBER',
-    '01': 'JANUARI',
-    '02': 'FEBRUARI',
-    '03': 'MARET',
-    '04': 'APRIL',
-    '05': 'MEI',
-    '06': 'JUNI',
-    '07': 'JULI',
-    '08': 'AGUSTUS',
-    '09': 'SEPTEMBER',
-    '10': 'OKTOBER',
-    '11': 'NOVEMBER',
-    '12': 'DESEMBER',
-    'JANUARY': 'JANUARI',
-    'FEBRUARY': 'FEBRUARI',
-    'MARCH': 'MARET',
-    'APRIL': 'APRIL',
-    'MAY': 'MEI',
-    'JUNE': 'JUNI',
-    'JULY': 'JULI',
-    'AUGUST': 'AGUSTUS',
-    'SEPTEMBER': 'SEPTEMBER',
-    'OCTOBER': 'OKTOBER',
-    'NOVEMBER': 'NOVEMBER',
-    'DECEMBER': 'DESEMBER',
-}
+@st.cache_data(show_spinner=False)
+def jalankan_komputasi_cached(df_m_raw, df_t_raw, df_sp_raw):
+  return proses_verifikasi(df_m_raw, df_t_raw, df_sp_raw)
 
 
-def export_v_final_excel(
-    df_vfinal,
-    df_analysis=None,
-    bulan='JUNI',
-    tahun='2026',
-    stasiun='WATU',
-    nama_petugas='FORECASTER',
-    nip_petugas='[NIP PETUGAS]',
-    nama_kepala='[NAMA KEPALA STASIUN]',
-    nip_kepala='[NIP KEPALA]',
-):
-  """Menghasilkan 1 File Excel Utuh (.xlsx) yang berisi:
+# ==========================================
+# 🗓️ SIDEBAR (HANYA UNTUK FILTER TANGGAL)
+# ==========================================
+st.sidebar.header("🗓️ Navigasi Laporan")
+hari_ini = datetime.now().date()
+tanggal_pilihan = st.sidebar.date_input(
+    "Filter Rentang Waktu:", value=(hari_ini, hari_ini), key="rentang_tanggal"
+)
 
-  1. Sheet 'VERIFIKASI TAFOR' : Sheet Rangkuman SOP BMKG 2025
-  2. Sheet '1', '2', ..., '31' : Sheet Komparasi METAR vs TAF per 30 Menit
-     (Dasar Akuntabilitas Nilai B/S)
-  """
-  output = io.BytesIO()
-
-  # Konversi input bulan ke Bahasa Indonesia
-  bulan_str = BULAN_INDO.get(str(bulan).strip().upper(), str(bulan).upper())
-
-  # Gunakan openpyxl untuk membangun multi-sheet workbook
-  wb = openpyxl.Workbook()
-
-  # Preset Formatting
-  font_title = Font(name='Calibri', size=12, bold=True)
-  font_sub = Font(name='Calibri', size=10, italic=True)
-  font_header = Font(name='Calibri', size=9, bold=True, color='FFFFFF')
-  font_subhead = Font(name='Calibri', size=9, bold=True)
-  font_body = Font(name='Calibri', size=9)
-  font_bold = Font(name='Calibri', size=9, bold=True)
-  font_ttd = Font(name='Calibri', size=10, bold=True, underline='single')
-
-  fill_navy = PatternFill(
-      start_color='1F4E78', end_color='1F4E78', fill_type='solid'
-  )
-  fill_gray = PatternFill(
-      start_color='D9D9D9', end_color='D9D9D9', fill_type='solid'
-  )
-  fill_green = PatternFill(
-      start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'
-  )
-  fill_red = PatternFill(
-      start_color='FFC7CE', end_color='FFC7CE', fill_type='solid'
+if isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 2:
+  tgl_mulai, tgl_selesai = tanggal_pilihan
+elif isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 1:
+  tgl_mulai = tgl_selesai = tanggal_pilihan[0]
+else:
+  tgl_mulai = tgl_selesai = (
+      tanggal_pilihan[0]
+      if isinstance(tanggal_pilihan, list)
+      else tanggal_pilihan
   )
 
-  border_thin = Side(border_style='thin', color='BFBFBF')
-  border_box = Border(
-      left=border_thin, right=border_thin, top=border_thin, bottom=border_thin
+banner_container = st.container()
+
+# ==========================================
+# 📥 AREA UPLOADER
+# ==========================================
+df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
+
+with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan (Klik untuk Buka)"):
+  st.markdown("""
+    #### 🛠️ CARA PENGGUNAAN
+    1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS (https://bmkgsatu.bmkg.go.id/extractgts).
+    2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv`. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir.
+    3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri.
+    4. **Proses:** Tekan tombol **"🚀 PROSES DATA VERIFIKASI TAFOR 🚀"**.
+    """)
+
+st.markdown("#### 📥 Unggah Berkas Sandi Extract GTS")
+c_up1, c_up2, c_up3 = st.columns(3)
+with c_up1:
+  file_m = st.file_uploader("1. Unggah METAR.csv", type=["csv"], key="metar")
+  if file_m:
+    df_m = pd.read_csv(file_m)
+    if "id" in df_m.columns:
+      df_m = df_m.sort_values("id")
+    df_metar_raw = df_m.drop_duplicates(subset=["data_timestamp"], keep="last")
+
+with c_up2:
+  file_t = st.file_uploader("2. Unggah TAF.csv", type=["csv"], key="taf")
+  if file_t:
+    df_t = pd.read_csv(file_t)
+    if "id" in df_t.columns:
+      df_t = df_t.sort_values("id")
+    df_taf_raw = df_t.drop_duplicates(subset=["data_timestamp"], keep="last")
+
+with c_up3:
+  file_sp = st.file_uploader(
+      "3. Unggah SPECI.csv (Opsional)", type=["csv"], key="speci"
+  )
+  if file_sp:
+    df_sp = pd.read_csv(file_sp)
+    if "id" in df_sp.columns:
+      df_sp = df_sp.sort_values("id")
+    df_speci_raw = df_sp.drop_duplicates(subset=["data_timestamp"], keep="last")
+
+stasiun_aktif = "Menunggu Berkas..."
+if df_metar_raw is not None and "cccc" in df_metar_raw.columns:
+  stasiun_terdeteksi = df_metar_raw["cccc"].dropna().unique().tolist()
+  if stasiun_terdeteksi:
+    stasiun_aktif = str(stasiun_terdeteksi[0]).strip().upper()
+
+# Inject Banner
+with banner_container:
+  waktu_sekarang = datetime.now()
+  jam_statis = waktu_sekarang.strftime("%H:%M")
+  tgl_statis = waktu_sekarang.strftime("%d %b %Y")
+
+  st.markdown(
+      f"""
+        <div class="bmkg-portal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div style="display: flex; align-items: center;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Logo_BMKG_%282010%29.png" width="75" style="margin-right: 20px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));">
+                <div>
+                    <h1 style="color: #FFFFFF !important; font-size: 26px !important; margin: 0 !important; font-weight: 700 !important;">SIVETA — SISTEM INFORMASI VERIFIKASI TAFOR</h1>
+                    <p style="margin: 6px 0 0 0 !important; font-size: 13px !important; color: #E2E8F0 !important; text-transform: uppercase; letter-spacing: 1px;">
+                        Kode ICAO Stasiun: <b style="color: #00A8E8; font-size: 14px;">{stasiun_aktif}</b>
+                    </p>
+                </div>
+            </div>
+            <div style="text-align: right; background: rgba(0,0,0,0.25); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="font-size: 24px; font-weight: 800; color: #FFFFFF; font-family: monospace; letter-spacing: 2px;">
+                    🕰️ {jam_statis} UTC
+                </div>
+                <div style="font-size: 12px; color: #00A8E8; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;">
+                    {tgl_statis}
+                </div>
+            </div>
+        </div>
+    """,
+      unsafe_allow_html=True,
   )
 
-  align_center = Alignment(
-      horizontal='center', vertical='center', wrap_text=True
-  )
-  align_left = Alignment(horizontal='left', vertical='center', wrap_text=True)
+# ==========================================
+# 🚀 TOMBOL EKSEKUSI
+# ==========================================
+if df_metar_raw is not None and df_taf_raw is not None:
+  if st.button(
+      "🚀 PROSES DATA VERIFIKASI TAFOR 🚀",
+      use_container_width=True,
+      type="primary",
+  ):
+    try:
+      with st.spinner(
+          f"Sedang memproses Verifikasi TAFOR stasiun {stasiun_aktif}..."
+      ):
+        st.session_state["excel_ready"] = False
 
-  # =========================================================================
-  # 1. SHEET UTAMA: 'VERIFIKASI TAFOR' (RANGKUMAN SOP BMKG 2025)
-  # =========================================================================
-  ws_main = wb.active
-  ws_main.title = 'VERIFIKASI TAFOR'
-  ws_main.views.sheetView[0].showGridLines = True
+        df_speci_umpan = (
+            df_speci_raw
+            if df_speci_raw is not None
+            else pd.DataFrame(columns=df_metar_raw.columns)
+        )
+        df_hasil, df_speci_hasil, _, _ = jalankan_komputasi_cached(
+            df_metar_raw, df_taf_raw, df_speci_umpan
+        )
+        df_hasil["Datetime_Obj"] = pd.to_datetime(
+            df_hasil["Waktu Aktual (UTC)"]
+        ).dt.date
 
-  # Judul & Header
-  ws_main.merge_cells('A1:U1')
-  ws_main['A1'] = 'VERIFIKASI AERODROME FORECAST'
-  ws_main['A1'].font = font_title
-  ws_main['A1'].alignment = align_center
+        st.session_state["df_hasil"] = df_hasil
+        st.session_state["df_speci_hasil"] = df_speci_hasil
+        st.session_state["diklik_proses"] = True
+    except Exception as e:
+      st.error(f"Gagal memproses data: {e}")
 
-  ws_main.merge_cells('A2:U2')
-  ws_main['A2'] = (
-      'Standard Operating Procedures (SOP) Nomor: SOP/024/DM/X/2025'
-  )
-  ws_main['A2'].font = font_title
-  ws_main['A2'].alignment = align_center
+# ==========================================
+# 📊 PRESENTASI METRIKS DASHBOARD UTAMA
+# ==========================================
+if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not None:
+  df_hasil = st.session_state["df_hasil"]
+  df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
 
-  ws_main['A4'] = 'PERSYARATAN / TOLERANSI KETELITIAN PRAKIRAAN :'
-  ws_main['A4'].font = font_bold
+  df_filtered = df_hasil[
+      (df_hasil["Datetime_Obj"] >= tgl_mulai)
+      & (df_hasil["Datetime_Obj"] <= tgl_selesai)
+      & (df_hasil["Kode_Stasiun"] == stasiun_aktif)
+  ].copy()
 
-  # Narasi Toleransi SOP
-  narasi = [
-      (
-          'A. Arah Angin',
-          (
-              'Benar apabila arah sama, atau selisih <= 60 derajat. Jika'
-              ' kecepatan angin <10 kt, atau VRB, atau kondisi CB/TS, dianggap'
-              ' benar.'
-          ),
-          'E. Jumlah Awan',
-          (
-              'Benar apabila berada pada kelompok yang sama: FEW/SCT atau'
-              ' BKN/OVC. Jika tinggi awan > 5000 ft, dianggap benar.'
-          ),
-      ),
-      (
-          'B. Kecepatan Angin',
-          (
-              'Selisih kecepatan dasar <= 10 knot. Status gust harus'
-              ' konsisten.'
-          ),
-          'F. Tinggi Dasar Awan',
-          (
-              'Selisih <= 100 ft untuk <1000 ft. Untuk >= 1000 ft, selisih <='
-              ' 30% dari tinggi awan Manual.'
-          ),
-      ),
-      (
-          'C. Jarak Pandang',
-          'Benar apabila berada pada kelas visibility yang sama.',
-          '',
-          '',
-      ),
-      (
-          'D. Cuaca / Endapan',
-          (
-              'Benar apabila sama-sama mendeteksi atau tidak mendeteksi'
-              ' presipitasi sedang/lebat. Hujan ringan (-RA) tidak dihitung.'
-          ),
-          '',
-          '',
-      ),
-  ]
+  if df_filtered.empty:
+    st.warning(
+        f"⚠️ Berkas data kosong pada rentang tanggal {tgl_mulai} s.d"
+        f" {tgl_selesai}. Silakan sesuaikan filter tanggal."
+    )
+  else:
+    # 🎯 RAKIT DATAFRAME FINAL SEPERTI DI EXCEL UNTUK DIHITUNG SAMA PRESISI
+    df_vfinal = buat_tabel_laporan_excel(df_filtered)
 
-  ws_main.merge_cells('A5:B5')
-  ws_main['A5'] = 'UNSUR METEOROLOGI'
-  ws_main.merge_cells('C5:H5')
-  ws_main['C5'] = 'PERSYARATAN / TOLERANSI KETELITIAN'
-  ws_main.merge_cells('I5:K5')
-  ws_main['I5'] = 'UNSUR METEOROLOGI'
-  ws_main.merge_cells('L5:U5')
-  ws_main['L5'] = 'PERSYARATAN / TOLERANSI KETELITIAN'
+    rows_tafor = []
+    total_b_global = 0
+    total_sampel_global = 0
 
-  for col in ['A5', 'C5', 'I5', 'L5']:
-    ws_main[col].font = font_subhead
-    ws_main[col].fill = fill_gray
-    ws_main[col].alignment = align_center
-    ws_main[col].border = border_box
+    p_headers = {
+        "S_Arah": "A. Arah Angin (Wind Direction)",
+        "S_Kec": "B. Kecepatan Angin (Wind Speed)",
+        "S_Vis": "C. Jarak Pandang (Visibility)",
+        "S_Wx": "D. Cuaca / Endapan (Significant Weather)",
+        "S_AwanJml": "E. Jumlah Awan (Cloud Amount)",
+        "S_AwanTgi": "F. Tinggi Dasar Awan (Cloud Base)",
+    }
 
-  for idx, (u1, t1, u2, t2) in enumerate(narasi, start=6):
-    ws_main.merge_cells(f'A{idx}:B{idx}')
-    ws_main[f'A{idx}'] = u1
-    ws_main.merge_cells(f'C{idx}:H{idx}')
-    ws_main[f'C{idx}'] = t1
+    # 🎯 LOGIKA HITUNG PERSENTASE SINKRON DENGAN EXCEL
+    for col_name, label in p_headers.items():
+      if col_name in df_vfinal.columns:
+        s_series = df_vfinal[col_name].apply(
+            lambda x: (
+                "S"
+                if str(x).strip().upper() in ["FALSE", "SALAH", "S", "0", ""]
+                else (
+                    "B"
+                    if str(x).strip().upper() == "B"
+                    else str(x).strip().upper()
+                )
+            )
+        )
+        b = (s_series == "B").sum()
+        s = (s_series == "S").sum()
+        tot = b + s
+        pct = (b / tot * 100) if tot > 0 else 0.0
+      else:
+        b, s, tot, pct = 0, 0, 0, 0.0
 
-    ws_main.merge_cells(f'I{idx}:K{idx}')
-    ws_main[f'I{idx}'] = u2
-    ws_main.merge_cells(f'L{idx}:U{idx}')
-    ws_main[f'L{idx}'] = t2
-
-    for col in [
-        f'A{idx}',
-        f'C{idx}',
-        f'I{idx}',
-        f'L{idx}',
-    ]:
-      ws_main[col].font = font_body
-      ws_main[col].border = border_box
-      ws_main[col].alignment = align_left
-
-  ws_main['A11'] = f'BULAN : {bulan_str}'
-  ws_main['D11'] = f'TAHUN : {tahun}'
-  ws_main['G11'] = '(SEMUA WAKTU DALAM GMT)'
-  ws_main['L11'] = f'STASIUN METEOROLOGI {stasiun}'
-  for col in ['A11', 'D11', 'G11', 'L11']:
-    ws_main[col].font = font_bold
-
-  # Header Tabel Rangkuman
-  headers_rangkuman = [
-      'Tgl',
-      'Jangka Waktu',
-      'Perubahan',
-      'Arah\n(T)',
-      'Kec\n(T)',
-      'Vis\n(T)',
-      'Cuaca\n(T)',
-      'Jml\nAwan\n(T)',
-      'Tgi\nAwan\n(T)',
-      'Arah\n(M)',
-      'Skor',
-      'Kec\n(M)',
-      'Skor',
-      'Vis\n(M)',
-      'Skor',
-      'Cuaca\n(M)',
-      'Skor',
-      'Jml\nAwan\n(M)',
-      'Skor',
-      'Tgi\nAwan\n(M)',
-      'Skor',
-  ]
-
-  for c_idx, h_text in enumerate(headers_rangkuman, start=1):
-    cell = ws_main.cell(row=13, column=c_idx)
-    cell.value = h_text
-    cell.font = font_header
-    cell.fill = fill_navy
-    cell.alignment = align_center
-    cell.border = border_box
-
-  # Isi Data Tabel Rangkuman
-  df_excel = df_vfinal.copy()
-  kolom_skor = ['S_Arah', 'S_Kec', 'S_Vis', 'S_Wx', 'S_AwanJml', 'S_AwanTgi']
-  for col in kolom_skor:
-    if col in df_excel.columns:
-      df_excel[col] = df_excel[col].apply(
-          lambda x: (
-              'S'
-              if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', '']
-              else ('B' if str(x).strip().upper() == 'B' else x)
-          )
+      total_b_global += b
+      total_sampel_global += tot
+      rows_tafor.append(
+          {"param": label, "b": int(b), "s": int(s), "tot": int(tot), "pct": pct}
       )
 
-  if 'Tanggal' in df_excel.columns:
-    df_excel.loc[df_excel['Tanggal'].duplicated(), 'Tanggal'] = ''
+    total_accuracy_global = (
+        (total_b_global / total_sampel_global * 100)
+        if total_sampel_global > 0
+        else 0.0
+    )
 
-  start_row = 14
-  for r_idx, row_vals in enumerate(df_excel.values, start=start_row):
-    for c_idx, val in enumerate(row_vals, start=1):
-      if c_idx > 21:
-        break
-      cell = ws_main.cell(row=r_idx, column=c_idx)
-      cell.value = '' if pd.isna(val) else val
-      cell.font = font_body
-      cell.border = border_box
-      cell.alignment = align_center
+    st.markdown("### 📊 VERIFIKASI TAFOR: Komparasi Akurasi per Unsur Cuaca")
 
-      v_str = str(cell.value).strip().upper()
-      if v_str == 'B':
-        cell.fill = fill_green
-      elif v_str == 'S':
-        cell.fill = fill_red
+    c_head1, c_head2, c_head3 = st.columns([3, 2, 2])
+    c_head1.write("📝 **Unsur Meteorologi**")
+    c_head2.write("🎯 **Persentase Ketelitian**")
+    c_head3.write("🔢 **Proporsi Data (Benar / Total)**")
+    st.markdown("---")
 
-  # Baris Jumlah & Persentase Kebenaran Rangkuman
-  last_data_row = start_row + len(df_excel) - 1
-  row_jumlah = last_data_row + 1
-  row_persen = last_data_row + 2
+    for item in rows_tafor:
+      c1, c2, c3 = st.columns([3, 2, 2])
+      c1.write(f"**{item['param']}**")
+      c2.code(f" {round(item['pct'], 2)} % ")
+      c3.write(f"⭐ {item['b']} dari {item['tot']} sampel")
 
-  ws_main.merge_cells(f'A{row_jumlah}:C{row_jumlah}')
-  ws_main[f'A{row_jumlah}'] = 'JUMLAH'
-  ws_main[f'A{row_jumlah}'].font = font_bold
-  ws_main[f'A{row_jumlah}'].alignment = align_center
-  ws_main[f'A{row_jumlah}'].border = border_box
+    st.markdown("---")
 
-  ws_main.merge_cells(f'A{row_persen}:C{row_persen}')
-  ws_main[f'A{row_persen}'] = 'PROSENTASE KEBENARAN'
-  ws_main[f'A{row_persen}'].font = font_bold
-  ws_main[f'A{row_persen}'].alignment = align_center
-  ws_main[f'A{row_persen}'].border = border_box
+    st.subheader("🏆 TOTAL AKURASI KESELURUHAN")
+    st.metric(
+        label="Total Akurasi Verifikasi TAFOR",
+        value=f"{round(total_accuracy_global, 1)}%",
+    )
+    st.markdown("---")
 
-  for c_idx in range(4, 22):
-    c_letter = get_column_letter(c_idx)
-    cell_j = ws_main.cell(row=row_jumlah, column=c_idx)
-    cell_p = ws_main.cell(row=row_persen, column=c_idx)
-    cell_j.border = border_box
-    cell_p.border = border_box
+    # ==========================================
+    # 📥 AREA UNDUH LAPORAN EXCEL
+    # ==========================================
+    str_m = tgl_mulai.strftime("%Y%m%d")
 
-    # Kolom Skor khusus (Kolom 11, 13, 15, 17, 19, 21)
-    if c_idx in [11, 13, 15, 17, 19, 21]:
-      cell_j.value = f'=COUNTIF({c_letter}{start_row}:{c_letter}{last_data_row}, "B") + COUNTIF({c_letter}{start_row}:{c_letter}{last_data_row}, "S")'
-      cell_p.value = f'=IFERROR(COUNTIF({c_letter}{start_row}:{c_letter}{last_data_row}, "B") / {c_letter}{row_jumlah}, 0)'
-      cell_j.font = font_bold
-      cell_p.font = font_bold
-      cell_p.number_format = '0.00%'
-      cell_j.alignment = align_center
-      cell_p.alignment = align_center
+    st.markdown("### 📥 Unduh Laporan Excel")
 
-  # Tanda Tangan
-  row_ttd = row_persen + 4
-  ws_main.merge_cells(f'A{row_ttd}:D{row_ttd}')
-  ws_main[f'A{row_ttd}'] = 'Mengetahui,'
-  ws_main.merge_cells(f'A{row_ttd+1}:D{row_ttd+1}')
-  ws_main[f'A{row_ttd+1}'] = 'Kepala Stasiun'
+    if st.button(
+        "⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True
+    ):
+      with st.spinner(
+          "Mesin sedang merakit data ke format Excel... Mohon tunggu"
+          " sebentar..."
+      ):
+        # 🎯 MENGGUNAKAN EKSPOR MULTI-SHEET (REKAP SOP + DETAIL 30-MENIT)
+        st.session_state["dl_verifikasi_tafor"] = ekspor_ke_excel(
+            df_filtered, df_vfinal, df_speci_hasil
+        )
+        st.session_state["excel_ready"] = True
 
-  ws_main.merge_cells(f'A{row_ttd+5}:D{row_ttd+5}')
-  ws_main[f'A{row_ttd+5}'] = nama_kepala
-  ws_main[f'A{row_ttd+5}'].font = font_ttd
+    # 🎯 TOMBOL UNDUH RESMI (Indentasi Sudah Diperbaiki)
+    if st.session_state.get("excel_ready", False):
+      st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
 
-  ws_main.merge_cells(f'A{row_ttd+6}:D{row_ttd+6}')
-  ws_main[f'A{row_ttd+6}'] = f'NIP. {nip_kepala}'
-
-  ws_main.merge_cells(f'P{row_ttd}:U{row_ttd}')
-  ws_main[f'P{row_ttd}'] = 'Petugas Pembuat Laporan'
-
-  ws_main.merge_cells(f'P{row_ttd+5}:U{row_ttd+5}')
-  ws_main[f'P{row_ttd+5}'] = nama_petugas
-  ws_main[f'P{row_ttd+5}'].font = font_ttd
-
-  ws_main.merge_cells(f'P{row_ttd+6}:U{row_ttd+6}')
-  ws_main[f'P{row_ttd+6}'] = f'NIP. {nip_petugas}'
-
-  for r in range(row_ttd, row_ttd + 7):
-    ws_main[f'A{r}'].alignment = align_center
-    ws_main[f'P{r}'].alignment = align_center
-
-  # =========================================================================
-  # 2. SHEET PER TANGGAL (1 s.d. 31): LOG KOMPARASI 30-MENITAN (AKUNTABEL)
-  # =========================================================================
-  df_log = df_analysis if df_analysis is not None else pd.DataFrame()
-
-  if not df_log.empty:
-    df_log['Dt_Obj'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
-
-    # Buat Sheet untuk Tanggal 1 s.d. 31
-    for hari in range(1, 32):
-      df_day = df_log[df_log['Dt_Obj'].dt.day == hari].copy()
-      if df_day.empty:
-        continue
-
-      ws_day = wb.create_sheet(title=str(hari))
-      ws_day.views.sheetView[0].showGridLines = True
-
-      # Header Sheet Harian
-      ws_day.merge_cells('A1:U1')
-      ws_day['A1'] = (
-          f'LOG VERIFIKASI TAF vs METAR PER 30 MENIT — TANGGAL {hari} {bulan_str}'
-          f' {tahun}'
+      st.download_button(
+          label="📊 Unduh Laporan VERIFIKASI TAFOR",
+          data=st.session_state["dl_verifikasi_tafor"],
+          file_name=f"VERIFIKASI_TAFOR_{stasiun_aktif}_{str_m}.xlsx",
+          use_container_width=True,
+          type="primary",
       )
-      ws_day['A1'].font = font_title
-      ws_day['A1'].alignment = align_left
 
-      headers_harian = [
-          'No',
-          'Waktu (UTC)',
-          'Change Group',
-          'Sandi TAF Prakiraan',
-          'Arah (T)',
-          'Kec (T)',
-          'Vis (T)',
-          'Wx (T)',
-          'JmlAwan (T)',
-          'TgiAwan (T)',
-          'Sandi METAR Aktual',
-          'Arah (M)',
-          'S_Arah',
-          'Kec (M)',
-          'S_Kec',
-          'Vis (M)',
-          'S_Vis',
-          'Wx (M)',
-          'S_Wx',
-          'JmlAwan (M)',
-          'S_AwanJml',
-          'TgiAwan (M)',
-          'S_AwanTgi',
-      ]
-
-      ws_day.append([])  # Row 2 kosong
-      ws_day.append(headers_harian)  # Row 3
-
-      for c_i, h_t in enumerate(headers_harian, start=1):
-        c = ws_day.cell(row=3, column=c_i)
-        c.font = font_header
-        c.fill = PatternFill(
-            start_color='203764', end_color='203764', fill_type='solid'
-        )
-        c.alignment = align_center
-        c.border = border_box
-
-      # Append 48 observasi 30-menitan
-      df_day = df_day.sort_values('Dt_Obj')
-      for row_i, r_data in enumerate(df_day.to_dict('records'), start=1):
-        dt_str = pd.to_datetime(r_data['Waktu Aktual (UTC)']).strftime(
-            '%H:%M:%S'
-        )
-
-        row_harian = [
-            row_i,
-            dt_str,
-            'BASE',
-            r_data.get('Sandi TAF Prakiraan', '-'),
-            r_data.get('T_Arah', '-'),
-            r_data.get('T_Kec', '-'),
-            r_data.get('T_Vis', '-'),
-            r_data.get('T_Wx', '-'),
-            r_data.get('T_AwanJml', '-'),
-            r_data.get('T_AwanTgi', '-'),
-            r_data.get('Sandi METAR Aktual', '-'),
-            r_data.get('M_Arah', '-'),
-            r_data.get('S_Arah', 'S'),
-            r_data.get('M_Kec', '-'),
-            r_data.get('S_Kec', 'S'),
-            r_data.get('M_Vis', '-'),
-            r_data.get('S_Vis', 'S'),
-            r_data.get('M_Wx', '-'),
-            r_data.get('S_Wx', 'S'),
-            r_data.get('M_AwanJml', '-'),
-            r_data.get('S_AwanJml', 'S'),
-            r_data.get('M_AwanTgi', '-'),
-            r_data.get('S_AwanTgi', 'S'),
-        ]
-        ws_day.append(row_harian)
-        cur_r = ws_day.max_row
-
-        for c_i in range(1, len(row_harian) + 1):
-          cell = ws_day.cell(row=cur_r, column=c_i)
-          cell.font = font_body
-          cell.border = border_box
-          cell.alignment = align_left if c_i in [4, 11] else align_center
-
-          v_s = str(cell.value).strip().upper()
-          if v_s == 'B':
-            cell.fill = fill_green
-          elif v_s == 'S':
-            cell.fill = fill_red
-
-  # Auto-Fit Lebar Kolom Seluruh Sheet
-  for sheet in wb.worksheets:
-    for col in sheet.columns:
-      max_l = 0
-      col_letter = get_column_letter(col[0].column)
-      for cell in col:
-        if cell.row in [1, 2]:
-          continue
-        val_str = str(cell.value or '')
-        if len(val_str) > max_l:
-          max_l = len(val_str)
-      sheet.column_dimensions[col_letter].width = min(max(max_l + 2, 8), 45)
-
-  wb.save(output)
-  output.seek(0)
-  return output.getvalue()
+    st.markdown("---")
