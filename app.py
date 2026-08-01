@@ -309,17 +309,22 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
     st.markdown("### 📥 Unduh Laporan Excel")
 
     if st.button(
-        "⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True
-    ):
-      with st.spinner(
-          "Mesin sedang merakit data ke format Excel... Mohon tunggu"
-          " sebentar..."
-      ):
-        # 🎯 MENGGUNAKAN EKSPOR MULTI-SHEET (REKAP SOP + DETAIL 30-MENIT)
-        st.session_state["dl_verifikasi_tafor"] = ekspor_ke_excel(
-            df_filtered, df_vfinal, df_speci_hasil
-        )
-        st.session_state["excel_ready"] = True
+    "⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True
+):
+  with st.spinner("Mesin sedang merakit file Excel VERIFIKASI TAFOR..."):
+    # 🎯 Pemanggilan fungsi yang sinkron
+    st.session_state["dl_verifikasi_tafor"] = export_v_final_excel(
+        df_vfinal=df_vfinal,
+        df_analysis=df_filtered,
+        bulan=nama_bulan,
+        tahun=tahun_str,
+        stasiun=stasiun_aktif,
+        nama_petugas=nama_forecaster,
+        nip_petugas=nip_forecaster,
+        nama_kepala=nama_kepala,
+        nip_kepala=nip_kepala,
+    )
+    st.session_state["excel_ready"] = True
 
     # 🎯 TOMBOL UNDUH RESMI (Indentasi Sudah Diperbaiki)
     if st.session_state.get("excel_ready", False):
