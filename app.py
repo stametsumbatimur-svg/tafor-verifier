@@ -284,15 +284,15 @@ if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not Non
                 st.session_state['excel_ready'] = True
 
         if st.session_state.get('excel_ready', False):
-    st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
+        st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
 
-    # 🎯 Tombol Unduh Tunggal Resmi (Berisi Sheet Rekap SOP + Log Detail 30-Menit Akuntabel)
-    st.download_button(
-        label="📊 Unduh Laporan VERIFIKASI TAFOR",
-        data=st.session_state['dl_verifikasi_tafor'],
-        file_name=f"VERIFIKASI_TAFOR_{stasiun_aktif}_{str_m}.xlsx",
-        use_container_width=True,
-        type="primary",
-    )
+        # 🎯 Tombol Unduh Tunggal Resmi (Berisi Sheet Rekap SOP + Log Detail 30-Menit Akuntabel)
+        st.download_button(
+            label="📊 Unduh Laporan VERIFIKASI TAFOR",
+            data=st.session_state['dl_verifikasi_tafor'],
+            file_name=f"VERIFIKASI_TAFOR_{stasiun_aktif}_{str_m}.xlsx",
+            use_container_width=True,
+            type="primary",
+        )
 
-st.markdown("---")
+        st.markdown("---")
