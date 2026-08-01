@@ -1,29 +1,32 @@
-# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR 
+# 🔥 SIVETA - Sistem Informasi Verifikasi TAFOR
 import importlib
-import verification_logic
-importlib.reload(verification_logic)
 import excel_export
+import verification_logic
+
+importlib.reload(verification_logic)
 importlib.reload(excel_export)
-import streamlit as st
-import pandas as pd
+
 from datetime import datetime
+from excel_export import ekspor_ke_excel
+import pandas as pd
+import streamlit as st
 from verification_logic import buat_tabel_laporan_excel, proses_verifikasi
-from excel_export import generate_klasik_31_sheet, export_v_final_excel
 
 st.set_page_config(page_title="SIVETA - BMKG", layout="wide")
 
 # =========================================================================
 # 🔒 INITIALIZATION MEMORI JAGA
 # =========================================================================
-if 'diklik_proses' not in st.session_state: 
-    st.session_state['diklik_proses'] = False
-if 'df_hasil' not in st.session_state: 
-    st.session_state['df_hasil'] = None
+if "diklik_proses" not in st.session_state:
+  st.session_state["diklik_proses"] = False
+if "df_hasil" not in st.session_state:
+  st.session_state["df_hasil"] = None
 
 # =========================================================================
 # 🎨 PORTAL THEME INJECTION (PORTAL BMKG STYLE)
 # =========================================================================
-st.markdown("""
+st.markdown(
+    """
     <style>
         html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
             background-color: #F4F7FA !important;
@@ -60,28 +63,38 @@ st.markdown("""
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 # ==========================================
 # ⚡ OPTIMASI MEMORI CACHING (ANTI-LAG)
 # ==========================================
 @st.cache_data(show_spinner=False)
 def jalankan_komputasi_cached(df_m_raw, df_t_raw, df_sp_raw):
-    return proses_verifikasi(df_m_raw, df_t_raw, df_sp_raw)
+  return proses_verifikasi(df_m_raw, df_t_raw, df_sp_raw)
+
 
 # ==========================================
 # 🗓️ SIDEBAR (HANYA UNTUK FILTER TANGGAL)
 # ==========================================
 st.sidebar.header("🗓️ Navigasi Laporan")
 hari_ini = datetime.now().date()
-tanggal_pilihan = st.sidebar.date_input("Filter Rentang Waktu:", value=(hari_ini, hari_ini), key="rentang_tanggal")
+tanggal_pilihan = st.sidebar.date_input(
+    "Filter Rentang Waktu:", value=(hari_ini, hari_ini), key="rentang_tanggal"
+)
 
 if isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 2:
-    tgl_mulai, tgl_selesai = tanggal_pilihan
+  tgl_mulai, tgl_selesai = tanggal_pilihan
 elif isinstance(tanggal_pilihan, tuple) and len(tanggal_pilihan) == 1:
-    tgl_mulai = tgl_selesai = tanggal_pilihan[0]
+  tgl_mulai = tgl_selesai = tanggal_pilihan[0]
 else:
-    tgl_mulai = tgl_selesai = tanggal_pilihan[0] if isinstance(tanggal_pilihan, list) else tanggal_pilihan
+  tgl_mulai = tgl_selesai = (
+      tanggal_pilihan[0]
+      if isinstance(tanggal_pilihan, list)
+      else tanggal_pilihan
+  )
 
 banner_container = st.container()
 
@@ -91,50 +104,56 @@ banner_container = st.container()
 df_metar_raw, df_taf_raw, df_speci_raw = None, None, None
 
 with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan (Klik untuk Buka)"):
-    st.markdown("""
+  st.markdown("""
     #### 🛠️ CARA PENGGUNAAN
     1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS (https://bmkgsatu.bmkg.go.id/extractgts).
     2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv`. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir.
     3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri.
-    4. **Proses:** Tekan tombol **"🚀 PROSES DATA 🚀"**.
+    4. **Proses:** Tekan tombol **"🚀 PROSES DATA VERIFIKASI TAFOR 🚀"**.
     """)
 
 st.markdown("#### 📥 Unggah Berkas Sandi Extract GTS")
 c_up1, c_up2, c_up3 = st.columns(3)
 with c_up1:
-    file_m = st.file_uploader("1. Unggah METAR.csv", type=["csv"], key="metar")
-    if file_m: 
-        df_m = pd.read_csv(file_m)
-        if 'id' in df_m.columns: df_m = df_m.sort_values('id')
-        df_metar_raw = df_m.drop_duplicates(subset=['data_timestamp'], keep='last')
+  file_m = st.file_uploader("1. Unggah METAR.csv", type=["csv"], key="metar")
+  if file_m:
+    df_m = pd.read_csv(file_m)
+    if "id" in df_m.columns:
+      df_m = df_m.sort_values("id")
+    df_metar_raw = df_m.drop_duplicates(subset=["data_timestamp"], keep="last")
 
 with c_up2:
-    file_t = st.file_uploader("2. Unggah TAF.csv", type=["csv"], key="taf")
-    if file_t: 
-        df_t = pd.read_csv(file_t)
-        if 'id' in df_t.columns: df_t = df_t.sort_values('id')
-        df_taf_raw = df_t.drop_duplicates(subset=['data_timestamp'], keep='last')
+  file_t = st.file_uploader("2. Unggah TAF.csv", type=["csv"], key="taf")
+  if file_t:
+    df_t = pd.read_csv(file_t)
+    if "id" in df_t.columns:
+      df_t = df_t.sort_values("id")
+    df_taf_raw = df_t.drop_duplicates(subset=["data_timestamp"], keep="last")
 
 with c_up3:
-    file_sp = st.file_uploader("3. Unggah SPECI.csv (Opsional)", type=["csv"], key="speci")
-    if file_sp: 
-        df_sp = pd.read_csv(file_sp)
-        if 'id' in df_sp.columns: df_sp = df_sp.sort_values('id')
-        df_speci_raw = df_sp.drop_duplicates(subset=['data_timestamp'], keep='last')
+  file_sp = st.file_uploader(
+      "3. Unggah SPECI.csv (Opsional)", type=["csv"], key="speci"
+  )
+  if file_sp:
+    df_sp = pd.read_csv(file_sp)
+    if "id" in df_sp.columns:
+      df_sp = df_sp.sort_values("id")
+    df_speci_raw = df_sp.drop_duplicates(subset=["data_timestamp"], keep="last")
 
 stasiun_aktif = "Menunggu Berkas..."
-if df_metar_raw is not None and 'cccc' in df_metar_raw.columns:
-    stasiun_terdeteksi = df_metar_raw['cccc'].dropna().unique().tolist()
-    if stasiun_terdeteksi:
-        stasiun_aktif = str(stasiun_terdeteksi[0]).strip().upper()
+if df_metar_raw is not None and "cccc" in df_metar_raw.columns:
+  stasiun_terdeteksi = df_metar_raw["cccc"].dropna().unique().tolist()
+  if stasiun_terdeteksi:
+    stasiun_aktif = str(stasiun_terdeteksi[0]).strip().upper()
 
 # Inject Banner
 with banner_container:
-    waktu_sekarang = datetime.now()
-    jam_statis = waktu_sekarang.strftime('%H:%M')
-    tgl_statis = waktu_sekarang.strftime('%d %b %Y')
-    
-    st.markdown(f"""
+  waktu_sekarang = datetime.now()
+  jam_statis = waktu_sekarang.strftime("%H:%M")
+  tgl_statis = waktu_sekarang.strftime("%d %b %Y")
+
+  st.markdown(
+      f"""
         <div class="bmkg-portal-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="display: flex; align-items: center;">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Logo_BMKG_%282010%29.png" width="75" style="margin-right: 20px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));">
@@ -154,145 +173,164 @@ with banner_container:
                 </div>
             </div>
         </div>
-    """, unsafe_allow_html=True)
+    """,
+      unsafe_allow_html=True,
+  )
 
 # ==========================================
 # 🚀 TOMBOL EKSEKUSI
 # ==========================================
 if df_metar_raw is not None and df_taf_raw is not None:
-    if st.button("🚀 PROSES DATA VERIFIKASI TAFOR 🚀", use_container_width=True, type="primary"):
-        try:
-            with st.spinner(f"Sedang memproses Verifikasi TAFOR stasiun {stasiun_aktif}..."):
-                st.session_state['excel_ready'] = False
-                
-                df_speci_umpan = df_speci_raw if df_speci_raw is not None else pd.DataFrame(columns=df_metar_raw.columns)
-                df_hasil, _, _, _ = jalankan_komputasi_cached(df_metar_raw, df_taf_raw, df_speci_umpan)
-                df_hasil['Datetime_Obj'] = pd.to_datetime(df_hasil['Waktu Aktual (UTC)']).dt.date
-                
-                st.session_state['df_hasil'] = df_hasil
-                st.session_state['diklik_proses'] = True
-        except Exception as e: 
-            st.error(f"Gagal memproses data: {e}")
+  if st.button(
+      "🚀 PROSES DATA VERIFIKASI TAFOR 🚀",
+      use_container_width=True,
+      type="primary",
+  ):
+    try:
+      with st.spinner(
+          f"Sedang memproses Verifikasi TAFOR stasiun {stasiun_aktif}..."
+      ):
+        st.session_state["excel_ready"] = False
+
+        df_speci_umpan = (
+            df_speci_raw
+            if df_speci_raw is not None
+            else pd.DataFrame(columns=df_metar_raw.columns)
+        )
+        df_hasil, df_speci_hasil, _, _ = jalankan_komputasi_cached(
+            df_metar_raw, df_taf_raw, df_speci_umpan
+        )
+        df_hasil["Datetime_Obj"] = pd.to_datetime(
+            df_hasil["Waktu Aktual (UTC)"]
+        ).dt.date
+
+        st.session_state["df_hasil"] = df_hasil
+        st.session_state["df_speci_hasil"] = df_speci_hasil
+        st.session_state["diklik_proses"] = True
+    except Exception as e:
+      st.error(f"Gagal memproses data: {e}")
 
 # ==========================================
 # 📊 PRESENTASI METRIKS DASHBOARD UTAMA
 # ==========================================
-if st.session_state['diklik_proses'] and st.session_state['df_hasil'] is not None:
-    df_hasil = st.session_state['df_hasil']
-    df_filtered = df_hasil[(df_hasil['Datetime_Obj'] >= tgl_mulai) & (df_hasil['Datetime_Obj'] <= tgl_selesai) & (df_hasil['Kode_Stasiun'] == stasiun_aktif)].copy()
-    
-    if df_filtered.empty:
-        st.warning(f"⚠️ Berkas data kosong pada rentang tanggal {tgl_mulai} s.d {tgl_selesai}. Silakan sesuaikan filter tanggal.")
-    else:
-        # 🎯 RAKIT DATAFRAME FINAL SEPERTI DI EXCEL UNTUK DIHITUNG SAMA PRESISI
-        df_vfinal = buat_tabel_laporan_excel(df_filtered)
-        
-        rows_tafor = []
-        total_b_global = 0
-        total_sampel_global = 0
-        
-        p_headers = {
-            'S_Arah': 'A. Arah Angin (Wind Direction)',
-            'S_Kec': 'B. Kecepatan Angin (Wind Speed)',
-            'S_Vis': 'C. Jarak Pandang (Visibility)',
-            'S_Wx': 'D. Cuaca / Endapan (Significant Weather)',
-            'S_AwanJml': 'E. Jumlah Awan (Cloud Amount)',
-            'S_AwanTgi': 'F. Tinggi Dasar Awan (Cloud Base)'
-        }
-        
-        # 🎯 LOGIKA HITUNG PERSENTASE SINKRON DENGAN EXCEL
-        for col_name, label in p_headers.items():
-            if col_name in df_vfinal.columns:
-                # Konversi status ke 'B' & 'S' murni
-                s_series = df_vfinal[col_name].apply(
-                    lambda x: 'S' if str(x).strip().upper() in ['FALSE', 'SALAH', 'S', '0', ''] else ('B' if str(x).strip().upper() == 'B' else str(x).strip().upper())
+if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not None:
+  df_hasil = st.session_state["df_hasil"]
+  df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
+
+  df_filtered = df_hasil[
+      (df_hasil["Datetime_Obj"] >= tgl_mulai)
+      & (df_hasil["Datetime_Obj"] <= tgl_selesai)
+      & (df_hasil["Kode_Stasiun"] == stasiun_aktif)
+  ].copy()
+
+  if df_filtered.empty:
+    st.warning(
+        f"⚠️ Berkas data kosong pada rentang tanggal {tgl_mulai} s.d"
+        f" {tgl_selesai}. Silakan sesuaikan filter tanggal."
+    )
+  else:
+    # 🎯 RAKIT DATAFRAME FINAL SEPERTI DI EXCEL UNTUK DIHITUNG SAMA PRESISI
+    df_vfinal = buat_tabel_laporan_excel(df_filtered)
+
+    rows_tafor = []
+    total_b_global = 0
+    total_sampel_global = 0
+
+    p_headers = {
+        "S_Arah": "A. Arah Angin (Wind Direction)",
+        "S_Kec": "B. Kecepatan Angin (Wind Speed)",
+        "S_Vis": "C. Jarak Pandang (Visibility)",
+        "S_Wx": "D. Cuaca / Endapan (Significant Weather)",
+        "S_AwanJml": "E. Jumlah Awan (Cloud Amount)",
+        "S_AwanTgi": "F. Tinggi Dasar Awan (Cloud Base)",
+    }
+
+    # 🎯 LOGIKA HITUNG PERSENTASE SINKRON DENGAN EXCEL
+    for col_name, label in p_headers.items():
+      if col_name in df_vfinal.columns:
+        s_series = df_vfinal[col_name].apply(
+            lambda x: (
+                "S"
+                if str(x).strip().upper() in ["FALSE", "SALAH", "S", "0", ""]
+                else (
+                    "B"
+                    if str(x).strip().upper() == "B"
+                    else str(x).strip().upper()
                 )
-                b = (s_series == "B").sum()
-                s = (s_series == "S").sum()
-                tot = b + s
-                pct = (b / tot * 100) if tot > 0 else 0.0
-            else:
-                b, s, tot, pct = 0, 0, 0, 0.0
-
-            total_b_global += b
-            total_sampel_global += tot
-            rows_tafor.append({"param": label, "b": int(b), "s": int(s), "tot": int(tot), "pct": pct})
-            
-        total_accuracy_global = (total_b_global / total_sampel_global * 100) if total_sampel_global > 0 else 0.0
-        
-        st.markdown("### 📊 VERIFIKASI TAFOR: Komparasi Akurasi per Unsur Cuaca")
-        
-        c_head1, c_head2, c_head3 = st.columns([3, 2, 2])
-        c_head1.write("📝 **Unsur Meteorologi**")
-        c_head2.write("🎯 **Persentase Ketelitian**")
-        c_head3.write("🔢 **Proporsi Data (Benar / Total)**")
-        st.markdown("---")
-        
-        for item in rows_tafor:
-            c1, c2, c3 = st.columns([3, 2, 2])
-            c1.write(f"**{item['param']}**")
-            c2.code(f" {round(item['pct'], 2)} % ")
-            c3.write(f"⭐ {item['b']} dari {item['tot']} sampel")
-            
-        st.markdown("---")
-        
-        st.subheader("🏆 TOTAL AKURASI KESELURUHAN")
-        st.metric(label="Total Akurasi Verifikasi TAFOR", value=f"{round(total_accuracy_global, 1)}%")
-        st.markdown("---")
-        
-        # ==========================================
-        # 📥 AREA UNDUH LAPORAN EXCEL
-        # ==========================================
-        str_m = tgl_mulai.strftime('%Y%m%d')
-        nama_bulan = tgl_mulai.strftime('%B').upper()
-        tahun_str = tgl_mulai.strftime('%Y')
-        
-        st.markdown("### 📥 Unduh Laporan Excel")
-        
-        c_ttd1, c_ttd2 = st.columns(2)
-        with c_ttd1:
-            nama_kepala = st.text_input("Nama Kepala Stasiun:", value="[NAMA KEPALA STASIUN]")
-            nip_kepala = st.text_input("NIP Kepala Stasiun:", value="[NIP KEPALA]")
-        with c_ttd2:
-            nama_forecaster = st.text_input("Nama Petugas Pembuat Laporan:", value="KAPTEN METEO")
-            nip_forecaster = st.text_input("NIP Petugas:", value="[NIP PETUGAS]")
-            
-        st.markdown("---")
-        
-        opsi_klasik = st.checkbox("Sertakan Laporan Format KLASIK (31 Sheet Harian)")
-        
-        if st.button("⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True):
-            with st.spinner("Mesin sedang merakit data ke format Excel... Mohon tunggu sebentar..."):
-                
-                # 🎯 MENGGUNAKAN df_vfinal YANG SUDAH DIRENCANAKAN UNTUK EXCEL
-                st.session_state['dl_verifikasi_tafor'] = export_v_final_excel(
-                    df_vfinal = df_vfinal, 
-                    bulan = nama_bulan, 
-                    tahun = tahun_str, 
-                    stasiun = stasiun_aktif, 
-                    nama_petugas = nama_forecaster,
-                    nip_petugas = nip_forecaster,
-                    nama_kepala = nama_kepala,
-                    nip_kepala = nip_kepala
-                )
-                
-                if opsi_klasik:
-                    st.session_state['dl_klasik'] = generate_klasik_31_sheet(df_filtered).getvalue()
-                else:
-                    st.session_state['dl_klasik'] = None
-                    
-                st.session_state['excel_ready'] = True
-
-        if st.session_state.get('excel_ready', False):
-        st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
-
-        # 🎯 Tombol Unduh Tunggal Resmi (Berisi Sheet Rekap SOP + Log Detail 30-Menit Akuntabel)
-        st.download_button(
-            label="📊 Unduh Laporan VERIFIKASI TAFOR",
-            data=st.session_state['dl_verifikasi_tafor'],
-            file_name=f"VERIFIKASI_TAFOR_{stasiun_aktif}_{str_m}.xlsx",
-            use_container_width=True,
-            type="primary",
+            )
         )
+        b = (s_series == "B").sum()
+        s = (s_series == "S").sum()
+        tot = b + s
+        pct = (b / tot * 100) if tot > 0 else 0.0
+      else:
+        b, s, tot, pct = 0, 0, 0, 0.0
 
-        st.markdown("---")
+      total_b_global += b
+      total_sampel_global += tot
+      rows_tafor.append(
+          {"param": label, "b": int(b), "s": int(s), "tot": int(tot), "pct": pct}
+      )
+
+    total_accuracy_global = (
+        (total_b_global / total_sampel_global * 100)
+        if total_sampel_global > 0
+        else 0.0
+    )
+
+    st.markdown("### 📊 VERIFIKASI TAFOR: Komparasi Akurasi per Unsur Cuaca")
+
+    c_head1, c_head2, c_head3 = st.columns([3, 2, 2])
+    c_head1.write("📝 **Unsur Meteorologi**")
+    c_head2.write("🎯 **Persentase Ketelitian**")
+    c_head3.write("🔢 **Proporsi Data (Benar / Total)**")
+    st.markdown("---")
+
+    for item in rows_tafor:
+      c1, c2, c3 = st.columns([3, 2, 2])
+      c1.write(f"**{item['param']}**")
+      c2.code(f" {round(item['pct'], 2)} % ")
+      c3.write(f"⭐ {item['b']} dari {item['tot']} sampel")
+
+    st.markdown("---")
+
+    st.subheader("🏆 TOTAL AKURASI KESELURUHAN")
+    st.metric(
+        label="Total Akurasi Verifikasi TAFOR",
+        value=f"{round(total_accuracy_global, 1)}%",
+    )
+    st.markdown("---")
+
+    # ==========================================
+    # 📥 AREA UNDUH LAPORAN EXCEL
+    # ==========================================
+    str_m = tgl_mulai.strftime("%Y%m%d")
+
+    st.markdown("### 📥 Unduh Laporan Excel Multi-Sheet")
+
+    if st.button(
+        "⚙️ SIAPKAN FILE EXCEL UNTUK DIUNDUH", use_container_width=True
+    ):
+      with st.spinner(
+          "Mesin sedang merakit data ke format Excel multi-sheet... Mohon tunggu"
+          " sebentar..."
+      ):
+        # 🎯 MENGGUNAKAN EKSPOR MULTI-SHEET (REKAP SOP + DETAIL 30-MENIT)
+        st.session_state["dl_verifikasi_tafor"] = ekspor_ke_excel(
+            df_filtered, df_vfinal, df_speci_hasil
+        )
+        st.session_state["excel_ready"] = True
+
+    # 🎯 TOMBOL UNDUH RESMI (Indentasi Sudah Diperbaiki)
+    if st.session_state.get("excel_ready", False):
+      st.success("✅ Berkas Excel telah selesai dirakit dan siap untuk diunduh!")
+
+      st.download_button(
+          label="📊 Unduh Laporan VERIFIKASI TAFOR",
+          data=st.session_state["dl_verifikasi_tafor"],
+          file_name=f"VERIFIKASI_TAFOR_{stasiun_aktif}_{str_m}.xlsx",
+          use_container_width=True,
+          type="primary",
+      )
+
+    st.markdown("---")
