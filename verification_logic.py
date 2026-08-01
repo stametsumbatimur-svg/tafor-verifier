@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Verification Core Logic (Fully Compliant SOP BMKG 2025)
+# 🔥 SIVETA - Verification Core Logic
 import re
 from datetime import datetime, timedelta
 import pandas as pd
@@ -151,7 +151,7 @@ def hitung_angin_arah(m_dir, t_dir, m_kec='-', t_kec='-', m_ts_cb=False):
     diff = diff if diff <= 180 else 360 - diff
     return (
         (m_str, 'B')
-        if diff <= 60 or (diff > 60 and m_spd < 10)
+        if diff <= 60 or (diff > 60 and m_spd < 10) or m_ts_cb
         else (m_str, 'S')
     )
   except:
@@ -469,9 +469,8 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
     is_grup_prob = is_grup_tempo = is_grup_becmg_trans = False
     target_hour = tgl_jam_aktual.hour
-    cur_grup_aktif = 'BASE'  # Default jika tidak masuk grup perubahan
+    cur_grup_aktif = 'BASE'
 
-    # 🎯 PENENTUAN GRUP PERUBAHAN DINAMIS (BECMG / TEMPO / FM)
     for i in range(1, len(parts), 2):
       tipe, isi = parts[i], parts[i + 1]
 
@@ -519,7 +518,6 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
           if tipe == 'BECMG':
             is_grup_becmg_trans = target_hour < e_hr
 
-          # Label dinamis (misal: BECMG 0111/0112)
           if time_match:
             cur_grup_aktif = (
                 f'{tipe}'
@@ -567,7 +565,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         'M_Wx': m_wx,
         'M_AwanJml': m_aj,
         'M_AwanTgi': m_at,
-        'M_TS_CB': m_ts_cb,
+        'M_TS_CB': m_ts_cb,  # ✅ Mempassing status TS/CB aktual
     }
     base_bundle = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
 
@@ -596,7 +594,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
         'Sandi METAR Aktual': teks_metar,
         'Sandi TAF Prakiraan': taf_aktif,
-        'Grup_Aktif': cur_grup_aktif,  # 🎯 Ditulis ke DataFrame
+        'Grup_Aktif': cur_grup_aktif,
         'Change_Group': cur_grup_aktif,
         'M_Arah': m_ar,
         'T_Arah': t_ar,
@@ -616,7 +614,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         'M_AwanTgi': m_at,
         'T_AwanTgi': t_at,
         'S_AwanTgi': s_at,
-        'M_TS_CB': m_ts_cb,
+        'M_TS_CB': m_ts_cb,  # ✅ Terpreservasi
         'Status_Minima': is_crit,
         'Hasil Akhir': 'ACCURATE' if status_jam_ini == 'B' else 'MISS',
         'Kode_Stasiun': m_stasiun,
@@ -687,6 +685,7 @@ def buat_tabel_laporan_excel(df_input):
         )
     )
 
+    # ✅ BUG 1 FIX: Mengambil 'M_TS_CB' aktual dari METAR, bukan hardcode False
     m_obs_base = {
         'M_Arah': baris_m_base['M_Arah'],
         'M_Kec': baris_m_base['M_Kec'],
@@ -758,7 +757,12 @@ def buat_tabel_laporan_excel(df_input):
             else tipe
         )
 
-      matched_rows = [r for dt_o, r in list_rows if dt_o.hour == jam_target]
+      # ✅ BUG 2 FIX: Pencocokan Waktu METAR Terdekat untuk Slot 30-Menitan
+      matched_rows = [
+          r
+          for dt_o, r in list_rows
+          if abs((dt_o.hour * 60 + dt_o.minute) - (jam_target * 60)) <= 30
+      ]
       baris_m_trend = matched_rows[0] if matched_rows else baris_m_base
 
       g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
@@ -804,6 +808,7 @@ def buat_tabel_laporan_excel(df_input):
         t_aj = g_aj if g_aj != '-' else cur_aj
         t_at = g_at if g_at != '-' else cur_at
 
+      # ✅ BUG 1 FIX: Mengambil 'M_TS_CB' aktual dari METAR Trend
       m_obs_trend = {
           'M_Arah': baris_m_trend['M_Arah'],
           'M_Kec': baris_m_trend['M_Kec'],
