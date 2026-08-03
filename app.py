@@ -222,16 +222,29 @@ if df_metar_raw is not None and df_taf_raw is not None:
 if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not None:
   df_hasil = st.session_state["df_hasil"]
   df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
-  
-  tgl_mulai_day = tgl_mulai.day
-  tgl_selesai_day = tgl_selesai.day
-  df_vfinal = df_vfinal_full[
-    df_vfinal_full['Tanggal']
-    .astype(str)
-    .str.extract(r'(\d+)')[0]
-    .astype(int)
-    .between(tgl_mulai_day, tgl_selesai_day)
-  ].copy()
+
+  # 1. Buat rekapitulasi TAFOR dari seluruh dataset hasil komputasi
+  df_vfinal_full = buat_tabel_laporan_excel(df_hasil)
+
+  # 2. Filter baris laporan berdasarkan tanggal secara aman (bebas crash)
+  if (
+      df_vfinal_full is not None
+      and not df_vfinal_full.empty
+      and "Tanggal" in df_vfinal_full.columns
+  ):
+    s_day = pd.to_numeric(
+        df_vfinal_full["Tanggal"].astype(str).str.extract(r"(\d+)")[0],
+        errors="coerce",
+    ).fillna(-1)
+
+    tgl_mulai_day = tgl_mulai.day
+    tgl_selesai_day = tgl_selesai.day
+
+    df_vfinal = df_vfinal_full[
+        s_day.between(tgl_mulai_day, tgl_selesai_day)
+    ].copy()
+  else:
+    df_vfinal = pd.DataFrame()
 
   df_filtered = df_hasil[
       (df_hasil["Datetime_Obj"] >= tgl_mulai)
