@@ -223,10 +223,10 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
   df_hasil = st.session_state["df_hasil"]
   df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
 
-  # 1. Buat rekapitulasi TAFOR dari seluruh dataset hasil komputasi
+  # 1. Buat rekapitulasi TAFOR dari seluruh dataset hasil komputasi (UNFILTERED)
   df_vfinal_full = buat_tabel_laporan_excel(df_hasil)
 
-  # 2. Filter baris laporan berdasarkan tanggal secara aman (bebas crash)
+  # 2. Filter baris laporan berdasarkan rentang tanggal secara aman (bebas crash)
   if (
       df_vfinal_full is not None
       and not df_vfinal_full.empty
