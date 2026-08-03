@@ -222,6 +222,16 @@ if df_metar_raw is not None and df_taf_raw is not None:
 if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not None:
   df_hasil = st.session_state["df_hasil"]
   df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
+  
+  tgl_mulai_day = tgl_mulai.day
+  tgl_selesai_day = tgl_selesai.day
+  df_vfinal = df_vfinal_full[
+    df_vfinal_full['Tanggal']
+    .astype(str)
+    .str.extract(r'(\d+)')[0]
+    .astype(int)
+    .between(tgl_mulai_day, tgl_selesai_day)
+  ].copy()
 
   df_filtered = df_hasil[
       (df_hasil["Datetime_Obj"] >= tgl_mulai)
