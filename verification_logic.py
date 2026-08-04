@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Verification Core Logic (SOP BMKG 2025)
+# 🔥 SIVETA - Verification Core Logic (SOP BMKG 2025) - UPDATED
 import re
 from datetime import datetime, timedelta
 import pandas as pd
@@ -630,6 +630,9 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
   )
 
 
+# =========================================================================
+# 4. PEMBUATAN LAPORAN EXCEL (DIREVISI SUPAYA MATCHING METAR PRESISI)
+# =========================================================================
 def buat_tabel_laporan_excel(df_input):
   df_work = df_input.to_dict('records')
   baris_laporan = []
@@ -654,6 +657,22 @@ def buat_tabel_laporan_excel(df_input):
 
   for (tgl_str, taf_sandi), list_rows in taf_groups.items():
     list_rows.sort(key=lambda x: x[0])
+
+    # 1. Menghitung Datetime Validitas TAF secara Presisi
+    v_match = RE_VALID_TAF.search(taf_sandi)
+    if v_match:
+      try:
+        t_valid_taf = list_rows[0][0].replace(
+            day=int(v_match.group(1)),
+            hour=int(v_match.group(2)),
+            minute=0,
+            second=0,
+        )
+      except Exception:
+        t_valid_taf = list_rows[0][0]
+    else:
+      t_valid_taf = list_rows[0][0]
+
     baris_m_base = list_rows[0][1]
 
     parts = RE_PARTS.split(str(taf_sandi))
@@ -739,29 +758,52 @@ def buat_tabel_laporan_excel(df_input):
           )
       )
 
+      time_match = RE_TIME_GRP.search(isi)
+
+      # 2. Menghitung Jendela Waktu Tren Datetime Absolut (dt_start s.d. dt_end)
       if tipe.startswith('FM'):
-        jam_target = int(tipe[4:6])
+        s_hr = int(tipe[4:6])
+        dt_start = get_trend_datetime(t_valid_taf, t_valid_taf.day, s_hr)
+        dt_end = t_valid_taf + timedelta(hours=12)
         jangka_trend = f'FM.{tipe[4:6]}-{jam_akhir_taf}'
       else:
-        time_match = RE_TIME_GRP.search(isi)
-        jam_target = int(time_match.group(2)) if time_match else 0
-        prefix = (
-            'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
-        )
-        jangka_trend = (
-            f'{prefix}.{time_match.group(2)}-{time_match.group(4)}'
-            if time_match
-            else tipe
-        )
+        if time_match:
+          s_day, s_hr = int(time_match.group(1)), int(time_match.group(2))
+          e_day, e_hr = int(time_match.group(3)), int(time_match.group(4))
+          dt_start = get_trend_datetime(t_valid_taf, s_day, s_hr)
+          dt_end = get_trend_datetime(t_valid_taf, e_day, e_hr)
+          prefix = (
+              'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
+          )
+          jangka_trend = (
+              f'{prefix}.{time_match.group(2)}-{time_match.group(4)}'
+          )
+        else:
+          dt_start = t_valid_taf
+          dt_end = t_valid_taf + timedelta(hours=12)
+          jangka_trend = tipe
 
-      # Pencocokan Waktu METAR Terdekat
-      matched_rows = []
-      for dt_o, r in list_rows:
-        diff_menit = abs((dt_o.hour * 60 + dt_o.minute) - (jam_target * 60))
-        if min(diff_menit, 1440 - diff_menit) <= 30:
-          matched_rows.append(r)
+      # 3. PENCOCOKAN METAR PRESISI DARI JENDELA WAKTU
+      in_window_rows = [
+          r
+          for dt_o, r in list_rows
+          if (
+              dt_start <= dt_o <= dt_end
+              or (
+                  tipe in str(r.get('Grup_Aktif', ''))
+                  and time_match
+                  and time_match.group(2) in str(r.get('Grup_Aktif', ''))
+              )
+          )
+      ]
 
-      baris_m_trend = matched_rows[0] if matched_rows else baris_m_base
+      if in_window_rows:
+        baris_m_trend = in_window_rows[0]
+      else:
+        # Apabila tidak ada yang berada tepat di jendela, cari METAR selisih waktu terdekat
+        baris_m_trend = min(
+            list_rows, key=lambda x: abs((x[0] - dt_start).total_seconds())
+        )[1]
 
       g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
 
