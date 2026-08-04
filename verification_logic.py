@@ -286,7 +286,6 @@ def evaluasi_sandi_tunggal(
   )
   _, s_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], t_at)
 
-  # Logika SOP BMKG 2025: Fluktuasi TEMPO/PROB diberi keuntungan jika cocok dengan BASE
   if (
       is_grup_prob or is_grup_tempo or is_grup_becmg_trans
   ) and base_bundle is not None:
