@@ -634,6 +634,15 @@ def buat_tabel_laporan_excel(df_input):
   df_work = df_input.to_dict('records')
   baris_laporan = []
 
+  # Pemetaan seluruh METAR per jam dari dataset bulanan (day_str, hour_int)
+  metar_by_day_hour = {}
+  for r in df_work:
+    dt = pd.to_datetime(r['Waktu Aktual (UTC)'])
+    if dt.minute == 0:
+      key = (dt.strftime('%d'), dt.hour)
+      if key not in metar_by_day_hour:
+        metar_by_day_hour[key] = r
+
   taf_groups = {}
   for row in df_work:
     if row['Sandi TAF Prakiraan'] == '-':
@@ -666,19 +675,25 @@ def buat_tabel_laporan_excel(df_input):
         b_at,
     )
 
-    validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
+    validity_match = re.search(
+        r'\b(\d{2})(\d{2})/(\d{2})(\d{2})\b', str(taf_sandi)
+    )
     if validity_match:
-      jam_mulai = validity_match.group(1)
-      jam_selesai = validity_match.group(2)
+      day_start = validity_match.group(1)
+      jam_mulai = validity_match.group(2)
+      day_end = validity_match.group(3)
+      jam_selesai = validity_match.group(4)
       jangka_base = f'{jam_mulai}-{jam_selesai}'
       jam_akhir_taf = jam_selesai
       jam_base_target = int(jam_mulai)
+      tgl_base_target = day_start
     else:
       jam_mulai = '00'
       jam_selesai = '24'
       jangka_base = '00-24'
       jam_akhir_taf = '24'
       jam_base_target = 0
+      tgl_base_target = tgl_str
 
     label_perubahan = (
         'Base (AMD)'
@@ -686,46 +701,23 @@ def buat_tabel_laporan_excel(df_input):
         else ('Base (COR)' if 'COR' in str(taf_sandi).upper() else 'Base')
     )
 
-    # 🎯 Match METAR untuk Base HANYA pada jam_base_target (STRICT EXACT MATCH)
-    candidates_base = []
-    for dt_o, r in list_rows:
-      diff_m = abs((dt_o.hour * 60 + dt_o.minute) - (jam_base_target * 60))
-      min_diff = min(diff_m, 1440 - diff_m)
-      if min_diff <= 30:
-        candidates_base.append((min_diff, r))
+    # 🎯 Lookup METAR Base secara eksak dari dataset bulanan
+    baris_m_base = metar_by_day_hour.get((tgl_base_target, jam_base_target))
+    if not baris_m_base:
+      baris_m_base = list_rows[0][1]
 
-    if candidates_base:
-      candidates_base.sort(key=lambda x: x[0])
-      baris_m_base = candidates_base[0][1]
-      m_obs_base = {
-          'M_Arah': baris_m_base['M_Arah'],
-          'M_Kec': baris_m_base['M_Kec'],
-          'M_Vis': baris_m_base['M_Vis'],
-          'M_Wx': baris_m_base['M_Wx'],
-          'M_AwanJml': baris_m_base['M_AwanJml'],
-          'M_AwanTgi': baris_m_base['M_AwanTgi'],
-          'M_TS_CB': baris_m_base.get('M_TS_CB', False),
-      }
-      _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(
-          m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at
-      )
-      m_base_ar, m_base_ke, m_base_vi = (
-          baris_m_base['M_Arah'],
-          baris_m_base['M_Kec'],
-          baris_m_base['M_Vis'],
-      )
-      m_base_wx, m_base_aj, m_base_at = (
-          baris_m_base['M_Wx'],
-          baris_m_base['M_AwanJml'],
-          baris_m_base['M_AwanTgi'],
-      )
-    else:
-      m_base_ar, s_ar = '-', '-'
-      m_base_ke, s_ke = '-', '-'
-      m_base_vi, s_vi = '-', '-'
-      m_base_wx, s_wx = '-', '-'
-      m_base_aj, s_aj = '-', '-'
-      m_base_at, s_at = '-', '-'
+    m_obs_base = {
+        'M_Arah': baris_m_base['M_Arah'],
+        'M_Kec': baris_m_base['M_Kec'],
+        'M_Vis': baris_m_base['M_Vis'],
+        'M_Wx': baris_m_base['M_Wx'],
+        'M_AwanJml': baris_m_base['M_AwanJml'],
+        'M_AwanTgi': baris_m_base['M_AwanTgi'],
+        'M_TS_CB': baris_m_base.get('M_TS_CB', False),
+    }
+    _, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(
+        m_obs_base, b_ar, b_ke, b_vi, b_wx, b_aj, b_at
+    )
 
     baris_laporan.append({
         'Tanggal': tgl_str,
@@ -737,17 +729,17 @@ def buat_tabel_laporan_excel(df_input):
         'T_Wx': b_wx,
         'T_AwanJml': b_aj,
         'T_AwanTgi': b_at,
-        'M_Arah': m_base_ar,
+        'M_Arah': baris_m_base['M_Arah'],
         'S_Arah': s_ar,
-        'M_Kec': m_base_ke,
+        'M_Kec': baris_m_base['M_Kec'],
         'S_Kec': s_ke,
-        'M_Vis': m_base_vi,
+        'M_Vis': baris_m_base['M_Vis'],
         'S_Vis': s_vi,
-        'M_Wx': m_base_wx,
+        'M_Wx': baris_m_base['M_Wx'],
         'S_Wx': s_wx,
-        'M_AwanJml': m_base_aj,
+        'M_AwanJml': baris_m_base['M_AwanJml'],
         'S_AwanJml': s_aj,
-        'M_AwanTgi': m_base_at,
+        'M_AwanTgi': baris_m_base['M_AwanTgi'],
         'S_AwanTgi': s_at,
     })
 
@@ -768,28 +760,29 @@ def buat_tabel_laporan_excel(df_input):
           )
       )
 
+      time_match = RE_TIME_GRP.search(isi)
       if tipe.startswith('FM'):
         jam_target = int(tipe[4:6])
         jangka_trend = f'FM.{tipe[4:6]}-{jam_akhir_taf}'
-      else:
-        time_match = RE_TIME_GRP.search(isi)
-        jam_target = int(time_match.group(2)) if time_match else 0
+        tgl_target = tgl_str
+      elif time_match:
+        tgl_target = time_match.group(1)
+        jam_target = int(time_match.group(2))
         prefix = (
             'T' if 'TEMPO' in tipe else ('B' if 'BECMG' in tipe else 'P')
         )
         jangka_trend = (
             f'{prefix}.{time_match.group(2)}-{time_match.group(4)}'
-            if time_match
-            else tipe
         )
+      else:
+        jam_target = 0
+        tgl_target = tgl_str
+        jangka_trend = tipe
 
-      # 🎯 Match METAR Tren HANYA pada jam_target (STRICT EXACT MATCH)
-      candidates_trend = []
-      for dt_o, r in list_rows:
-        diff_m = abs((dt_o.hour * 60 + dt_o.minute) - (jam_target * 60))
-        min_diff = min(diff_m, 1440 - diff_m)
-        if min_diff <= 30:
-          candidates_trend.append((min_diff, r))
+      # 🎯 Lookup METAR Tren secara eksak dari dataset bulanan
+      baris_m_trend = metar_by_day_hour.get((tgl_target, jam_target))
+      if not baris_m_trend:
+        baris_m_trend = baris_m_base
 
       g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
 
@@ -834,51 +827,31 @@ def buat_tabel_laporan_excel(df_input):
         t_aj = g_aj if g_aj != '-' else cur_aj
         t_at = g_at if g_at != '-' else cur_at
 
-      if candidates_trend:
-        candidates_trend.sort(key=lambda x: x[0])
-        baris_m_trend = candidates_trend[0][1]
-        m_obs_trend = {
-            'M_Arah': baris_m_trend['M_Arah'],
-            'M_Kec': baris_m_trend['M_Kec'],
-            'M_Vis': baris_m_trend['M_Vis'],
-            'M_Wx': baris_m_trend['M_Wx'],
-            'M_AwanJml': baris_m_trend['M_AwanJml'],
-            'M_AwanTgi': baris_m_trend['M_AwanTgi'],
-            'M_TS_CB': baris_m_trend.get('M_TS_CB', False),
-        }
+      m_obs_trend = {
+          'M_Arah': baris_m_trend['M_Arah'],
+          'M_Kec': baris_m_trend['M_Kec'],
+          'M_Vis': baris_m_trend['M_Vis'],
+          'M_Wx': baris_m_trend['M_Wx'],
+          'M_AwanJml': baris_m_trend['M_AwanJml'],
+          'M_AwanTgi': baris_m_trend['M_AwanTgi'],
+          'M_TS_CB': baris_m_trend.get('M_TS_CB', False),
+      }
 
-        _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = (
-            evaluasi_sandi_tunggal(
-                m_obs_trend,
-                t_ar,
-                t_ke,
-                t_vi,
-                t_wx,
-                t_aj,
-                t_at,
-                base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at),
-                is_grup_prob=('PROB' in tipe),
-                is_grup_tempo=('TEMPO' in tipe),
-                is_grup_becmg_trans=('BECMG' in tipe),
-            )
-        )
-        m_tr_ar, m_tr_ke, m_tr_vi = (
-            baris_m_trend['M_Arah'],
-            baris_m_trend['M_Kec'],
-            baris_m_trend['M_Vis'],
-        )
-        m_tr_wx, m_tr_aj, m_tr_at = (
-            baris_m_trend['M_Wx'],
-            baris_m_trend['M_AwanJml'],
-            baris_m_trend['M_AwanTgi'],
-        )
-      else:
-        m_tr_ar, s_ar_t = '-', '-'
-        m_tr_ke, s_ke_t = '-', '-'
-        m_tr_vi, s_vi_t = '-', '-'
-        m_tr_wx, s_wx_t = '-', '-'
-        m_tr_aj, s_aj_t = '-', '-'
-        m_tr_at, s_at_t = '-', '-'
+      _, s_ar_t, s_ke_t, s_vi_t, s_wx_t, s_aj_t, s_at_t = (
+          evaluasi_sandi_tunggal(
+              m_obs_trend,
+              t_ar,
+              t_ke,
+              t_vi,
+              t_wx,
+              t_aj,
+              t_at,
+              base_bundle=(cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at),
+              is_grup_prob=('PROB' in tipe),
+              is_grup_tempo=('TEMPO' in tipe),
+              is_grup_becmg_trans=('BECMG' in tipe),
+          )
+      )
 
       baris_laporan.append({
           'Tanggal': tgl_str,
@@ -890,17 +863,17 @@ def buat_tabel_laporan_excel(df_input):
           'T_Wx': t_wx,
           'T_AwanJml': t_aj,
           'T_AwanTgi': t_at,
-          'M_Arah': m_tr_ar,
+          'M_Arah': baris_m_trend['M_Arah'],
           'S_Arah': s_ar_t,
-          'M_Kec': m_tr_ke,
+          'M_Kec': baris_m_trend['M_Kec'],
           'S_Kec': s_ke_t,
-          'M_Vis': m_tr_vi,
+          'M_Vis': baris_m_trend['M_Vis'],
           'S_Vis': s_vi_t,
-          'M_Wx': m_tr_wx,
+          'M_Wx': baris_m_trend['M_Wx'],
           'S_Wx': s_wx_t,
-          'M_AwanJml': m_tr_aj,
+          'M_AwanJml': baris_m_trend['M_AwanJml'],
           'S_AwanJml': s_aj_t,
-          'M_AwanTgi': m_tr_at,
+          'M_AwanTgi': baris_m_trend['M_AwanTgi'],
           'S_AwanTgi': s_at_t,
       })
 
