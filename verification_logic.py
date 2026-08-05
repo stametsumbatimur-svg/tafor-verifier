@@ -24,23 +24,38 @@ RE_VALID_TAF = re.compile(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}')
 RE_AMD_COR = re.compile(r'\b(AMD|COR)\b')
 
 
-def get_trend_datetime(t_valid, day, hour):
-    """Menghitung datetime absolut untuk grup tren TAF secara presisi."""
-    dt = t_valid.replace(
-        day=day, hour=hour if hour < 24 else 0, minute=0, second=0
+def get_trend_datetime(t_valid: pd.Timestamp, day: int, hour: int) -> pd.Timestamp:
+    # Handle TAF 24:00 notation (24:00 represents 00:00 of the next day)
+    day_offset = 0
+    if hour >= 24:
+        hour = 0
+        day_offset = 1
+
+    year = t_valid.year
+    month = t_valid.month
+
+    # Detect month rollover (e.g., t_valid is late in the month, target day is early next month)
+    if day < t_valid.day and (t_valid.day - day) > 15:
+        if month == 12:
+            month = 1
+            year += 1
+        else:
+            month += 1
+    elif day > t_valid.day and (day - t_valid.day) > 15:
+        if month == 1:
+            month = 12
+            year -= 1
+        else:
+            month -= 1
+
+    # Safely construct timestamp with the correct target month/year
+    dt = pd.Timestamp(
+        year=year, month=month, day=int(day), hour=int(hour), minute=0, second=0
     )
-    if hour == 24:
-        dt += timedelta(days=1)
-    if dt < t_valid - timedelta(days=15):
-        if dt.month == 12:
-            dt = dt.replace(year=dt.year + 1, month=1)
-        else:
-            dt = dt.replace(month=dt.month + 1)
-    elif dt > t_valid + timedelta(days=15):
-        if dt.month == 1:
-            dt = dt.replace(year=dt.year - 1, month=12)
-        else:
-            dt = dt.replace(month=dt.month - 1)
+
+    if day_offset:
+        dt += pd.Timedelta(days=day_offset)
+
     return dt
 
 
