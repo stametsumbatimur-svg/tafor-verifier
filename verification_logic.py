@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Verification Core Logic (BMKG SOP/024/DM/X/2025 Compliant)
+# 🔥 SIVETA - Verification Core Logic 
 import re
 from datetime import datetime, timedelta
 import pandas as pd
@@ -22,6 +22,37 @@ RE_WX_EXCLUDE = re.compile(
 )
 RE_VALID_TAF = re.compile(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}')
 RE_AMD_COR = re.compile(r'\b(AMD|COR)\b')
+
+
+def fix_valid_datetime(t_issue: pd.Timestamp, target_day: int, target_hour: int) -> pd.Timestamp:
+    """Menangani perhitungan tanggal validitas TAF yang menyeberang bulan (Month Rollover)"""
+    year = t_issue.year
+    month = t_issue.month
+    
+    # Jika TAF terbit akhir bulan (tgl 21-31) dan target_day awal bulan (tgl 1-9) -> Masuk Bulan Depan
+    if t_issue.day > 20 and target_day < 10:
+        if month == 12:
+            month = 1
+            year += 1
+        else:
+            month += 1
+    # Jika TAF terbit awal bulan (tgl 1-4) dan target_day akhir bulan (tgl 20-31) -> Masuk Bulan Lalu
+    elif t_issue.day < 5 and target_day > 20:
+        if month == 1:
+            month = 12
+            year -= 1
+        else:
+            month -= 1
+            
+    day_offset = 0
+    if target_hour >= 24:
+        target_hour = 0
+        day_offset = 1
+        
+    dt = pd.Timestamp(year=year, month=month, day=target_day, hour=target_hour, minute=0, second=0)
+    if day_offset:
+        dt += pd.Timedelta(days=day_offset)
+    return dt
 
 
 def get_trend_datetime(t_valid: pd.Timestamp, day: int, hour: int) -> pd.Timestamp:
@@ -385,6 +416,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         df_metar.assign(
             dt_obj=pd.to_datetime(
                 df_metar[col_waktu_metar].astype(str).str.slice(0, 19),
+                format='%Y-%m-%d %H:%M:%S',
                 errors='coerce',
             )
         )
@@ -396,6 +428,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         df_taf.assign(
             dt_obj=pd.to_datetime(
                 df_taf[col_waktu_taf].astype(str).str.slice(0, 19),
+                format='%Y-%m-%d %H:%M:%S',
                 errors='coerce',
             )
         )
@@ -409,6 +442,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             df_speci.assign(
                 dt_obj=pd.to_datetime(
                     df_speci[df_speci.columns[0]].astype(str).str.slice(0, 19),
+                    format='%Y-%m-%d %H:%M:%S',
                     errors='coerce',
                 )
             )
@@ -427,12 +461,9 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         v_dt = t_issue
         if v_match:
             try:
-                v_dt = t_issue.replace(
-                    day=int(v_match.group(1)),
-                    hour=int(v_match.group(2)),
-                    minute=0,
-                    second=0,
-                )
+                target_day = int(v_match.group(1))
+                target_hour = int(v_match.group(2))
+                v_dt = fix_valid_datetime(t_issue, target_day, target_hour)
             except ValueError:
                 pass
         poin = 1 if RE_AMD_COR.search(t_teks) else 0
@@ -631,7 +662,7 @@ def buat_tabel_laporan_excel(df_input):
     sandi = row['Sandi TAF Prakiraan']
 
     validity_match = re.search(r'\b(\d{2})\d{2}/\d{2}\d{2}\b', str(sandi))
-    dt_val = pd.to_datetime(row['Waktu Aktual (UTC)'])
+    dt_val = pd.to_datetime(row['Waktu Aktual (UTC)'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
 
     tgl_taf = (
         validity_match.group(1) if validity_match else dt_val.strftime('%d')
@@ -648,12 +679,9 @@ def buat_tabel_laporan_excel(df_input):
     v_match = RE_VALID_TAF.search(taf_sandi)
     if v_match:
       try:
-        t_valid_taf = list_rows[0][0].replace(
-            day=int(v_match.group(1)),
-            hour=int(v_match.group(2)),
-            minute=0,
-            second=0,
-        )
+        target_day = int(v_match.group(1))
+        target_hour = int(v_match.group(2))
+        t_valid_taf = fix_valid_datetime(list_rows[0][0], target_day, target_hour)
       except Exception:
         t_valid_taf = list_rows[0][0]
     else:
