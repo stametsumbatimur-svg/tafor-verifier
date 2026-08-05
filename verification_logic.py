@@ -653,6 +653,19 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 # =========================================================================
 def buat_tabel_laporan_excel(df_input):
   df_work = df_input.to_dict('records')
+  # 🎯 KUMPULKAN SELURUH METAR BULANAN UNTUK PENCARIAN JENDELA WAKTU LENGKAP
+  all_metars = [
+      (
+          pd.to_datetime(
+              r['Waktu Aktual (UTC)'],
+              format='%Y-%m-%d %H:%M:%S',
+              errors='coerce',
+          ),
+          r,
+      )
+      for r in df_work
+  ]
+  all_metars.sort(key=lambda x: x[0])
   baris_laporan = []
 
   taf_groups = {}
@@ -662,7 +675,11 @@ def buat_tabel_laporan_excel(df_input):
     sandi = row['Sandi TAF Prakiraan']
 
     validity_match = re.search(r'\b(\d{2})\d{2}/\d{2}\d{2}\b', str(sandi))
-    dt_val = pd.to_datetime(row['Waktu Aktual (UTC)'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
+    dt_val = pd.to_datetime(
+        row['Waktu Aktual (UTC)'],
+        format='%Y-%m-%d %H:%M:%S',
+        errors='coerce',
+    )
 
     tgl_taf = (
         validity_match.group(1) if validity_match else dt_val.strftime('%d')
@@ -681,7 +698,9 @@ def buat_tabel_laporan_excel(df_input):
       try:
         target_day = int(v_match.group(1))
         target_hour = int(v_match.group(2))
-        t_valid_taf = fix_valid_datetime(list_rows[0][0], target_day, target_hour)
+        t_valid_taf = fix_valid_datetime(
+            list_rows[0][0], target_day, target_hour
+        )
       except Exception:
         t_valid_taf = list_rows[0][0]
     else:
@@ -794,7 +813,6 @@ def buat_tabel_laporan_excel(df_input):
           dt_end = t_valid_taf + timedelta(hours=12)
           jangka_trend = tipe
 
-      # Simpan bundle kondisi Base sebelum perubahan BECMG
       base_bundle_prev = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
       g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
 
@@ -835,16 +853,14 @@ def buat_tabel_laporan_excel(df_input):
         t_aj = g_aj if g_aj != '-' else cur_aj
         t_at = g_at if g_at != '-' else cur_at
 
-      # 🎯 1. KUMPULKAN SELURUH METAR DI JENDELA WAKTU [dt_start, dt_end]
+      # 🎯 1. KUMPULKAN SELURUH METAR DI JENDELA WAKTU [dt_start, dt_end] DARI SELURUH DATASET BULANAN
       in_window_rows = [
-          r for dt_o, r in list_rows if dt_start <= dt_o <= dt_end
+          r for dt_o, r in all_metars if dt_start <= dt_o <= dt_end
       ]
       if not in_window_rows:
         in_window_rows = [baris_m_base]
 
-      # 🎯 2. SELEKSI OTOMATIS BERDASARKAN RANKING 2 TINGKAT (SMART BEST-MATCH):
-      # Prioritas 1 (direct_b): Pencapaian 'B' secara LANGSUNG pada TARGET (tanpa fallback Base)
-      # Prioritas 2 (total_b): Pencapaian 'B' TOTAL (termasuk Benefit of Doubt)
+      # 🎯 2. SELEKSI OTOMATIS BERDASARKAN RANKING 2 TINGKAT (SMART BEST-MATCH)
       best_metar = in_window_rows[0]
       best_tuple = (-1, -1)
       best_scores = None
@@ -860,7 +876,6 @@ def buat_tabel_laporan_excel(df_input):
             'M_TS_CB': r.get('M_TS_CB', False),
         }
 
-        # Evaluasi Langsung Target (Tanpa Base Fallback)
         _, ar_d, ke_d, vi_d, wx_d, aj_d, at_d = evaluasi_sandi_tunggal(
             m_obs,
             t_ar,
@@ -876,7 +891,6 @@ def buat_tabel_laporan_excel(df_input):
         )
         direct_b = [ar_d, ke_d, vi_d, wx_d, aj_d, at_d].count('B')
 
-        # Evaluasi Total dengan Benefit of Doubt
         _, ar_t, ke_t, vi_t, wx_t, aj_t, at_t = evaluasi_sandi_tunggal(
             m_obs,
             t_ar,
