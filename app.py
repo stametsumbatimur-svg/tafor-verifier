@@ -113,7 +113,7 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan (Klik untuk Buka)"):
     #### 🛠️ CARA PENGGUNAAN
     1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS (https://bmkgsatu.bmkg.go.id/extractgts).
     2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv`. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir.
-    3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri.
+    3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri. Pastikan rentang tanggal sesuai dengan periode data yang diunggah. Misalnya, jika data METAR dan TAF Bulan Januari 2026 maka dari tanggal 31 Desember 2025 hingga 31 Januari 2026.
     4. **Proses:** Tekan tombol **"🚀 PROSES DATA VERIFIKASI TAFOR 🚀"**.
     """)
 
