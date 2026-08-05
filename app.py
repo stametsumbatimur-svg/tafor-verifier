@@ -2,9 +2,10 @@
 import importlib
 from datetime import datetime
 
-import excel_export
 import pandas as pd
 import streamlit as st
+
+import excel_export
 import verification_logic
 
 # Reload module untuk memastikan perubahan logika langsung aktif
@@ -23,6 +24,8 @@ if "diklik_proses" not in st.session_state:
   st.session_state["diklik_proses"] = False
 if "df_hasil" not in st.session_state:
   st.session_state["df_hasil"] = None
+if "excel_ready" not in st.session_state:
+  st.session_state["excel_ready"] = False
 
 # =========================================================================
 # 🎨 PORTAL THEME INJECTION (PORTAL BMKG STYLE)
@@ -207,7 +210,7 @@ if df_metar_raw is not None and df_taf_raw is not None:
             df_metar_raw, df_taf_raw, df_speci_umpan
         )
         df_hasil["Datetime_Obj"] = pd.to_datetime(
-            df_hasil["Waktu Aktual (UTC)"]
+            df_hasil["Waktu Aktual (UTC)"], format="%Y-%m-%d %H:%M:%S", errors="coerce"
         ).dt.date
 
         st.session_state["df_hasil"] = df_hasil
@@ -223,33 +226,11 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
   df_hasil = st.session_state["df_hasil"]
   df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
 
-  # 1. Buat rekapitulasi TAFOR dari seluruh dataset hasil komputasi (UNFILTERED)
-  df_vfinal_full = buat_tabel_laporan_excel(df_hasil)
-
-  # 2. Filter baris laporan berdasarkan rentang tanggal secara aman (bebas crash)
-  if (
-      df_vfinal_full is not None
-      and not df_vfinal_full.empty
-      and "Tanggal" in df_vfinal_full.columns
-  ):
-    s_day = pd.to_numeric(
-        df_vfinal_full["Tanggal"].astype(str).str.extract(r"(\d+)")[0],
-        errors="coerce",
-    ).fillna(-1)
-
-    tgl_mulai_day = tgl_mulai.day
-    tgl_selesai_day = tgl_selesai.day
-
-    df_vfinal = df_vfinal_full[
-        s_day.between(tgl_mulai_day, tgl_selesai_day)
-    ].copy()
-  else:
-    df_vfinal = pd.DataFrame()
-
+  # 🎯 FILTER HASIL VERIFIKASI BERDASARKAN RENTANG TANGGAL DAN KODE STASIUN
   df_filtered = df_hasil[
       (df_hasil["Datetime_Obj"] >= tgl_mulai)
       & (df_hasil["Datetime_Obj"] <= tgl_selesai)
-      & (df_hasil["Kode_Stasiun"] == stasiun_aktif)
+      & (df_hasil["Kode_Stasiun"].astype(str).str.strip().str.upper() == stasiun_aktif)
   ].copy()
 
   if df_filtered.empty:
@@ -258,7 +239,7 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
         f" {tgl_selesai}. Silakan sesuaikan filter tanggal."
     )
   else:
-    # 🎯 RAKIT DATAFRAME FINAL SEPERTI DI EXCEL UNTUK DIHITUNG SAMA PRESISI
+    # 🎯 RAKIT DATAFRAME LAPORAN REKAPITULASI EXCEL UNTUK RENTANG TANGGAL TERPILIH
     df_vfinal = buat_tabel_laporan_excel(df_filtered)
 
     rows_tafor = []
