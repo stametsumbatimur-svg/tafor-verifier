@@ -24,71 +24,88 @@ RE_VALID_TAF = re.compile(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}')
 RE_AMD_COR = re.compile(r'\b(AMD|COR)\b')
 
 
-def fix_valid_datetime(t_issue: pd.Timestamp, target_day: int, target_hour: int) -> pd.Timestamp:
-    """Menangani perhitungan tanggal validitas TAF yang menyeberang bulan (Month Rollover)"""
-    year = t_issue.year
-    month = t_issue.month
-    
-    # Jika TAF terbit akhir bulan (tgl 21-31) dan target_day awal bulan (tgl 1-9) -> Masuk Bulan Depan
-    if t_issue.day > 20 and target_day < 10:
-        if month == 12:
-            month = 1
-            year += 1
-        else:
-            month += 1
-    # Jika TAF terbit awal bulan (tgl 1-4) dan target_day akhir bulan (tgl 20-31) -> Masuk Bulan Lalu
-    elif t_issue.day < 5 and target_day > 20:
-        if month == 1:
-            month = 12
-            year -= 1
-        else:
-            month -= 1
-            
-    day_offset = 0
-    if target_hour >= 24:
-        target_hour = 0
-        day_offset = 1
-        
-    dt = pd.Timestamp(year=year, month=month, day=target_day, hour=target_hour, minute=0, second=0)
-    if day_offset:
-        dt += pd.Timedelta(days=day_offset)
-    return dt
+def fix_valid_datetime(
+    t_issue: pd.Timestamp, target_day: int, target_hour: int
+) -> pd.Timestamp:
+  """Menangani perhitungan tanggal validitas TAF yang menyeberang bulan (Month Rollover)"""
+  year = t_issue.year
+  month = t_issue.month
 
+  # Jika TAF terbit akhir bulan (tgl 21-31) dan target_day awal bulan (tgl 1-9) -> Masuk Bulan Depan
+  if t_issue.day > 20 and target_day < 10:
+    if month == 12:
+      month = 1
+      year += 1
+    else:
+      month += 1
+  # Jika TAF terbit awal bulan (tgl 1-4) dan target_day akhir bulan (tgl 20-31) -> Masuk Bulan Lalu
+  elif t_issue.day < 5 and target_day > 20:
+    if month == 1:
+      month = 12
+      year -= 1
+    else:
+      month -= 1
 
-def get_trend_datetime(t_valid: pd.Timestamp, day: int, hour: int) -> pd.Timestamp:
-    # Handle TAF 24:00 notation (24:00 represents 00:00 of the next day)
-    day_offset = 0
-    if hour >= 24:
-        hour = 0
-        day_offset = 1
+  day_offset = 0
+  if target_hour >= 24:
+    target_hour = 0
+    day_offset = 1
 
-    year = t_valid.year
-    month = t_valid.month
+  # Batasi hari agar tidak melebihi jumlah hari maksimal pada bulan tersebut
+  max_days = calendar.monthrange(year, month)[1]
+  safe_day = min(max(1, int(target_day)), max_days)
 
-    # Detect month rollover (e.g., t_valid is late in the month, target day is early next month)
-    if day < t_valid.day and (t_valid.day - day) > 15:
-        if month == 12:
-            month = 1
-            year += 1
-        else:
-            month += 1
-    elif day > t_valid.day and (day - t_valid.day) > 15:
-        if month == 1:
-            month = 12
-            year -= 1
-        else:
-            month -= 1
-
-    # Safely construct timestamp with the correct target month/year
+  try:
     dt = pd.Timestamp(
-        year=year, month=month, day=int(day), hour=int(hour), minute=0, second=0
+        year=year,
+        month=month,
+        day=safe_day,
+        hour=int(target_hour),
+        minute=0,
+        second=0,
     )
+  except Exception:
+    dt = t_issue
 
-    if day_offset:
-        dt += pd.Timedelta(days=day_offset)
+  if day_offset:
+    dt += pd.Timedelta(days=day_offset)
+  return dt
 
-    return dt
+def get_trend_datetime(
+    t_valid: pd.Timestamp, day: int, hour: int
+) -> pd.Timestamp:
+  # Handle TAF 24:00 notation (24:00 represents 00:00 of the next day)
+  day_offset = 0
+  if hour >= 24:
+    hour = 0
+    day_offset = 1
 
+  year = t_valid.year
+  month = t_valid.month
+
+  # Detect month rollover (e.g., t_valid is late in the month, target day is early next month)
+  if day < t_valid.day and (t_valid.day - day) > 15:
+    if month == 12:
+      month = 1
+      year += 1
+    else:
+      month += 1
+
+  # Batasi hari agar tidak melebihi jumlah hari maksimal pada bulan tersebut
+  max_days = calendar.monthrange(year, month)[1]
+  safe_day = min(max(1, int(day)), max_days)
+
+  try:
+    dt = pd.Timestamp(
+        year=year, month=month, day=safe_day, hour=int(hour), minute=0, second=0
+    )
+  except Exception:
+    dt = t_valid
+
+  if day_offset:
+    dt += pd.Timedelta(days=day_offset)
+
+  return dt
 
 # =========================================================================
 # 1. PARSER SANDI METAR / SPECI / TAF
