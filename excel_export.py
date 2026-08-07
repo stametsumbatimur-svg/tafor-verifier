@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Excel Export Engine
+# 🔥 SIVETA - Excel Export Engine (Option C Integrated METAR + SPECI)
 import io
 import re
 from xlsxwriter.utility import xl_col_to_name
@@ -426,7 +426,7 @@ def export_v_final_excel(
   worksheet.print_area(0, 0, akhir_baris_print, max_col_data)
 
   # =========================================================================
-  # 2. SHEET HARIAN (1 s.d. 31): LOG KOMPARASI DINAMIS PER 30-MENIT
+  # 2. SHEET HARIAN (1 s.d. 31): LOG KOMPARASI DINAMIS PER OBSERVASI
   # =========================================================================
   if df_analysis is not None and not df_analysis.empty:
     df_log = df_analysis.copy()
@@ -452,6 +452,21 @@ def export_v_final_excel(
         {'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 11}
     )
 
+    fmt_speci_data = workbook.add_format({
+        'bg_color': '#FFE6CC',
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter',
+        'font_size': 8.5,
+    })
+    fmt_speci_left = workbook.add_format({
+        'bg_color': '#FFE6CC',
+        'border': 1,
+        'align': 'left',
+        'valign': 'vcenter',
+        'font_size': 8.5,
+    })
+
     headers_harian = [
         'No',
         'Waktu (UTC)',
@@ -463,18 +478,18 @@ def export_v_final_excel(
         'Wx (T)',
         'JmlAwan (T)',
         'TgiAwan (T)',
-        'Sandi METAR Aktual',
-        'Arah (M)',
+        'Sandi METAR/SPECI Aktual',
+        'Arah (M/SP)',
         'S_Arah',
-        'Kec (M)',
+        'Kec (M/SP)',
         'S_Kec',
-        'Vis (M)',
+        'Vis (M/SP)',
         'S_Vis',
-        'Wx (M)',
+        'Wx (M/SP)',
         'S_Wx',
-        'JmlAwan (M)',
+        'JmlAwan (M/SP)',
         'S_AwanJml',
-        'TgiAwan (M)',
+        'TgiAwan (M/SP)',
         'S_AwanTgi',
     ]
 
@@ -488,7 +503,7 @@ def export_v_final_excel(
 
       ws_day.merge_range(
           'A1:W1',
-          f'LOG VERIFIKASI TAF vs METAR PER 30 MENIT — TANGGAL {hari} {bulan_str}'
+          f'LOG VERIFIKASI TAF vs METAR/SPECI PER OBSERVASI — TANGGAL {hari} {bulan_str}'
           f' {tahun}',
           fmt_harian_title,
       )
@@ -502,8 +517,8 @@ def export_v_final_excel(
         dt_str = dt_val.strftime('%H:%M:%S') if pd.notna(dt_val) else '-'
 
         grup_val = (
-            r_data.get('Grup_Aktif')
-            or r_data.get('Change_Group')
+            r_data.get('Change_Group')
+            or r_data.get('Grup_Aktif')
             or r_data.get('Perubahan')
         )
         if pd.isna(grup_val) or str(grup_val).strip() in [
@@ -515,6 +530,11 @@ def export_v_final_excel(
           grup_aktif = 'BASE'
         else:
           grup_aktif = str(grup_val).strip()
+
+        is_speci = (
+            r_data.get('Jenis_Laporan') == 'SPECI'
+            or 'SPECI' in str(grup_aktif).upper()
+        )
 
         row_harian = [
             row_i,
@@ -546,7 +566,10 @@ def export_v_final_excel(
         kolom_skor_harian_idx = [12, 14, 16, 18, 20, 22]
 
         for col_i, val in enumerate(row_harian):
-          fmt = fmt_harian_left if col_i in [3, 10] else fmt_harian_data
+          fmt_default = (
+              fmt_speci_left if (is_speci and col_i in [3, 10])
+              else (fmt_speci_data if is_speci else (fmt_harian_left if col_i in [3, 10] else fmt_harian_data))
+          )
           v_str = str(val).strip().upper()
 
           if col_i in kolom_skor_harian_idx:
@@ -555,13 +578,13 @@ def export_v_final_excel(
             elif v_str in ['S', 'FALSE', '0', '']:
               ws_day.write(excel_row, col_i, val, format_merah)
             else:
-              ws_day.write(excel_row, col_i, val, fmt)
+              ws_day.write(excel_row, col_i, val, fmt_default)
           else:
-            ws_day.write(excel_row, col_i, val, fmt)
+            ws_day.write(excel_row, col_i, val, fmt_default)
 
       ws_day.set_column('A:A', 5)
       ws_day.set_column('B:B', 10)
-      ws_day.set_column('C:C', 14)
+      ws_day.set_column('C:C', 18)
       ws_day.set_column('D:D', 32)
       ws_day.set_column('E:J', 8)
       ws_day.set_column('K:K', 32)
