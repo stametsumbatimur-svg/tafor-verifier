@@ -125,8 +125,15 @@ with c_up1:
     df_m = pd.read_csv(file_m)
     if "id" in df_m.columns:
       df_m = df_m.sort_values("id")
-    
-    col_ts_m = next((c for c in df_m.columns if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])), None)
+
+    col_ts_m = next(
+        (
+            c
+            for c in df_m.columns
+            if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])
+        ),
+        None,
+    )
     if col_ts_m:
       df_metar_raw = df_m.drop_duplicates(subset=[col_ts_m], keep="last")
     else:
@@ -138,8 +145,15 @@ with c_up2:
     df_t = pd.read_csv(file_t)
     if "id" in df_t.columns:
       df_t = df_t.sort_values("id")
-    
-    col_ts_t = next((c for c in df_t.columns if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])), None)
+
+    col_ts_t = next(
+        (
+            c
+            for c in df_t.columns
+            if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])
+        ),
+        None,
+    )
     if col_ts_t:
       df_taf_raw = df_t.drop_duplicates(subset=[col_ts_t], keep="last")
     else:
@@ -153,8 +167,15 @@ with c_up3:
     df_sp = pd.read_csv(file_sp)
     if "id" in df_sp.columns:
       df_sp = df_sp.sort_values("id")
-    
-    col_ts_sp = next((c for c in df_sp.columns if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])), None)
+
+    col_ts_sp = next(
+        (
+            c
+            for c in df_sp.columns
+            if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])
+        ),
+        None,
+    )
     if col_ts_sp:
       df_speci_raw = df_sp.drop_duplicates(subset=[col_ts_sp], keep="last")
     else:
@@ -163,7 +184,14 @@ with c_up3:
 # ✅ DETEKSI OTOMATIS KODE STASIUN
 stasiun_aktif = "WATU"
 if df_metar_raw is not None:
-  col_cccc = next((c for c in df_metar_raw.columns if c.lower() in ['cccc', 'station', 'stasiun', 'icao']), None)
+  col_cccc = next(
+      (
+          c
+          for c in df_metar_raw.columns
+          if c.lower() in ['cccc', 'station', 'stasiun', 'icao']
+      ),
+      None,
+  )
   if col_cccc:
     stasiun_terdeteksi = df_metar_raw[col_cccc].dropna().unique().tolist()
     if stasiun_terdeteksi:
@@ -223,9 +251,19 @@ if df_metar_raw is not None and df_taf_raw is not None:
         df_hasil, df_speci_hasil, _, _ = jalankan_komputasi_cached(
             df_metar_raw, df_taf_raw, df_speci_umpan
         )
-        df_hasil["Datetime_Obj"] = pd.to_datetime(
-            df_hasil["Waktu Aktual (UTC)"], errors="coerce"
-        ).dt.date
+
+        if (
+            df_hasil is not None
+            and not df_hasil.empty
+            and "Waktu Aktual (UTC)" in df_hasil.columns
+        ):
+          df_hasil["Datetime_Obj"] = pd.to_datetime(
+              df_hasil["Waktu Aktual (UTC)"], errors="coerce"
+          ).dt.date
+        else:
+          if df_hasil is None:
+            df_hasil = pd.DataFrame(columns=["Waktu Aktual (UTC)", "Kode_Stasiun"])
+          df_hasil["Datetime_Obj"] = pd.Series(dtype="object")
 
         st.session_state["df_hasil"] = df_hasil
         st.session_state["df_speci_hasil"] = df_speci_hasil
@@ -241,11 +279,14 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
   df_speci_hasil = st.session_state.get("df_speci_hasil", pd.DataFrame())
 
   # 🎯 FILTER HASIL VERIFIKASI BERDASARKAN RENTANG TANGGAL DAN KODE STASIUN
-  df_filtered = df_hasil[
-      (df_hasil["Datetime_Obj"] >= tgl_mulai)
-      & (df_hasil["Datetime_Obj"] <= tgl_selesai)
-      & (df_hasil["Kode_Stasiun"].astype(str).str.strip().str.upper() == stasiun_aktif)
-  ].copy()
+  if not df_hasil.empty and "Datetime_Obj" in df_hasil.columns and "Kode_Stasiun" in df_hasil.columns:
+    df_filtered = df_hasil[
+        (df_hasil["Datetime_Obj"] >= tgl_mulai)
+        & (df_hasil["Datetime_Obj"] <= tgl_selesai)
+        & (df_hasil["Kode_Stasiun"].astype(str).str.strip().str.upper() == stasiun_aktif)
+    ].copy()
+  else:
+    df_filtered = pd.DataFrame()
 
   if df_filtered.empty:
     st.warning(
