@@ -1,8 +1,8 @@
-# 櫨 SIVETA - Verification Core Logic
-import re
-from datetime import datetime, timedelta
-import pandas as pd
+# 🔥 SIVETA - Verification Core Logic (Option C Integrated METAR + SPECI)
 import calendar
+from datetime import datetime, timedelta
+import re
+import pandas as pd
 
 # =========================================================================
 # 0. PRA-KOMPILASI REGEX & PEMBANTU DATETIME
@@ -21,7 +21,7 @@ RE_TIME_GRP = re.compile(r'(\d{2})(\d{2})/(\d{2})(\d{2})')
 RE_WX_EXCLUDE = re.compile(
     r'\b(HZ|RA|TSRA|BR|DZ|FG|VCTS|TS|SHRA|MIFG|SQ|FC)\b'
 )
-RE_VALID_TAF = re.compile(r'\b(\d{2})(\d{2})/(\d{2})(\d{2})\b')
+RE_VALID_TAF = re.compile(r'\d{6}Z\s+(\d{2})(\d{2})/\d{4}')
 RE_AMD_COR = re.compile(r'\b(AMD|COR)\b')
 
 
@@ -47,7 +47,7 @@ def fix_valid_datetime(
 
   day_offset = 0
   if target_hour >= 24:
-    target_hour = target_hour % 24
+    target_hour = 0
     day_offset = 1
 
   max_days = calendar.monthrange(year, month)[1]
@@ -75,7 +75,7 @@ def get_trend_datetime(
 ) -> pd.Timestamp:
   day_offset = 0
   if hour >= 24:
-    hour = hour % 24
+    hour = 0
     day_offset = 1
 
   year = t_valid.year
@@ -93,7 +93,12 @@ def get_trend_datetime(
 
   try:
     dt = pd.Timestamp(
-        year=year, month=month, day=safe_day, hour=int(hour), minute=0, second=0
+        year=year,
+        month=month,
+        day=safe_day,
+        hour=int(hour),
+        minute=0,
+        second=0,
     )
   except Exception:
     dt = t_valid
@@ -108,7 +113,7 @@ def get_trend_datetime(
 # 1. PARSER SANDI METAR / SPECI / TAF
 # =========================================================================
 def ekstrak_param_metar_speci(sandi_teks):
-  if pd.isna(sandi_teks) or str(sandi_teks).strip() == '-' or str(sandi_teks).strip() == '':
+  if pd.isna(sandi_teks) or sandi_teks == '-':
     return '-', '-', '-', '-', '-', '-', False
   sandi_cleaned = RE_DATE_CLEAN.sub('', str(sandi_teks).strip())
 
@@ -189,9 +194,6 @@ def parse_sandi(grup_teks):
 # =========================================================================
 def hitung_angin_arah(m_dir, t_dir, m_kec='-', t_kec='-', m_ts_cb=False):
   m_str, t_str = str(m_dir).strip().upper(), str(t_dir).strip().upper()
-  if m_str in ['-', 'NIL'] or t_str in ['-', 'NIL']:
-    return (m_str, 'S')
-
   m_spd = (
       int(str(m_kec).split('G')[0])
       if 'G' in str(m_kec)
@@ -228,8 +230,8 @@ def hitung_angin_arah(m_dir, t_dir, m_kec='-', t_kec='-', m_ts_cb=False):
 
 
 def hitung_angin_kec(m_kec, t_kec):
-  if m_kec in ['-', 'NIL'] or t_kec in ['-', 'NIL']:
-    return '-', 'S'
+  if m_kec == '-' or t_kec == '-' or m_kec == 'NIL' or t_kec == 'NIL':
+    return '-', 'NIL'
   try:
     m_base = int(str(m_kec).split('G')[0]) if 'G' in str(m_kec) else int(m_kec)
     t_base = int(str(t_kec).split('G')[0]) if 'G' in str(t_kec) else int(t_kec)
@@ -292,8 +294,8 @@ def hitung_cuaca(m_wx, t_wx):
 
 
 def hitung_awan_jml(m_jml, t_jml, m_tgi):
-  if m_jml in ['-', 'NIL'] or t_jml in ['-', 'NIL']:
-    return '-', 'S'
+  if m_jml == '-' or t_jml == '-':
+    return '-', 'NIL'
   try:
     if m_tgi != '-' and int(m_tgi) >= 5000:
       return '>5000ft', 'B'
@@ -305,8 +307,8 @@ def hitung_awan_jml(m_jml, t_jml, m_tgi):
 
 
 def hitung_awan_tgi(m_tgi, t_tgi):
-  if m_tgi in ['-', 'NIL'] or t_tgi in ['-', 'NIL']:
-    return '-', 'S'
+  if m_tgi == '-' or t_tgi == '-':
+    return '-', 'NIL'
   try:
     mt, tt = int(m_tgi), int(t_tgi)
     if mt >= 5000 or tt >= 5000:
@@ -322,7 +324,7 @@ def hitung_awan_tgi(m_tgi, t_tgi):
 
 
 # =========================================================================
-# 3. KONTROLLER EVALUASI
+# 3. KONTROLLER EVALUASI (OPSI C: METAR + SPECI COMBINED)
 # =========================================================================
 def evaluasi_sandi_tunggal(
     m_obs_data,
@@ -367,12 +369,18 @@ def evaluasi_sandi_tunggal(
     )
     _, b_at = hitung_awan_tgi(m_obs_data['M_AwanTgi'], base_bundle[5])
 
-    if s_ar == 'S' and b_ar == 'B': s_ar = 'B'
-    if s_ke == 'S' and b_ke == 'B': s_ke = 'B'
-    if s_vi == 'S' and b_vi == 'B': s_vi = 'B'
-    if s_wx == 'S' and b_wx == 'B': s_wx = 'B'
-    if s_aj == 'S' and b_aj == 'B': s_aj = 'B'
-    if s_at == 'S' and b_at == 'B': s_at = 'B'
+    if s_ar == 'S' and b_ar == 'B':
+      s_ar = 'B'
+    if s_ke == 'S' and b_ke == 'B':
+      s_ke = 'B'
+    if s_vi == 'S' and b_vi == 'B':
+      s_vi = 'B'
+    if s_wx == 'S' and b_wx == 'B':
+      s_wx = 'B'
+    if s_aj == 'S' and b_aj == 'B':
+      s_aj = 'B'
+    if s_at == 'S' and b_at == 'B':
+      s_at = 'B'
 
   return (
       ('S' if 'S' in [s_ar, s_ke, s_vi, s_wx, s_aj, s_at] else 'B'),
@@ -390,7 +398,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
       (
           c
           for c in df_metar.columns
-          if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time', 'timestamp'])
+          if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])
       ),
       df_metar.columns[0],
   )
@@ -401,7 +409,8 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
           if 'type' not in c.lower()
           and 'status' not in c.lower()
           and any(
-              k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi', 'metar', 'raw']
+              k in c.lower()
+              for k in ['sandi', 'text', 'message', 'report', 'isi']
           )
       ),
       df_metar.columns[1],
@@ -410,7 +419,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
       (
           c
           for c in df_taf.columns
-          if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time', 'timestamp'])
+          if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])
       ),
       df_taf.columns[0],
   )
@@ -421,29 +430,33 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
           if 'type' not in c.lower()
           and 'status' not in c.lower()
           and any(
-              k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi', 'taf', 'raw']
+              k in c.lower()
+              for k in ['sandi', 'text', 'message', 'report', 'isi']
           )
       ),
       df_taf.columns[1],
   )
 
-  has_cccc = next((c for c in df_metar.columns if c.lower() in ['cccc', 'station', 'stasiun', 'icao']), None)
+  has_cccc = 'cccc' in df_metar.columns
 
   metar_list = (
       df_metar.assign(
           dt_obj=pd.to_datetime(
-              df_metar[col_waktu_metar],
+              df_metar[col_waktu_metar].astype(str).str.slice(0, 19),
+              format='%Y-%m-%d %H:%M:%S',
               errors='coerce',
-          )
+          ),
+          Jenis_Laporan='METAR',
       )
       .dropna(subset=['dt_obj'])
-      .sort_values('dt_obj')
       .to_dict('records')
   )
+
   taf_raw = (
       df_taf.assign(
           dt_obj=pd.to_datetime(
-              df_taf[col_waktu_taf],
+              df_taf[col_waktu_taf].astype(str).str.slice(0, 19),
+              format='%Y-%m-%d %H:%M:%S',
               errors='coerce',
           )
       )
@@ -457,78 +470,100 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         (
             c
             for c in df_speci.columns
-            if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time', 'timestamp'])
+            if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])
         ),
         df_speci.columns[0],
     )
-    speci_raw = (
+    col_teks_speci = next(
+        (
+            c
+            for c in df_speci.columns
+            if 'type' not in c.lower()
+            and 'status' not in c.lower()
+            and any(
+                k in c.lower()
+                for k in ['sandi', 'text', 'message', 'report', 'isi']
+            )
+        ),
+        (
+            df_speci.columns[1]
+            if len(df_speci.columns) > 1
+            else df_speci.columns[0]
+        ),
+    )
+
+    speci_list = (
         df_speci.assign(
             dt_obj=pd.to_datetime(
-                df_speci[col_waktu_speci],
+                df_speci[col_waktu_speci].astype(str).str.slice(0, 19),
+                format='%Y-%m-%d %H:%M:%S',
                 errors='coerce',
-            )
+            ),
+            Jenis_Laporan='SPECI',
         )
         .dropna(subset=['dt_obj'])
-        .sort_values('dt_obj')
         .to_dict('records')
     )
   else:
-    speci_raw = []
+    speci_list = []
+
+  # 🎯 OPSI C: LEBUR KRONOLOGIS METAR + SPECI
+  obs_list = metar_list + speci_list
+  obs_list.sort(key=lambda x: x['dt_obj'])
 
   taf_list = []
   for tr in taf_raw:
     t_teks = str(tr[col_teks_taf])
     t_issue = tr['dt_obj']
     v_match = RE_VALID_TAF.search(t_teks)
-    v_dt_start = t_issue
-    v_dt_end = t_issue + timedelta(hours=24)
-
+    v_dt = t_issue
     if v_match:
       try:
-        s_day, s_hr = int(v_match.group(1)), int(v_match.group(2))
-        e_day, e_hr = int(v_match.group(3)), int(v_match.group(4))
-        v_dt_start = fix_valid_datetime(t_issue, s_day, s_hr)
-        v_dt_end = get_trend_datetime(v_dt_start, e_day, e_hr)
-        if v_dt_end <= v_dt_start:
-          v_dt_end += timedelta(days=1)
-      except Exception:
+        target_day = int(v_match.group(1))
+        target_hour = int(v_match.group(2))
+        v_dt = fix_valid_datetime(t_issue, target_day, target_hour)
+      except ValueError:
         pass
-
     poin = 1 if RE_AMD_COR.search(t_teks) else 0
     taf_list.append(
-        {'issue': t_issue, 'valid_start': v_dt_start, 'valid_end': v_dt_end, 'poin': poin, 'teks': t_teks}
+        {'issue': t_issue, 'valid': v_dt, 'poin': poin, 'teks': t_teks}
     )
 
-  baris_analisis_final, baris_speci_final = [], []
+  baris_analisis_final = []
 
-  for m in metar_list:
-    tgl_jam_aktual = m['dt_obj']
-    teks_metar = m[col_teks_metar]
-    m_stasiun = str(m[has_cccc]).strip().upper() if has_cccc and pd.notna(m.get(has_cccc)) else 'WATU'
+  for obs in obs_list:
+    tgl_jam_aktual = obs['dt_obj']
+    jenis_lap = obs.get('Jenis_Laporan', 'METAR')
+    teks_obs = obs.get(col_teks_metar) or obs.get('sandi', '-')
+    m_stasiun = obs.get('cccc', 'WATU') if has_cccc else 'WATU'
 
     m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(
-        teks_metar
+        teks_obs
     )
 
     kandidat = [
         t
         for t in taf_list
         if t['issue'] <= tgl_jam_aktual
-        and t['valid_start'] <= tgl_jam_aktual < t['valid_end']
+        and t['valid'] <= tgl_jam_aktual < t['valid'] + timedelta(hours=12)
     ]
     if not kandidat:
       continue
 
-    kandidat.sort(key=lambda x: (x['valid_start'], x['issue'], x['poin']))
+    kandidat.sort(key=lambda x: (x['valid'], x['issue'], x['poin']))
     taf_obj_aktif = kandidat[-1]
     taf_aktif = taf_obj_aktif['teks']
-    t_valid_aktif = taf_obj_aktif['valid_start']
-    t_valid_end = taf_obj_aktif['valid_end']
+    t_valid_aktif = taf_obj_aktif['valid']
 
     parts = RE_PARTS.split(str(taf_aktif))
     b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
     cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = (
-        b_ar, b_ke, b_vi, b_wx, b_aj, b_at,
+        b_ar,
+        b_ke,
+        b_vi,
+        b_wx,
+        b_aj,
+        b_at,
     )
     t_ar, t_ke, t_vi, t_wx, t_aj, t_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
 
@@ -541,7 +576,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
       if tipe.startswith('FM'):
         s_hr = int(tipe[4:6])
         dt_start = get_trend_datetime(t_valid_aktif, t_valid_aktif.day, s_hr)
-        dt_end = t_valid_end
+        dt_end = t_valid_aktif + timedelta(hours=12)
       else:
         time_match = RE_TIME_GRP.search(isi)
         if time_match:
@@ -556,20 +591,30 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
       if tipe.startswith('FM') or tipe == 'BECMG':
         if tgl_jam_aktual >= dt_start:
-          if g_ar != '-': cur_ar = g_ar
-          if g_ke != '-': cur_ke = g_ke
-          if g_vi != '-': cur_vi = g_vi
+          if g_ar != '-':
+            cur_ar = g_ar
+          if g_ke != '-':
+            cur_ke = g_ke
+          if g_vi != '-':
+            cur_vi = g_vi
           if (
               g_wx != '-'
               and not RE_WX_EXCLUDE.search(isi)
               and 'CAVOK' not in isi
           ):
             cur_wx = g_wx
-          if g_aj != '-': cur_aj = g_aj
-          if g_at != '-': cur_at = g_at
+          if g_aj != '-':
+            cur_aj = g_aj
+          if g_at != '-':
+            cur_at = g_at
 
           t_ar, t_ke, t_vi, t_wx, t_aj, t_at = (
-              cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at,
+              cur_ar,
+              cur_ke,
+              cur_vi,
+              cur_wx,
+              cur_aj,
+              cur_at,
           )
           if tipe == 'BECMG':
             is_grup_becmg_trans = tgl_jam_aktual < dt_end
@@ -584,20 +629,27 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
       elif 'TEMPO' in tipe or 'PROB' in tipe:
         if dt_start <= tgl_jam_aktual < dt_end:
-          if g_ar != '-': t_ar = g_ar
-          if g_ke != '-': t_ke = g_ke
-          if g_vi != '-': t_vi = g_vi
+          if g_ar != '-':
+            t_ar = g_ar
+          if g_ke != '-':
+            t_ke = g_ke
+          if g_vi != '-':
+            t_vi = g_vi
           if (
               g_wx != '-'
               and not RE_WX_EXCLUDE.search(isi)
               and 'CAVOK' not in isi
           ):
             t_wx = g_wx
-          if g_aj != '-': t_aj = g_aj
-          if g_at != '-': t_at = g_at
+          if g_aj != '-':
+            t_aj = g_aj
+          if g_at != '-':
+            t_at = g_at
 
-          if 'PROB' in tipe: is_grup_prob = True
-          if 'TEMPO' in tipe: is_grup_tempo = True
+          if 'PROB' in tipe:
+            is_grup_prob = True
+          if 'TEMPO' in tipe:
+            is_grup_tempo = True
 
           if time_match:
             cur_grup_aktif = (
@@ -639,12 +691,18 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
     except:
       pass
 
+    if jenis_lap == 'SPECI':
+      change_grp_str = f"SPECI ({tgl_jam_aktual.strftime('%H:%M')} UTC)"
+    else:
+      change_grp_str = cur_grup_aktif
+
     baris_analisis_final.append({
         'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
-        'Sandi METAR Aktual': teks_metar,
+        'Jenis_Laporan': jenis_lap,
+        'Sandi METAR Aktual': teks_obs,
         'Sandi TAF Prakiraan': taf_aktif,
         'Grup_Aktif': cur_grup_aktif,
-        'Change_Group': cur_grup_aktif,
+        'Change_Group': change_grp_str,
         'M_Arah': m_ar,
         'T_Arah': t_ar,
         'S_Arah': s_ar,
@@ -669,16 +727,45 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         'Kode_Stasiun': m_stasiun,
     })
 
-  return (
-      pd.DataFrame(baris_analisis_final),
-      pd.DataFrame(baris_speci_final),
-      None,
-      None,
-  )
+  if baris_analisis_final:
+    df_res_final = pd.DataFrame(baris_analisis_final)
+  else:
+    df_res_final = pd.DataFrame(columns=[
+        'Waktu Aktual (UTC)',
+        'Jenis_Laporan',
+        'Sandi METAR Aktual',
+        'Sandi TAF Prakiraan',
+        'Grup_Aktif',
+        'Change_Group',
+        'M_Arah',
+        'T_Arah',
+        'S_Arah',
+        'M_Kec',
+        'T_Kec',
+        'S_Kec',
+        'M_Vis',
+        'T_Vis',
+        'S_Vis',
+        'M_Wx',
+        'T_Wx',
+        'S_Wx',
+        'M_AwanJml',
+        'T_AwanJml',
+        'S_AwanJml',
+        'M_AwanTgi',
+        'T_AwanTgi',
+        'S_AwanTgi',
+        'M_TS_CB',
+        'Status_Minima',
+        'Hasil Akhir',
+        'Kode_Stasiun',
+    ])
+
+  return df_res_final, pd.DataFrame(), None, None
 
 
 # =========================================================================
-# 4. PEMBUATAN LAPORAN EXCEL (DENGAN SELEKSI OTOMATIS METAR TERBAIK)
+# 4. PEMBUATAN LAPORAN EXCEL
 # =========================================================================
 def buat_tabel_laporan_excel(df_input):
   if df_input is None or df_input.empty:
@@ -689,6 +776,7 @@ def buat_tabel_laporan_excel(df_input):
       (
           pd.to_datetime(
               r['Waktu Aktual (UTC)'],
+              format='%Y-%m-%d %H:%M:%S',
               errors='coerce',
           ),
           r,
@@ -704,9 +792,10 @@ def buat_tabel_laporan_excel(df_input):
       continue
     sandi = row['Sandi TAF Prakiraan']
 
-    validity_match = RE_VALID_TAF.search(str(sandi))
+    validity_match = re.search(r'\b(\d{2})\d{2}/\d{2}\d{2}\b', str(sandi))
     dt_val = pd.to_datetime(
         row['Waktu Aktual (UTC)'],
+        format='%Y-%m-%d %H:%M:%S',
         errors='coerce',
     )
 
@@ -725,18 +814,15 @@ def buat_tabel_laporan_excel(df_input):
     v_match = RE_VALID_TAF.search(taf_sandi)
     if v_match:
       try:
-        s_day, s_hr = int(v_match.group(1)), int(v_match.group(2))
-        e_day, e_hr = int(v_match.group(3)), int(v_match.group(4))
-        t_valid_taf = fix_valid_datetime(list_rows[0][0], s_day, s_hr)
-        t_valid_end = get_trend_datetime(t_valid_taf, e_day, e_hr)
-        if t_valid_end <= t_valid_taf:
-          t_valid_end += timedelta(days=1)
+        target_day = int(v_match.group(1))
+        target_hour = int(v_match.group(2))
+        t_valid_taf = fix_valid_datetime(
+            list_rows[0][0], target_day, target_hour
+        )
       except Exception:
         t_valid_taf = list_rows[0][0]
-        t_valid_end = t_valid_taf + timedelta(hours=24)
     else:
       t_valid_taf = list_rows[0][0]
-      t_valid_end = t_valid_taf + timedelta(hours=24)
 
     baris_m_base = list_rows[0][1]
 
@@ -751,9 +837,10 @@ def buat_tabel_laporan_excel(df_input):
         b_at,
     )
 
-    if v_match:
-      jam_mulai = v_match.group(2)
-      jam_selesai = v_match.group(4)
+    validity_match = re.search(r'\b\d{2}(\d{2})/\d{2}(\d{2})\b', str(taf_sandi))
+    if validity_match:
+      jam_mulai = validity_match.group(1)
+      jam_selesai = validity_match.group(2)
       jangka_base = f'{jam_mulai}-{jam_selesai}'
       jam_akhir_taf = jam_selesai
     else:
@@ -827,7 +914,7 @@ def buat_tabel_laporan_excel(df_input):
       if tipe.startswith('FM'):
         s_hr = int(tipe[4:6])
         dt_start = get_trend_datetime(t_valid_taf, t_valid_taf.day, s_hr)
-        dt_end = t_valid_end
+        dt_end = t_valid_taf + timedelta(hours=12)
         jangka_trend = f'FM.{tipe[4:6]}-{jam_akhir_taf}'
       else:
         if time_match:
@@ -841,22 +928,32 @@ def buat_tabel_laporan_excel(df_input):
           )
         else:
           dt_start = t_valid_taf
-          dt_end = t_valid_end
+          dt_end = t_valid_taf + timedelta(hours=12)
           jangka_trend = tipe
 
       base_bundle_prev = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
       g_ar, g_ke, g_vi, g_wx, g_aj, g_at = parse_sandi(isi)
 
       if tipe.startswith('FM') or tipe == 'BECMG':
-        if g_ar != '-': cur_ar = g_ar
-        if g_ke != '-': cur_ke = g_ke
-        if g_vi != '-': cur_vi = g_vi
+        if g_ar != '-':
+          cur_ar = g_ar
+        if g_ke != '-':
+          cur_ke = g_ke
+        if g_vi != '-':
+          cur_vi = g_vi
         if g_wx != '-' and not RE_WX_EXCLUDE.search(isi) and 'CAVOK' not in isi:
           cur_wx = g_wx
-        if g_aj != '-': cur_aj = g_aj
-        if g_at != '-': cur_at = g_at
+        if g_aj != '-':
+          cur_aj = g_aj
+        if g_at != '-':
+          cur_at = g_at
         t_ar, t_ke, t_vi, t_wx, t_aj, t_at = (
-            cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at,
+            cur_ar,
+            cur_ke,
+            cur_vi,
+            cur_wx,
+            cur_aj,
+            cur_at,
         )
       else:
         t_ar = g_ar if g_ar != '-' else cur_ar
@@ -882,7 +979,7 @@ def buat_tabel_laporan_excel(df_input):
 
       best_metar = in_window_rows[0]
       best_tuple = (-1, -1)
-      best_scores = ('S', 'S', 'S', 'S', 'S', 'S')
+      best_scores = None
 
       for r in in_window_rows:
         m_obs = {
