@@ -1,4 +1,4 @@
-# 🔥 SIVETA - Excel Export Engine (Option C Integrated METAR + SPECI)
+# 🔥 SIVETA - Excel Export Engine
 import io
 import re
 from xlsxwriter.utility import xl_col_to_name
@@ -9,19 +9,54 @@ import xlsxwriter
 # KAMUS PEMETAAN BULAN BAHASA INDONESIA
 # ==========================================
 BULAN_INDO = {
-    1: 'JANUARI', 2: 'FEBRUARI', 3: 'MARET', 4: 'APRIL',
-    5: 'MEI', 6: 'JUNI', 7: 'JULI', 8: 'AGUSTUS',
-    9: 'SEPTEMBER', 10: 'OKTOBER', 11: 'NOVEMBER', 12: 'DESEMBER',
-    '1': 'JANUARI', '2': 'FEBRUARI', '3': 'MARET', '4': 'APRIL',
-    '5': 'MEI', '6': 'JUNI', '7': 'JULI', '8': 'AGUSTUS',
-    '9': 'SEPTEMBER', '10': 'OKTOBER', '11': 'NOVEMBER', '12': 'DESEMBER',
-    '01': 'JANUARI', '02': 'FEBRUARI', '03': 'MARET', '04': 'APRIL',
-    '05': 'MEI', '06': 'JUNI', '07': 'JULI', '08': 'AGUSTUS',
-    '09': 'SEPTEMBER', '10': 'OKTOBER', '11': 'NOVEMBER', '12': 'DESEMBER',
-    'JANUARY': 'JANUARI', 'FEBRUARY': 'FEBRUARI', 'MARCH': 'MARET',
-    'APRIL': 'APRIL', 'MAY': 'MEI', 'JUNE': 'JUNI',
-    'JULY': 'JULI', 'AUGUST': 'AGUSTUS', 'SEPTEMBER': 'SEPTEMBER',
-    'OCTOBER': 'OKTOBER', 'NOVEMBER': 'NOVEMBER', 'DECEMBER': 'DESEMBER',
+    1: 'JANUARI',
+    2: 'FEBRUARI',
+    3: 'MARET',
+    4: 'APRIL',
+    5: 'MEI',
+    6: 'JUNI',
+    7: 'JULI',
+    8: 'AGUSTUS',
+    9: 'SEPTEMBER',
+    10: 'OKTOBER',
+    11: 'NOVEMBER',
+    12: 'DESEMBER',
+    '1': 'JANUARI',
+    '2': 'FEBRUARI',
+    '3': 'MARET',
+    '4': 'APRIL',
+    '5': 'MEI',
+    '6': 'JUNI',
+    '7': 'JULI',
+    '8': 'AGUSTUS',
+    '9': 'SEPTEMBER',
+    '10': 'OKTOBER',
+    '11': 'NOVEMBER',
+    '12': 'DESEMBER',
+    '01': 'JANUARI',
+    '02': 'FEBRUARI',
+    '03': 'MARET',
+    '04': 'APRIL',
+    '05': 'MEI',
+    '06': 'JUNI',
+    '07': 'JULI',
+    '08': 'AGUSTUS',
+    '09': 'SEPTEMBER',
+    '10': 'OKTOBER',
+    '11': 'NOVEMBER',
+    '12': 'DESEMBER',
+    'JANUARY': 'JANUARI',
+    'FEBRUARY': 'FEBRUARI',
+    'MARCH': 'MARET',
+    'APRIL': 'APRIL',
+    'MAY': 'MEI',
+    'JUNE': 'JUNI',
+    'JULY': 'JULI',
+    'AUGUST': 'AGUSTUS',
+    'SEPTEMBER': 'SEPTEMBER',
+    'OCTOBER': 'OKTOBER',
+    'NOVEMBER': 'NOVEMBER',
+    'DECEMBER': 'DESEMBER',
 }
 
 
@@ -50,7 +85,7 @@ def export_v_final_excel(
           )
       )
 
-  if 'Tanggal' in df_excel.columns and not df_excel.empty:
+  if 'Tanggal' in df_excel.columns:
     df_excel.loc[df_excel['Tanggal'].duplicated(), 'Tanggal'] = ''
 
   output = io.BytesIO()
@@ -158,10 +193,10 @@ def export_v_final_excel(
   batas_col = (
       df_excel.columns.get_loc('S_AwanTgi')
       if 'S_AwanTgi' in df_excel.columns
-      else max(len(df_excel.columns) - 1, 0)
+      else len(df_excel.columns) - 1
   )
   batas_col = max(batas_col, 15)
-  max_col_data = max(len(df_excel.columns) - 1, 20)
+  max_col_data = len(df_excel.columns) - 1
 
   nama_kolom_cantik = [
       'Tgl',
@@ -298,25 +333,24 @@ def export_v_final_excel(
 
   jumlah_baris_data = len(df_excel)
   excel_start_data_row = 14
-  excel_last_data_row = max(excel_start_data_row, excel_start_data_row + jumlah_baris_data - 1)
+  excel_last_data_row = excel_start_data_row + jumlah_baris_data - 1
 
-  if jumlah_baris_data > 0:
-    data_range = f'A{excel_start_data_row}:U{excel_last_data_row}'
-    worksheet.conditional_format(
-        data_range,
-        {
-            'type': 'cell',
-            'criteria': '==',
-            'value': '"B"',
-            'format': format_hijau,
-        },
-    )
-    worksheet.conditional_format(
-        data_range,
-        {'type': 'cell', 'criteria': '==', 'value': '"S"', 'format': format_merah},
-    )
+  data_range = f'A{excel_start_data_row}:U{excel_last_data_row}'
+  worksheet.conditional_format(
+      data_range,
+      {
+          'type': 'cell',
+          'criteria': '==',
+          'value': '"B"',
+          'format': format_hijau,
+      },
+  )
+  worksheet.conditional_format(
+      data_range,
+      {'type': 'cell', 'criteria': '==', 'value': '"S"', 'format': format_merah},
+  )
 
-  worksheet.autofilter(12, 0, 12 + max(1, jumlah_baris_data), max_col_data)
+  worksheet.autofilter(12, 0, 12 + jumlah_baris_data, max_col_data)
   worksheet.freeze_panes(13, 0)
 
   baris_jumlah_idx = 12 + jumlah_baris_data + 1
@@ -342,21 +376,20 @@ def export_v_final_excel(
     )
     worksheet.write(baris_persen_idx, col_idx, '', format_border_bold)
 
-  if jumlah_baris_data > 0:
-    for col_name in kolom_skor:
-      if col_name in df_excel.columns:
-        col_idx = df_excel.columns.get_loc(col_name)
-        col_huruf = xl_col_to_name(col_idx)
+  for col_name in kolom_skor:
+    if col_name in df_excel.columns:
+      col_idx = df_excel.columns.get_loc(col_name)
+      col_huruf = xl_col_to_name(col_idx)
 
-        rumus_jumlah = f'=COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") + COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "S")'
-        worksheet.write_formula(
-            baris_jumlah_idx, col_idx, rumus_jumlah, format_border_bold
-        )
+      rumus_jumlah = f'=COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") + COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "S")'
+      worksheet.write_formula(
+          baris_jumlah_idx, col_idx, rumus_jumlah, format_border_bold
+      )
 
-        rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
-        worksheet.write_formula(
-            baris_persen_idx, col_idx, rumus_persen, format_persen
-        )
+      rumus_persen = f'=IFERROR(COUNTIF({col_huruf}{excel_start_data_row}:{col_huruf}{excel_last_data_row}, "B") / {col_huruf}{excel_baris_jumlah}, 0)'
+      worksheet.write_formula(
+          baris_persen_idx, col_idx, rumus_persen, format_persen
+      )
 
   baris_ttd = baris_persen_idx + 4
   worksheet.merge_range(
@@ -426,11 +459,11 @@ def export_v_final_excel(
   worksheet.print_area(0, 0, akhir_baris_print, max_col_data)
 
   # =========================================================================
-  # 2. SHEET HARIAN (1 s.d. 31): LOG KOMPARASI DINAMIS PER OBSERVASI
+  # 2. SHEET HARIAN (1 s.d. 31): LOG KOMPARASI DINAMIS PER 30-MENIT
   # =========================================================================
   if df_analysis is not None and not df_analysis.empty:
     df_log = df_analysis.copy()
-    df_log['Dt_Obj'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'], errors='coerce')
+    df_log['Dt_Obj'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
 
     fmt_harian_hdr = workbook.add_format({
         'border': 1,
@@ -452,21 +485,6 @@ def export_v_final_excel(
         {'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 11}
     )
 
-    fmt_speci_data = workbook.add_format({
-        'bg_color': '#FFE6CC',
-        'border': 1,
-        'align': 'center',
-        'valign': 'vcenter',
-        'font_size': 8.5,
-    })
-    fmt_speci_left = workbook.add_format({
-        'bg_color': '#FFE6CC',
-        'border': 1,
-        'align': 'left',
-        'valign': 'vcenter',
-        'font_size': 8.5,
-    })
-
     headers_harian = [
         'No',
         'Waktu (UTC)',
@@ -478,18 +496,18 @@ def export_v_final_excel(
         'Wx (T)',
         'JmlAwan (T)',
         'TgiAwan (T)',
-        'Sandi METAR/SPECI Aktual',
-        'Arah (M/SP)',
+        'Sandi METAR Aktual',
+        'Arah (M)',
         'S_Arah',
-        'Kec (M/SP)',
+        'Kec (M)',
         'S_Kec',
-        'Vis (M/SP)',
+        'Vis (M)',
         'S_Vis',
-        'Wx (M/SP)',
+        'Wx (M)',
         'S_Wx',
-        'JmlAwan (M/SP)',
+        'JmlAwan (M)',
         'S_AwanJml',
-        'TgiAwan (M/SP)',
+        'TgiAwan (M)',
         'S_AwanTgi',
     ]
 
@@ -503,7 +521,7 @@ def export_v_final_excel(
 
       ws_day.merge_range(
           'A1:W1',
-          f'LOG VERIFIKASI TAF vs METAR/SPECI PER OBSERVASI — TANGGAL {hari} {bulan_str}'
+          f'LOG VERIFIKASI TAF vs METAR PER 30 MENIT — TANGGAL {hari} {bulan_str}'
           f' {tahun}',
           fmt_harian_title,
       )
@@ -513,12 +531,14 @@ def export_v_final_excel(
 
       df_day = df_day.sort_values('Dt_Obj')
       for row_i, r_data in enumerate(df_day.to_dict('records'), start=1):
-        dt_val = pd.to_datetime(r_data['Waktu Aktual (UTC)'], errors='coerce')
-        dt_str = dt_val.strftime('%H:%M:%S') if pd.notna(dt_val) else '-'
+        dt_str = pd.to_datetime(r_data['Waktu Aktual (UTC)']).strftime(
+            '%H:%M:%S'
+        )
 
+        # 🎯 PEMBACAAN DINAMIS: Mengecek kunci 'Grup_Aktif', 'Change_Group', atau 'Perubahan'
         grup_val = (
-            r_data.get('Change_Group')
-            or r_data.get('Grup_Aktif')
+            r_data.get('Grup_Aktif')
+            or r_data.get('Change_Group')
             or r_data.get('Perubahan')
         )
         if pd.isna(grup_val) or str(grup_val).strip() in [
@@ -531,15 +551,10 @@ def export_v_final_excel(
         else:
           grup_aktif = str(grup_val).strip()
 
-        is_speci = (
-            r_data.get('Jenis_Laporan') == 'SPECI'
-            or 'SPECI' in str(grup_aktif).upper()
-        )
-
         row_harian = [
             row_i,
             dt_str,
-            grup_aktif,
+            grup_aktif,  # 👈 Terisi dinamis: BASE / BECMG 0111/0112 / TEMPO / FM
             r_data.get('Sandi TAF Prakiraan', '-'),
             r_data.get('T_Arah', '-'),
             r_data.get('T_Kec', '-'),
@@ -563,28 +578,20 @@ def export_v_final_excel(
         ]
 
         excel_row = 2 + row_i
-        kolom_skor_harian_idx = [12, 14, 16, 18, 20, 22]
-
         for col_i, val in enumerate(row_harian):
-          fmt_default = (
-              fmt_speci_left if (is_speci and col_i in [3, 10])
-              else (fmt_speci_data if is_speci else (fmt_harian_left if col_i in [3, 10] else fmt_harian_data))
-          )
+          fmt = fmt_harian_left if col_i in [3, 10] else fmt_harian_data
           v_str = str(val).strip().upper()
 
-          if col_i in kolom_skor_harian_idx:
-            if v_str == 'B':
-              ws_day.write(excel_row, col_i, val, format_hijau)
-            elif v_str in ['S', 'FALSE', '0', '']:
-              ws_day.write(excel_row, col_i, val, format_merah)
-            else:
-              ws_day.write(excel_row, col_i, val, fmt_default)
+          if v_str == 'B':
+            ws_day.write(excel_row, col_i, val, format_hijau)
+          elif v_str == 'S' and col_i in [12, 14, 16, 18, 20, 22]:
+            ws_day.write(excel_row, col_i, val, format_merah)
           else:
-            ws_day.write(excel_row, col_i, val, fmt_default)
+            ws_day.write(excel_row, col_i, val, fmt)
 
       ws_day.set_column('A:A', 5)
       ws_day.set_column('B:B', 10)
-      ws_day.set_column('C:C', 18)
+      ws_day.set_column('C:C', 14)
       ws_day.set_column('D:D', 32)
       ws_day.set_column('E:J', 8)
       ws_day.set_column('K:K', 32)
