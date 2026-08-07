@@ -113,7 +113,7 @@ with st.expander("📖 BUKU SAKU SIVETA: Panduan Penggunaan (Klik untuk Buka)"):
     #### 🛠️ CARA PENGGUNAAN
     1. **Unggah Berkas Wajib:** Masukkan file `METAR.csv` dan `TAF.csv` dari GTS (https://bmkgsatu.bmkg.go.id/extractgts).
     2. **Unggah Berkas Opsional:** Masukkan `SPECI.csv`. Jika dimasukkan, logika verifikasi otomatis melebur data SPECI ke dalam hasil akhir.
-    3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri. Pastikan rentang tanggal sesuai dengan periode data yang diunggah. Misalnya, jika data METAR dan TAF Bulan Januari 2026 maka dari tanggal 31 Desember 2025 hingga 31 Januari 2026.
+    3. **Tentukan Rentang Waktu:** Gunakan filter kalender di *sidebar* kiri. Pastikan rentang tanggal sesuai dengan periode data yang diunggah.
     4. **Proses:** Tekan tombol **"🚀 PROSES DATA VERIFIKASI TAFOR 🚀"**.
     """)
 
@@ -125,7 +125,12 @@ with c_up1:
     df_m = pd.read_csv(file_m)
     if "id" in df_m.columns:
       df_m = df_m.sort_values("id")
-    df_metar_raw = df_m.drop_duplicates(subset=["data_timestamp"], keep="last")
+    
+    col_ts_m = next((c for c in df_m.columns if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])), None)
+    if col_ts_m:
+      df_metar_raw = df_m.drop_duplicates(subset=[col_ts_m], keep="last")
+    else:
+      df_metar_raw = df_m
 
 with c_up2:
   file_t = st.file_uploader("2. Unggah TAF.csv", type=["csv"], key="taf")
@@ -133,7 +138,12 @@ with c_up2:
     df_t = pd.read_csv(file_t)
     if "id" in df_t.columns:
       df_t = df_t.sort_values("id")
-    df_taf_raw = df_t.drop_duplicates(subset=["data_timestamp"], keep="last")
+    
+    col_ts_t = next((c for c in df_t.columns if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])), None)
+    if col_ts_t:
+      df_taf_raw = df_t.drop_duplicates(subset=[col_ts_t], keep="last")
+    else:
+      df_taf_raw = df_t
 
 with c_up3:
   file_sp = st.file_uploader(
@@ -143,19 +153,23 @@ with c_up3:
     df_sp = pd.read_csv(file_sp)
     if "id" in df_sp.columns:
       df_sp = df_sp.sort_values("id")
-    df_speci_raw = df_sp.drop_duplicates(
-        subset=["data_timestamp"], keep="last"
-    )
+    
+    col_ts_sp = next((c for c in df_sp.columns if any(k in c.lower() for k in ['time', 'waktu', 'date', 'timestamp'])), None)
+    if col_ts_sp:
+      df_speci_raw = df_sp.drop_duplicates(subset=[col_ts_sp], keep="last")
+    else:
+      df_speci_raw = df_sp
 
-# ✅ FIX FALLBACK STASIUN TERDETEKSI / DEFAULT WATU
+# ✅ DETEKSI OTOMATIS KODE STASIUN
 stasiun_aktif = "WATU"
 if df_metar_raw is not None:
-  if "cccc" in df_metar_raw.columns:
-    stasiun_terdeteksi = df_metar_raw["cccc"].dropna().unique().tolist()
+  col_cccc = next((c for c in df_metar_raw.columns if c.lower() in ['cccc', 'station', 'stasiun', 'icao']), None)
+  if col_cccc:
+    stasiun_terdeteksi = df_metar_raw[col_cccc].dropna().unique().tolist()
     if stasiun_terdeteksi:
       stasiun_aktif = str(stasiun_terdeteksi[0]).strip().upper()
 
-# Inject Banner
+# Inject Banner Header
 with banner_container:
   waktu_sekarang = datetime.now()
   jam_statis = waktu_sekarang.strftime("%H:%M")
@@ -210,7 +224,7 @@ if df_metar_raw is not None and df_taf_raw is not None:
             df_metar_raw, df_taf_raw, df_speci_umpan
         )
         df_hasil["Datetime_Obj"] = pd.to_datetime(
-            df_hasil["Waktu Aktual (UTC)"], format="%Y-%m-%d %H:%M:%S", errors="coerce"
+            df_hasil["Waktu Aktual (UTC)"], errors="coerce"
         ).dt.date
 
         st.session_state["df_hasil"] = df_hasil
@@ -239,7 +253,6 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
         f" {tgl_selesai}. Silakan sesuaikan filter tanggal."
     )
   else:
-    # 🎯 RAKIT DATAFRAME LAPORAN REKAPITULASI EXCEL UNTUK RENTANG TANGGAL TERPILIH
     df_vfinal = buat_tabel_laporan_excel(df_filtered)
 
     rows_tafor = []
@@ -255,7 +268,6 @@ if st.session_state["diklik_proses"] and st.session_state["df_hasil"] is not Non
         "S_AwanTgi": "F. Tinggi Dasar Awan (Cloud Base)",
     }
 
-    # 🎯 LOGIKA HITUNG PERSENTASE SINKRON DENGAN EXCEL
     for col_name, label in p_headers.items():
       if col_name in df_vfinal.columns:
         s_series = df_vfinal[col_name].apply(
