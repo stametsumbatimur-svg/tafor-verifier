@@ -387,6 +387,7 @@ def evaluasi_sandi_tunggal(
 
 
 def proses_verifikasi(df_metar, df_taf, df_speci):
+    # 🔍 DETEKSI KOLOM METAR
     col_waktu_metar = next(
         (c for c in df_metar.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])),
         df_metar.columns[0],
@@ -395,6 +396,8 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         (c for c in df_metar.columns if 'type' not in c.lower() and 'status' not in c.lower() and any(k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi'])),
         df_metar.columns[1],
     )
+
+    # 🔍 DETEKSI KOLOM TAF
     col_waktu_taf = next(
         (c for c in df_taf.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])),
         df_taf.columns[0],
@@ -406,17 +409,18 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
     has_cccc = 'cccc' in df_metar.columns
 
-    # 1. SIAPKAN METAR DENGAN FLAG 'METAR'
+    # 1. SIAPKAN DATA METAR
     metar_list = (
         df_metar.assign(
             dt_obj=pd.to_datetime(df_metar[col_waktu_metar].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce'),
+            sandi_teks_raw=df_metar[col_teks_metar],
             jenis_observasi='METAR'
         )
         .dropna(subset=['dt_obj'])
         .to_dict('records')
     )
     
-    # 2. SIAPKAN TAF
+    # 2. SIAPKAN DATA TAF
     taf_raw = (
         df_taf.assign(
             dt_obj=pd.to_datetime(df_taf[col_waktu_taf].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce')
@@ -426,20 +430,28 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
         .to_dict('records')
     )
 
-    # 3. SIAPKAN SPECI DENGAN FLAG 'SPECI' (JIKA ADA)
+    # 3. SIAPKAN DATA SPECI (DETEKSI KOLOM MANDIRI & PRESISI)
+    speci_list = []
     if df_speci is not None and not df_speci.empty:
+        col_waktu_speci = next(
+            (c for c in df_speci.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])),
+            df_speci.columns[0],
+        )
+        col_teks_speci = next(
+            (c for c in df_speci.columns if 'type' not in c.lower() and 'status' not in c.lower() and any(k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi'])),
+            df_speci.columns[1],
+        )
         speci_list = (
             df_speci.assign(
-                dt_obj=pd.to_datetime(df_speci[df_speci.columns[0]].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce'),
+                dt_obj=pd.to_datetime(df_speci[col_waktu_speci].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce'),
+                sandi_teks_raw=df_speci[col_teks_speci],
                 jenis_observasi='SPECI'
             )
             .dropna(subset=['dt_obj'])
             .to_dict('records')
         )
-    else:
-        speci_list = []
 
-    # 4. LEBUR METAR DAN SPECI, LALU URUTKAN KRONOLOGIS
+    # 4. LEBUR METAR DAN SPECI KRONOLOGIS
     obs_list = metar_list + speci_list
     obs_list.sort(key=lambda x: x['dt_obj'])
 
@@ -461,12 +473,12 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
     baris_analisis_final = []
 
-    # 5. LOOPING DATA OBSERVASI GABUNGAN (METAR + SPECI)
+    # 5. EVALUASI OBSERVASI (METAR & SPECI)
     for m in obs_list:
         tgl_jam_aktual = m['dt_obj']
-        teks_metar = m.get(col_teks_metar, m.get(df_speci.columns[1] if df_speci is not None and not df_speci.empty else 'sandi', '-'))
+        teks_metar = str(m.get('sandi_teks_raw', '-'))
         m_stasiun = m['cccc'] if has_cccc and 'cccc' in m else 'WATU'
-        j_obs = m['jenis_observasi']
+        j_obs = m.get('jenis_observasi', 'METAR')
 
         m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(teks_metar)
 
@@ -558,7 +570,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
         baris_analisis_final.append({
             'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
-            'Jenis_Observasi': j_obs, # <--- TAMBAHAN FLAG JENIS OBSERVASI
+            'Jenis_Observasi': j_obs,
             'Sandi METAR Aktual': teks_metar,
             'Sandi TAF Prakiraan': taf_aktif,
             'Grup_Aktif': cur_grup_aktif,
