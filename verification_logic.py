@@ -388,88 +388,60 @@ def evaluasi_sandi_tunggal(
 
 def proses_verifikasi(df_metar, df_taf, df_speci):
     col_waktu_metar = next(
-        (
-            c
-            for c in df_metar.columns
-            if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])
-        ),
+        (c for c in df_metar.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])),
         df_metar.columns[0],
     )
     col_teks_metar = next(
-        (
-            c
-            for c in df_metar.columns
-            if 'type' not in c.lower()
-            and 'status' not in c.lower()
-            and any(
-                k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi']
-            )
-        ),
+        (c for c in df_metar.columns if 'type' not in c.lower() and 'status' not in c.lower() and any(k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi'])),
         df_metar.columns[1],
     )
     col_waktu_taf = next(
-        (
-            c
-            for c in df_taf.columns
-            if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])
-        ),
+        (c for c in df_taf.columns if any(k in c.lower() for k in ['waktu', 'date', 'tanggal', 'time'])),
         df_taf.columns[0],
     )
     col_teks_taf = next(
-        (
-            c
-            for c in df_taf.columns
-            if 'type' not in c.lower()
-            and 'status' not in c.lower()
-            and any(
-                k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi']
-            )
-        ),
+        (c for c in df_taf.columns if 'type' not in c.lower() and 'status' not in c.lower() and any(k in c.lower() for k in ['sandi', 'text', 'message', 'report', 'isi'])),
         df_taf.columns[1],
     )
 
     has_cccc = 'cccc' in df_metar.columns
 
+    # 1. SIAPKAN METAR DENGAN FLAG 'METAR'
     metar_list = (
         df_metar.assign(
-            dt_obj=pd.to_datetime(
-                df_metar[col_waktu_metar].astype(str).str.slice(0, 19),
-                format='%Y-%m-%d %H:%M:%S',
-                errors='coerce',
-            )
+            dt_obj=pd.to_datetime(df_metar[col_waktu_metar].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce'),
+            jenis_observasi='METAR'
         )
         .dropna(subset=['dt_obj'])
-        .sort_values('dt_obj')
         .to_dict('records')
     )
+    
+    # 2. SIAPKAN TAF
     taf_raw = (
         df_taf.assign(
-            dt_obj=pd.to_datetime(
-                df_taf[col_waktu_taf].astype(str).str.slice(0, 19),
-                format='%Y-%m-%d %H:%M:%S',
-                errors='coerce',
-            )
+            dt_obj=pd.to_datetime(df_taf[col_waktu_taf].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce')
         )
         .dropna(subset=['dt_obj'])
         .sort_values('dt_obj')
         .to_dict('records')
     )
 
+    # 3. SIAPKAN SPECI DENGAN FLAG 'SPECI' (JIKA ADA)
     if df_speci is not None and not df_speci.empty:
-        speci_raw = (
+        speci_list = (
             df_speci.assign(
-                dt_obj=pd.to_datetime(
-                    df_speci[df_speci.columns[0]].astype(str).str.slice(0, 19),
-                    format='%Y-%m-%d %H:%M:%S',
-                    errors='coerce',
-                )
+                dt_obj=pd.to_datetime(df_speci[df_speci.columns[0]].astype(str).str.slice(0, 19), format='%Y-%m-%d %H:%M:%S', errors='coerce'),
+                jenis_observasi='SPECI'
             )
             .dropna(subset=['dt_obj'])
-            .sort_values('dt_obj')
             .to_dict('records')
         )
     else:
-        speci_raw = []
+        speci_list = []
+
+    # 4. LEBUR METAR DAN SPECI, LALU URUTKAN KRONOLOGIS
+    obs_list = metar_list + speci_list
+    obs_list.sort(key=lambda x: x['dt_obj'])
 
     taf_list = []
     for tr in taf_raw:
@@ -485,26 +457,22 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
             except ValueError:
                 pass
         poin = 1 if RE_AMD_COR.search(t_teks) else 0
-        taf_list.append(
-            {'issue': t_issue, 'valid': v_dt, 'poin': poin, 'teks': t_teks}
-        )
+        taf_list.append({'issue': t_issue, 'valid': v_dt, 'poin': poin, 'teks': t_teks})
 
-    baris_analisis_final, baris_speci_final = [], []
+    baris_analisis_final = []
 
-    for m in metar_list:
+    # 5. LOOPING DATA OBSERVASI GABUNGAN (METAR + SPECI)
+    for m in obs_list:
         tgl_jam_aktual = m['dt_obj']
-        teks_metar = m[col_teks_metar]
-        m_stasiun = m['cccc'] if has_cccc else 'WATU'
+        teks_metar = m.get(col_teks_metar, m.get(df_speci.columns[1] if df_speci is not None and not df_speci.empty else 'sandi', '-'))
+        m_stasiun = m['cccc'] if has_cccc and 'cccc' in m else 'WATU'
+        j_obs = m['jenis_observasi']
 
-        m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(
-            teks_metar
-        )
+        m_ar, m_ke, m_vi, m_wx, m_aj, m_at, m_ts_cb = ekstrak_param_metar_speci(teks_metar)
 
         kandidat = [
-            t
-            for t in taf_list
-            if t['issue'] <= tgl_jam_aktual
-            and t['valid'] <= tgl_jam_aktual < t['valid'] + timedelta(hours=12)
+            t for t in taf_list
+            if t['issue'] <= tgl_jam_aktual and t['valid'] <= tgl_jam_aktual < t['valid'] + timedelta(hours=12)
         ]
         if not kandidat:
             continue
@@ -516,9 +484,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
 
         parts = RE_PARTS.split(str(taf_aktif))
         b_ar, b_ke, b_vi, b_wx, b_aj, b_at = parse_sandi(parts[0])
-        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = (
-            b_ar, b_ke, b_vi, b_wx, b_aj, b_at,
-        )
+        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
         t_ar, t_ke, t_vi, t_wx, t_aj, t_at = b_ar, b_ke, b_vi, b_wx, b_aj, b_at
 
         is_grup_prob = is_grup_tempo = is_grup_becmg_trans = False
@@ -548,26 +514,15 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     if g_ar != '-': cur_ar = g_ar
                     if g_ke != '-': cur_ke = g_ke
                     if g_vi != '-': cur_vi = g_vi
-                    if (
-                        g_wx != '-'
-                        and not RE_WX_EXCLUDE.search(isi)
-                        and 'CAVOK' not in isi
-                    ):
-                        cur_wx = g_wx
+                    if g_wx != '-' and not RE_WX_EXCLUDE.search(isi) and 'CAVOK' not in isi: cur_wx = g_wx
                     if g_aj != '-': cur_aj = g_aj
                     if g_at != '-': cur_at = g_at
 
-                    t_ar, t_ke, t_vi, t_wx, t_aj, t_at = (
-                        cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at,
-                    )
-                    if tipe == 'BECMG':
-                        is_grup_becmg_trans = tgl_jam_aktual < dt_end
+                    t_ar, t_ke, t_vi, t_wx, t_aj, t_at = cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at
+                    if tipe == 'BECMG': is_grup_becmg_trans = tgl_jam_aktual < dt_end
 
                     if time_match:
-                        cur_grup_aktif = (
-                            f'{tipe}'
-                            f' {time_match.group(1)}{time_match.group(2)}/{time_match.group(3)}{time_match.group(4)}'
-                        )
+                        cur_grup_aktif = f'{tipe} {time_match.group(1)}{time_match.group(2)}/{time_match.group(3)}{time_match.group(4)}'
                     else:
                         cur_grup_aktif = tipe
 
@@ -576,12 +531,7 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     if g_ar != '-': t_ar = g_ar
                     if g_ke != '-': t_ke = g_ke
                     if g_vi != '-': t_vi = g_vi
-                    if (
-                        g_wx != '-'
-                        and not RE_WX_EXCLUDE.search(isi)
-                        and 'CAVOK' not in isi
-                    ):
-                        t_wx = g_wx
+                    if g_wx != '-' and not RE_WX_EXCLUDE.search(isi) and 'CAVOK' not in isi: t_wx = g_wx
                     if g_aj != '-': t_aj = g_aj
                     if g_at != '-': t_at = g_at
 
@@ -589,81 +539,42 @@ def proses_verifikasi(df_metar, df_taf, df_speci):
                     if 'TEMPO' in tipe: is_grup_tempo = True
 
                     if time_match:
-                        cur_grup_aktif = (
-                            f'{tipe}'
-                            f' {time_match.group(1)}{time_match.group(2)}/{time_match.group(3)}{time_match.group(4)}'
-                        )
+                        cur_grup_aktif = f'{tipe} {time_match.group(1)}{time_match.group(2)}/{time_match.group(3)}{time_match.group(4)}'
                     else:
                         cur_grup_aktif = tipe
 
-        m_obs_data = {
-            'M_Arah': m_ar,
-            'M_Kec': m_ke,
-            'M_Vis': m_vi,
-            'M_Wx': m_wx,
-            'M_AwanJml': m_aj,
-            'M_AwanTgi': m_at,
-            'M_TS_CB': m_ts_cb,
-        }
+        m_obs_data = {'M_Arah': m_ar, 'M_Kec': m_ke, 'M_Vis': m_vi, 'M_Wx': m_wx, 'M_AwanJml': m_aj, 'M_AwanTgi': m_at, 'M_TS_CB': m_ts_cb}
         base_bundle = (cur_ar, cur_ke, cur_vi, cur_wx, cur_aj, cur_at)
 
         status_jam_ini, s_ar, s_ke, s_vi, s_wx, s_aj, s_at = evaluasi_sandi_tunggal(
-            m_obs_data,
-            t_ar,
-            t_ke,
-            t_vi,
-            t_wx,
-            t_aj,
-            t_at,
-            base_bundle,
-            is_grup_prob,
-            is_grup_tempo,
-            is_grup_becmg_trans,
+            m_obs_data, t_ar, t_ke, t_vi, t_wx, t_aj, t_at, base_bundle, is_grup_prob, is_grup_tempo, is_grup_becmg_trans
         )
 
         is_crit = 'NORMAL'
         try:
-            if int(m_vi) < 5000 or (m_aj in ['BKN', 'OVC'] and int(m_at) < 1500):
-                is_crit = 'CRITICAL MINIMA'
+            if int(m_vi) < 5000 or (m_aj in ['BKN', 'OVC'] and int(m_at) < 1500): is_crit = 'CRITICAL MINIMA'
         except:
             pass
 
         baris_analisis_final.append({
             'Waktu Aktual (UTC)': tgl_jam_aktual.strftime('%Y-%m-%d %H:%M:%S'),
+            'Jenis_Observasi': j_obs, # <--- TAMBAHAN FLAG JENIS OBSERVASI
             'Sandi METAR Aktual': teks_metar,
             'Sandi TAF Prakiraan': taf_aktif,
             'Grup_Aktif': cur_grup_aktif,
             'Change_Group': cur_grup_aktif,
-            'M_Arah': m_ar,
-            'T_Arah': t_ar,
-            'S_Arah': s_ar,
-            'M_Kec': m_ke,
-            'T_Kec': t_ke,
-            'S_Kec': s_ke,
-            'M_Vis': m_vi,
-            'T_Vis': t_vi,
-            'S_Vis': s_vi,
-            'M_Wx': m_wx,
-            'T_Wx': t_wx,
-            'S_Wx': s_wx,
-            'M_AwanJml': m_aj,
-            'T_AwanJml': t_aj,
-            'S_AwanJml': s_aj,
-            'M_AwanTgi': m_at,
-            'T_AwanTgi': t_at,
-            'S_AwanTgi': s_at,
-            'M_TS_CB': m_ts_cb,
-            'Status_Minima': is_crit,
+            'M_Arah': m_ar, 'T_Arah': t_ar, 'S_Arah': s_ar,
+            'M_Kec': m_ke, 'T_Kec': t_ke, 'S_Kec': s_ke,
+            'M_Vis': m_vi, 'T_Vis': t_vi, 'S_Vis': s_vi,
+            'M_Wx': m_wx, 'T_Wx': t_wx, 'S_Wx': s_wx,
+            'M_AwanJml': m_aj, 'T_AwanJml': t_aj, 'S_AwanJml': s_aj,
+            'M_AwanTgi': m_at, 'T_AwanTgi': t_at, 'S_AwanTgi': s_at,
+            'M_TS_CB': m_ts_cb, 'Status_Minima': is_crit,
             'Hasil Akhir': 'ACCURATE' if status_jam_ini == 'B' else 'MISS',
             'Kode_Stasiun': m_stasiun,
         })
 
-    return (
-        pd.DataFrame(baris_analisis_final),
-        pd.DataFrame(baris_speci_final),
-        None,
-        None,
-    )
+    return pd.DataFrame(baris_analisis_final), pd.DataFrame(), None, None
 
 
 # =========================================================================
