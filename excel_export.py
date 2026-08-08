@@ -466,49 +466,25 @@ def export_v_final_excel(
     df_log['Dt_Obj'] = pd.to_datetime(df_log['Waktu Aktual (UTC)'])
 
     fmt_harian_hdr = workbook.add_format({
-        'border': 1,
-        'bold': True,
-        'align': 'center',
-        'valign': 'vcenter',
-        'bg_color': '#1F4E78',
-        'font_color': '#FFFFFF',
-        'text_wrap': True,
-        'font_size': 8.5,
+        'border': 1, 'bold': True, 'align': 'center', 'valign': 'vcenter',
+        'bg_color': '#1F4E78', 'font_color': '#FFFFFF', 'text_wrap': True, 'font_size': 8.5
     })
-    fmt_harian_data = workbook.add_format(
-        {'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 8.5}
-    )
-    fmt_harian_left = workbook.add_format(
-        {'border': 1, 'align': 'left', 'valign': 'vcenter', 'font_size': 8.5}
-    )
-    fmt_harian_title = workbook.add_format(
-        {'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 11}
-    )
+    # Format Default (METAR)
+    fmt_harian_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 8.5})
+    fmt_harian_left = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'font_size': 8.5})
+    
+    # Format Khusus SPECI (Kuning Muda)
+    fmt_speci_data = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 8.5, 'bg_color': '#FFF2CC'})
+    fmt_speci_left = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter', 'font_size': 8.5, 'bg_color': '#FFF2CC'})
+
+    fmt_harian_title = workbook.add_format({'bold': True, 'align': 'left', 'valign': 'vcenter', 'font_size': 11})
 
     headers_harian = [
-        'No',
-        'Waktu (UTC)',
-        'Change Group',
-        'Sandi TAF Prakiraan',
-        'Arah (T)',
-        'Kec (T)',
-        'Vis (T)',
-        'Wx (T)',
-        'JmlAwan (T)',
-        'TgiAwan (T)',
-        'Sandi METAR Aktual',
-        'Arah (M)',
-        'S_Arah',
-        'Kec (M)',
-        'S_Kec',
-        'Vis (M)',
-        'S_Vis',
-        'Wx (M)',
-        'S_Wx',
-        'JmlAwan (M)',
-        'S_AwanJml',
-        'TgiAwan (M)',
-        'S_AwanTgi',
+        'No', 'Waktu (UTC)', 'Change Group', 'Sandi TAF Prakiraan',
+        'Arah (T)', 'Kec (T)', 'Vis (T)', 'Wx (T)', 'JmlAwan (T)', 'TgiAwan (T)',
+        'Sandi METAR Aktual', 'Arah (M)', 'S_Arah', 'Kec (M)', 'S_Kec',
+        'Vis (M)', 'S_Vis', 'Wx (M)', 'S_Wx', 'JmlAwan (M)', 'S_AwanJml',
+        'TgiAwan (M)', 'S_AwanTgi',
     ]
 
     for hari in range(1, 32):
@@ -521,8 +497,7 @@ def export_v_final_excel(
 
       ws_day.merge_range(
           'A1:W1',
-          f'LOG VERIFIKASI TAF vs METAR PER 30 MENIT — TANGGAL {hari} {bulan_str}'
-          f' {tahun}',
+          f'LOG VERIFIKASI TAF vs METAR PER 30 MENIT — TANGGAL {hari} {bulan_str} {tahun}',
           fmt_harian_title,
       )
 
@@ -531,57 +506,37 @@ def export_v_final_excel(
 
       df_day = df_day.sort_values('Dt_Obj')
       for row_i, r_data in enumerate(df_day.to_dict('records'), start=1):
-        dt_str = pd.to_datetime(r_data['Waktu Aktual (UTC)']).strftime(
-            '%H:%M:%S'
-        )
+        dt_str = pd.to_datetime(r_data['Waktu Aktual (UTC)']).strftime('%H:%M:%S')
+        is_speci = r_data.get('Jenis_Observasi', 'METAR') == 'SPECI' # 👈 Cek apakah baris ini SPECI
 
-        # 🎯 PEMBACAAN DINAMIS: Mengecek kunci 'Grup_Aktif', 'Change_Group', atau 'Perubahan'
-        grup_val = (
-            r_data.get('Grup_Aktif')
-            or r_data.get('Change_Group')
-            or r_data.get('Perubahan')
-        )
-        if pd.isna(grup_val) or str(grup_val).strip() in [
-            '',
-            'nan',
-            'None',
-            '-',
-        ]:
+        grup_val = r_data.get('Grup_Aktif') or r_data.get('Change_Group') or r_data.get('Perubahan')
+        if pd.isna(grup_val) or str(grup_val).strip() in ['', 'nan', 'None', '-']:
           grup_aktif = 'BASE'
         else:
           grup_aktif = str(grup_val).strip()
 
         row_harian = [
-            row_i,
-            dt_str,
-            grup_aktif,  # 👈 Terisi dinamis: BASE / BECMG 0111/0112 / TEMPO / FM
-            r_data.get('Sandi TAF Prakiraan', '-'),
-            r_data.get('T_Arah', '-'),
-            r_data.get('T_Kec', '-'),
-            r_data.get('T_Vis', '-'),
-            r_data.get('T_Wx', '-'),
-            r_data.get('T_AwanJml', '-'),
-            r_data.get('T_AwanTgi', '-'),
-            r_data.get('Sandi METAR Aktual', '-'),
-            r_data.get('M_Arah', '-'),
-            r_data.get('S_Arah', 'S'),
-            r_data.get('M_Kec', '-'),
-            r_data.get('S_Kec', 'S'),
-            r_data.get('M_Vis', '-'),
-            r_data.get('S_Vis', 'S'),
-            r_data.get('M_Wx', '-'),
-            r_data.get('S_Wx', 'S'),
-            r_data.get('M_AwanJml', '-'),
-            r_data.get('S_AwanJml', 'S'),
-            r_data.get('M_AwanTgi', '-'),
+            row_i, dt_str, grup_aktif, r_data.get('Sandi TAF Prakiraan', '-'),
+            r_data.get('T_Arah', '-'), r_data.get('T_Kec', '-'), r_data.get('T_Vis', '-'),
+            r_data.get('T_Wx', '-'), r_data.get('T_AwanJml', '-'), r_data.get('T_AwanTgi', '-'),
+            r_data.get('Sandi METAR Aktual', '-'), r_data.get('M_Arah', '-'), r_data.get('S_Arah', 'S'),
+            r_data.get('M_Kec', '-'), r_data.get('S_Kec', 'S'), r_data.get('M_Vis', '-'),
+            r_data.get('S_Vis', 'S'), r_data.get('M_Wx', '-'), r_data.get('S_Wx', 'S'),
+            r_data.get('M_AwanJml', '-'), r_data.get('S_AwanJml', 'S'), r_data.get('M_AwanTgi', '-'),
             r_data.get('S_AwanTgi', 'S'),
         ]
 
         excel_row = 2 + row_i
+        
+        # 👈 Tentukan format baris berdasarkan jenis observasi (METAR/SPECI)
+        fmt_base_data = fmt_speci_data if is_speci else fmt_harian_data
+        fmt_base_left = fmt_speci_left if is_speci else fmt_harian_left
+
         for col_i, val in enumerate(row_harian):
-          fmt = fmt_harian_left if col_i in [3, 10] else fmt_harian_data
+          fmt = fmt_base_left if col_i in [3, 10] else fmt_base_data
           v_str = str(val).strip().upper()
 
+          # Tetap pertahankan warna Hijau/Merah untuk Kolom Penilaian B/S
           if v_str == 'B':
             ws_day.write(excel_row, col_i, val, format_hijau)
           elif v_str == 'S' and col_i in [12, 14, 16, 18, 20, 22]:
